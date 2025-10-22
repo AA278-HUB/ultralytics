@@ -156,36 +156,76 @@ class BaseModel(torch.nn.Module):
             return self._predict_augment(x)
         return self._predict_once(x, profile, visualize, embed)
 
+
     def _predict_once(self, x, profile=False, visualize=False, embed=None):
         """
         Perform a forward pass through the network.
-
         Args:
             x (torch.Tensor): The input tensor to the model.
-            profile (bool): Print the computation time of each layer if True.
-            visualize (bool): Save the feature maps of the model if True.
+            profile (bool):  Print the computation time of each layer if True, defaults to False.
+            visualize (bool): Save the feature maps of the model if True, defaults to False.
             embed (list, optional): A list of feature vectors/embeddings to return.
-
         Returns:
             (torch.Tensor): The last output of the model.
         """
         y, dt, embeddings = [], [], []  # outputs
-        embed = frozenset(embed) if embed is not None else {-1}
-        max_idx = max(embed)
         for m in self.model:
             if m.f != -1:  # if not from previous layer
                 x = y[m.f] if isinstance(m.f, int) else [x if j == -1 else y[j] for j in m.f]  # from earlier layers
             if profile:
                 self._profile_one_layer(m, x, dt)
-            x = m(x)  # run
-            y.append(x if m.i in self.save else None)  # save output
+            if hasattr(m, 'backbone'):
+                x = m(x)
+                if len(x) != 5:  # 0 - 5
+                    x.insert(0, None)
+                for index, i in enumerate(x):
+                    if index in self.save:
+                        y.append(i)
+                    else:
+                        y.append(None)
+                x = x[-1]  # 最后一个输出传给下一层
+            else:
+                x = m(x)  # run
+                y.append(x if m.i in self.save else None)  # save output
             if visualize:
                 feature_visualization(x, m.type, m.i, save_dir=visualize)
-            if m.i in embed:
-                embeddings.append(torch.nn.functional.adaptive_avg_pool2d(x, (1, 1)).squeeze(-1).squeeze(-1))  # flatten
-                if m.i == max_idx:
+            if embed and m.i in embed:
+                embeddings.append(nn.functional.adaptive_avg_pool2d(x, (1, 1)).squeeze(-1).squeeze(-1))  # flatten
+                if m.i == max(embed):
                     return torch.unbind(torch.cat(embeddings, 1), dim=0)
         return x
+
+    #
+    # def _predict_once(self, x, profile=False, visualize=False, embed=None):
+    #     """
+    #     Perform a forward pass through the network.
+    #
+    #     Args:
+    #         x (torch.Tensor): The input tensor to the model.
+    #         profile (bool): Print the computation time of each layer if True.
+    #         visualize (bool): Save the feature maps of the model if True.
+    #         embed (list, optional): A list of feature vectors/embeddings to return.
+    #
+    #     Returns:
+    #         (torch.Tensor): The last output of the model.
+    #     """
+    #     y, dt, embeddings = [], [], []  # outputs
+    #     embed = frozenset(embed) if embed is not None else {-1}
+    #     max_idx = max(embed)
+    #     for m in self.model:
+    #         if m.f != -1:  # if not from previous layer
+    #             x = y[m.f] if isinstance(m.f, int) else [x if j == -1 else y[j] for j in m.f]  # from earlier layers
+    #         if profile:
+    #             self._profile_one_layer(m, x, dt)
+    #         x = m(x)  # run
+    #         y.append(x if m.i in self.save else None)  # save output
+    #         if visualize:
+    #             feature_visualization(x, m.type, m.i, save_dir=visualize)
+    #         if m.i in embed:
+    #             embeddings.append(torch.nn.functional.adaptive_avg_pool2d(x, (1, 1)).squeeze(-1).squeeze(-1))  # flatten
+    #             if m.i == max_idx:
+    #                 return torch.unbind(torch.cat(embeddings, 1), dim=0)
+    #     return x
 
     def _predict_augment(self, x):
         """Perform augmentations on input image x and return augmented inference."""
@@ -1633,10 +1673,8 @@ def parse_model(d, ch, verbose=True):
     )
     for i, (f, n, m, args) in enumerate(d["backbone"] + d["head"]):  # from, number, module, args
 
-
         # =======添加======
         t = m
-
         m = (
             getattr(torch.nn, m[3:])
             if "nn." in m
@@ -1750,7 +1788,6 @@ def parse_model(d, ch, verbose=True):
 
         t1 = nn.Sequential(*layers)
         t2 = sorted(save)
-
     return t1, t2
 
 
