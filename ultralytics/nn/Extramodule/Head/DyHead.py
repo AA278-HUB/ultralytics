@@ -2,6 +2,8 @@ import torch
 import torch.nn as nn
 import torch. nn. functional as F
 import math
+from  ultralytics.nn.modules.head import Detect
+
 
 try:
     from mmcv.cnn import build_activation_layer, build_norm_layer
@@ -309,7 +311,33 @@ def dist2bbox(distance, anchor_points, xywh=True, dim=-1):
         return torch.cat((c_xy, wh), dim)  # xywh bbox
     return torch.cat((x1y1, x2y2), dim)  # xyxy bbox
 
-class Detect_DyHead(nn.Module):
+
+
+
+from ultralytics.nn.modules.head import Detect
+
+# class Detect_DyHead(Detect):
+#     def __init__(self, nc=80, hidc=256, block_num=2, ch=()):
+#         super().__init__(nc, ch)  # ensures stride discovery + bias_init paths work
+#         c2 = max(16, ch[0] // 4, self.reg_max * 4)
+#         c3 = max(ch[0], min(self.nc, 100))
+#         self.conv = nn.ModuleList(Conv(x, hidc, 1) for x in ch)
+#         self.dyhead = nn.Sequential(*[DyHeadBlock(hidc) for _ in range(block_num)])
+#         self.cv2 = nn.ModuleList(nn.Sequential(Conv(hidc, c2, 3), Conv(c2, c2, 3), nn.Conv2d(c2, 4*self.reg_max, 1)) for _ in ch)
+#         self.cv3 = nn.ModuleList(nn.Sequential(Conv(hidc, c3, 3), Conv(c3, c3, 3), nn.Conv2d(c3, self.nc, 1)) for _ in ch)
+#
+#     def forward(self, x):
+#         for i in range(self.nl):
+#             x[i] = self.conv[i](x[i])
+#         x = self.dyhead(x)
+#         for i in range(self.nl):
+#             x[i] = torch.cat((self.cv2[i](x[i]), self.cv3[i](x[i])), 1)
+#         return x if self.training else super().forward(x)  # training: list[P3,P4,P5]; inference: Detect path
+
+
+
+
+class Detect_DyHead(Detect):
     """YOLOv8 Detect head with DyHead for detection models."""
     dynamic = False  # force grid reconstruction
     export = False  # export mode
@@ -318,7 +346,7 @@ class Detect_DyHead(nn.Module):
     strides = torch.empty(0)  # init
 
     def __init__(self, nc=80, hidc=256, block_num=2, ch=()):  # detection layer
-        super().__init__()
+        super().__init__(nc,ch)
         self.nc = nc  # number of classes
         self.nl = len(ch)  # number of detection layers
         self.reg_max = 16  # DFL channels (ch[0] // 16 to scale 4/8/12/16/20 for n/s/m/l/x)
@@ -334,9 +362,6 @@ class Detect_DyHead(nn.Module):
 
     def forward(self, x):
 
-        # print(x[0].shape)
-        # print(x[1].shape)
-        # print(x[2].shape)
         """Concatenates and returns predicted bounding boxes and class probabilities."""
         for i in range(self.nl):
             x[i] = self.conv[i](x[i])
@@ -346,24 +371,56 @@ class Detect_DyHead(nn.Module):
             x[i] = torch.cat((self.cv2[i](x[i]), self.cv3[i](x[i])), 1)
 
         if self.training:
-            # print(x[0].shape)
-            # print(x[1].shape)
-            # print(x[2].shape)
-            # print(x)
             return x
-        elif self.dynamic or self.shape != shape:
+        # elif self.dynamic or self.shape != shape:
+        #     self.anchors, self.strides = (x.transpose(0, 1) for x in make_anchors(x, self.stride, 0.5))
+        #     self.shape = shape
+        # x_cat = torch.cat([xi.view(shape[0], self.no, -1) for xi in x], 2)
+        # if self.export and self.format in ('saved_model', 'pb', 'tflite', 'edgetpu', 'tfjs'):  # avoid TF FlexSplitV ops
+        #     box = x_cat[:, :self.reg_max * 4]
+        #     cls = x_cat[:, self.reg_max * 4:]
+        # else:
+        #     box, cls = x_cat.split((self.reg_max * 4, self.nc), 1)
+        # dbox = dist2bbox(self.dfl(box), self.anchors.unsqueeze(0), xywh=True, dim=1) * self.strides
+        # y = torch.cat((dbox, cls.sigmoid()), 1)
+        y = self._inference(x)
+        return y if self.export else (y, x)
+
+
+    def _inference(self, x: list[torch.Tensor]) -> torch.Tensor:
+        """
+        Decode predicted bounding boxes and class probabilities based on multiple-level feature maps.
+
+        Args:
+            x (list[torch.Tensor]): List of feature maps from different detection layers.
+
+        Returns:
+            (torch.Tensor): Concatenated tensor of decoded bounding boxes and class probabilities.
+        """
+        # Inference path
+        shape = x[0].shape  # BCHW
+        x_cat = torch.cat([xi.view(shape[0], self.no, -1) for xi in x], 2)
+        if self.dynamic or self.shape != shape:
             self.anchors, self.strides = (x.transpose(0, 1) for x in make_anchors(x, self.stride, 0.5))
             self.shape = shape
 
-        x_cat = torch.cat([xi.view(shape[0], self.no, -1) for xi in x], 2)
-        if self.export and self.format in ('saved_model', 'pb', 'tflite', 'edgetpu', 'tfjs'):  # avoid TF FlexSplitV ops
-            box = x_cat[:, :self.reg_max * 4]
-            cls = x_cat[:, self.reg_max * 4:]
+        if self.export and self.format in {"saved_model", "pb", "tflite", "edgetpu", "tfjs"}:  # avoid TF FlexSplitV ops
+            box = x_cat[:, : self.reg_max * 4]
+            cls = x_cat[:, self.reg_max * 4 :]
         else:
             box, cls = x_cat.split((self.reg_max * 4, self.nc), 1)
-        dbox = dist2bbox(self.dfl(box), self.anchors.unsqueeze(0), xywh=True, dim=1) * self.strides
-        y = torch.cat((dbox, cls.sigmoid()), 1)
-        return y if self.export else (y, x)
+
+        if self.export and self.format in {"tflite", "edgetpu"}:
+            # Precompute normalization factor to increase numerical stability
+            # See https://github.com/ultralytics/ultralytics/issues/7371
+            grid_h = shape[2]
+            grid_w = shape[3]
+            grid_size = torch.tensor([grid_w, grid_h, grid_w, grid_h], device=box.device).reshape(1, 4, 1)
+            norm = self.strides / (self.stride[0] * grid_size)
+            dbox = self.decode_bboxes(self.dfl(box) * norm, self.anchors.unsqueeze(0) * norm[:, :2])
+        else:
+            dbox = self.decode_bboxes(self.dfl(box), self.anchors.unsqueeze(0)) * self.strides
+        return torch.cat((dbox, cls.sigmoid()), 1)
 
     def bias_init(self):
         """Initialize Detect() biases, WARNING: requires stride availability."""
@@ -373,3 +430,6 @@ class Detect_DyHead(nn.Module):
         for a, b, s in zip(m.cv2, m.cv3, m.stride):  # from
             a[-1].bias.data[:] = 1.0  # box
             b[-1].bias.data[:m.nc] = math.log(5 / m.nc / (640 / s) ** 2)  # cls (.01 objects, 80 classes, 640 img)
+
+
+

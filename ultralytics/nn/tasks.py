@@ -1671,9 +1671,11 @@ def parse_model(d, ch, verbose=True):
             A2C2f,
         }
     )
+
     for i, (f, n, m, args) in enumerate(d["backbone"] + d["head"]):  # from, number, module, args
 
         # =======添加======
+        backbone=False
         t = m
         m = (
             getattr(torch.nn, m[3:])
