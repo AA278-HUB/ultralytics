@@ -94,6 +94,7 @@ from ultralytics.utils.torch_utils import (
     smart_inference_mode,
     time_sync,
 )
+from .modules.block import ShuffleV1Block
 
 
 class BaseModel(torch.nn.Module):
@@ -1727,13 +1728,14 @@ def parse_model(d, ch, verbose=True):
                 legacy = False
             if m is C3RepGhost:
                 pass
-
-
         # =======主干======
         elif m in {MobileNetV4ConvLarge, MobileNetV4ConvSmall, MobileNetV4ConvMedium, MobileNetV4ConvSmall}:
                 m = m(*args)
                 c2 = m.width_list
                 backbone = True
+        #======新加shuffle系列=======
+        elif m in {ShuffleV1Block}:
+            args = [c1, c2, *args[1:]]
         # =====新加的动态检测头=====
         elif m in {Detect_DyHead}:
             args.append([ch[x] for x in f])
