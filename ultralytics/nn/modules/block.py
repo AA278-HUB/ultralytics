@@ -627,6 +627,28 @@ class RepGhostBottleneck(nn.Module):
         if not self.enable_shortcut and self.in_chs == self.out_chs and self.stride == 1:
             return x
         return x + self.shortcut(residual)
+    def forward_fuse(self, x):
+        residual = x
+
+        # 1st repghost bottleneck
+        x1 = self.ghost1.forward_fuse(x)
+
+        # Depth-wise convolution
+        if self.stride > 1:
+            x = self.conv_dw(x1)
+            x = self.bn_dw(x)
+        else:
+            x = x1
+
+        # Squeeze-and-excitation
+        if self.se is not None:
+            x = self.se(x)
+
+        # 2nd repghost bottleneck
+        x = self.ghost2.forward_fuse(x)
+        if not self.enable_shortcut and self.in_chs == self.out_chs and self.stride == 1:
+            return x
+        return x + self.shortcut(residual)
 
 class Bottleneck(nn.Module):
     """Standard bottleneck."""
