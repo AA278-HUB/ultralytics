@@ -32,4 +32,4 @@ if __name__ == '__main__':
     model.eval()
     model.val()
     print("训练结束打印参数")
-    model.info(detailed=True)
+    model.info()
