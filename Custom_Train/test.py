@@ -7,16 +7,16 @@ model_yaml_path = "Custom_Model_cfg/yolo11_dyhead.yaml"
 model_yaml_path = "Custom_Model_cfg/yolo11_Ghost_1.yaml"
 model_yaml_path = "Custom_Model_cfg/yolo11_Ghost_Rep.yaml"
 data="coco8.yaml"
-data = "Custom_dataset_cfg/coco-vehicle.yaml"
+#data = "Custom_dataset_cfg/coco-vehicle.yaml"
 # 预训练模型
 if __name__ == '__main__':
 
 
 
     model = YOLO(model_yaml_path)
-    #
+    model.info(detailed=True)
     results = model.train(data=data,
-                          epochs=10,
+                          epochs=3,
                           batch=8,
                           imgsz=640,
                           cos_lr=True,
@@ -30,6 +30,5 @@ if __name__ == '__main__':
     for m in model.modules():
         if hasattr(m, 'fuse_convs'):
             m.fuse_convs()
-
-
+    model.info(detailed=True)
     model.val(data=data,plots=True)
