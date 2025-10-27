@@ -451,7 +451,9 @@ class C3RepGhost(nn.Module):
         self.cv1 = Conv(c1, c_, 1, 1)
         self.cv2 = Conv(c1, c_, 1, 1)
         self.cv3 = Conv(2 * c_, c2, 1)
-        self.m = nn.Sequential(*(RepGhostBottleneck(c_, c_, deploy=deploy) for _ in range(n)))
+        self.m = nn.Sequential(*(RepGhostBottleneck(c_,c_ ,c_, deploy=deploy) for _ in range(n)))
+        print(f"input:{c_}",f"middle:{c_}",f"output:{c_}")
+
 
     def forward(self, x):
         return self.cv3(torch.cat((self.m(self.cv1(x)), self.cv2(x)), dim=1))
