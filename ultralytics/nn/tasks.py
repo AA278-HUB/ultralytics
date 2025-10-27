@@ -1736,7 +1736,6 @@ def parse_model(d, ch, verbose=True):
                 backbone = True
         #======新加shuffle系列=======
         elif m in {ShuffleV1Block}:
-            pass
             temp=args[1]
             temp=temp//4
             args[4]=temp
