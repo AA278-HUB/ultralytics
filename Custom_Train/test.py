@@ -14,7 +14,6 @@ if __name__ == '__main__':
 
 
     model = YOLO(model_yaml_path)
-    model.info(detailed=True)
     results = model.train(data=data,
                           epochs=3,
                           batch=8,
@@ -25,10 +24,12 @@ if __name__ == '__main__':
                           device="0",
                           workers=16,
                           name="test"+datetime.now().strftime("%Y%m%d_%H_%M"))
+
+    print("训练完成后打印参数")
+    model.info()
     # 部署准备
+    model.fuse()
     model.eval()
-    for m in model.modules():
-        if hasattr(m, 'fuse_convs'):
-            m.fuse_convs()
+    model.val()
+    print("训练结束打印参数")
     model.info(detailed=True)
-    model.val(data=data,plots=True)

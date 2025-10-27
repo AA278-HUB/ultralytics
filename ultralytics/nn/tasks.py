@@ -69,7 +69,7 @@ from ultralytics.nn.modules import (
     WorldDetect,
     YOLOEDetect,
     YOLOESegment,
-    v10Detect,
+    v10Detect, RepGhostModule,
 )
 from ultralytics.utils import DEFAULT_CFG_DICT, LOGGER, YAML, colorstr, emojis
 from ultralytics.utils.checks import check_requirements, check_suffix, check_yaml
@@ -284,6 +284,12 @@ class BaseModel(torch.nn.Module):
                     delattr(m, "bn")  # remove batchnorm
                     m.forward = m.forward_fuse  # update forward
                 if isinstance(m, RepConv):
+                    m.fuse_convs()
+                    m.forward = m.forward_fuse  # update forward
+                if isinstance(m, RepGhostBottleneck):
+                    m.fuse_convs()
+                    m.forward = m.forward_fuse  # update forward
+                if isinstance(m, RepGhostModule):
                     m.fuse_convs()
                     m.forward = m.forward_fuse  # update forward
                 if isinstance(m, RepVGGDW):
