@@ -1695,8 +1695,8 @@ def parse_model(d, ch, verbose=True):
                     args[j] = locals()[a] if a in locals() else ast.literal_eval(a)
         n = n_ = max(round(n * depth), 1) if n > 1 else n  # depth gain
         #
-        if m in{C3Ghost} :
-            print("调试")
+        # if m in{C3Ghost} :
+        #     print("调试")
         if m in base_modules:
             c1, c2 = ch[f], args[0]
             if c2 != nc:  # if c2 not equal to number of classes (i.e. for Classify() output)
