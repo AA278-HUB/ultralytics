@@ -2217,7 +2217,7 @@ class SAVPE(nn.Module):
 
 
 class ShuffleV1Block(nn.Module):
-    def __init__(self, inp, oup, *, group, first_group, mid_channels, ksize, stride):
+    def __init__(self, inp, oup,group, first_group, mid_channels, ksize, stride):
         super(ShuffleV1Block, self).__init__()
         self.stride = stride
         assert stride in [1, 2]

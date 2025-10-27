@@ -1661,6 +1661,7 @@ def parse_model(d, ch, verbose=True):
             SCDown,
             C2fCIB,
             A2C2f,
+            ShuffleV1Block,
         }
     )
     repeat_modules = frozenset(  # modules with 'repeat' arguments
@@ -1735,7 +1736,9 @@ def parse_model(d, ch, verbose=True):
                 backbone = True
         #======新加shuffle系列=======
         elif m in {ShuffleV1Block}:
-            args = [c1, c2, *args[1:]]
+            pass
+            # args = [c1, c2, *args[1:]]
+            # print(args)
         # =====新加的动态检测头=====
         elif m in {Detect_DyHead}:
             args.append([ch[x] for x in f])
@@ -1787,6 +1790,7 @@ def parse_model(d, ch, verbose=True):
             else:
                 # 只创建一个模块
                 m_ = m(*args)
+
             # m_ = nn.Sequential(*(m(*args) for _ in range(n))) if n > 1 else m(*args)  # module
             t = str(m)[8:-2].replace('__main__.', '')  # module type
 
