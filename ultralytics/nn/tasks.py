@@ -1737,6 +1737,9 @@ def parse_model(d, ch, verbose=True):
         #======新加shuffle系列=======
         elif m in {ShuffleV1Block}:
             pass
+            temp=args[1]
+            temp=temp//4
+            args[4]=temp
             # args = [c1, c2, *args[1:]]
             # print(args)
         # =====新加的动态检测头=====
