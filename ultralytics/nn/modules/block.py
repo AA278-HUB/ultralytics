@@ -9,7 +9,7 @@ import torch.nn.functional as F
 
 from ultralytics.utils.torch_utils import fuse_conv_and_bn
 
-from .conv import Conv, DWConv, GhostConv, LightConv, RepConv, autopad
+from .conv import Conv, DWConv, GhostConv, LightConv, RepConv, autopad, RepGhostModule
 from .transformer import TransformerBlock
 
 __all__ = (
@@ -55,6 +55,8 @@ __all__ = (
     "SCDown",
     "TorchVision",
 )
+
+from ..Extramodule.Attension.SqueezeExcite import SqueezeExcite
 
 
 class DFL(nn.Module):
@@ -481,42 +483,148 @@ class GhostBottleneck(nn.Module):
     def forward(self, x: torch.Tensor) -> torch.Tensor:
         """Apply skip connection and concatenation to input tensor."""
         return self.conv(x) + self.shortcut(x)
+# class RepGhostBottleneck(nn.Module):
+#     """Ghost Bottleneck with RepConv fusion support."""
+#     def __init__(self, c1, c2, k=3, s=1, deploy=False, act=True):
+#         """
+#         Args:
+#             c1 (int): input channels
+#             c2 (int): output channels
+#             k (int): kernel size
+#             s (int): stride
+#             deploy (bool): whether to fuse for inference
+#             act (bool): activation
+#         """
+#         super().__init__()
+#         c_ = c2 // 2  # hidden channels
+#
+#         self.conv = nn.Sequential(
+#             RepConv(c1, c_, k=1, s=1, p=0, act=act, deploy=deploy),
+#             RepConv(c_, c_, k=k, s=s, p=k//2, act=act, deploy=deploy),
+#             RepConv(c_, c2, k=1, s=1, p=0, act=False, deploy=deploy)
+#         )
+#
+#         # Shortcut分支
+#         if s == 2 or c1 != c2:
+#             self.shortcut = RepConv(c1, c2, k=1, s=s, p=0, act=False, deploy=deploy)
+#         else:
+#             self.shortcut = nn.Identity()
+#
+#     def forward(self, x):
+#         return self.conv(x) + self.shortcut(x)
+#
+#     def fuse_convs(self):
+#         """在推理前进行卷积融合"""
+#         for m in self.modules():
+#             if hasattr(m, 'fuse_convs'):
+#                 m.fuse_convs()
 class RepGhostBottleneck(nn.Module):
-    """Ghost Bottleneck with RepConv fusion support."""
-    def __init__(self, c1, c2, k=3, s=1, deploy=False, act=True):
-        """
-        Args:
-            c1 (int): input channels
-            c2 (int): output channels
-            k (int): kernel size
-            s (int): stride
-            deploy (bool): whether to fuse for inference
-            act (bool): activation
-        """
-        super().__init__()
-        c_ = c2 // 2  # hidden channels
+    """RepGhost bottleneck w/ optional SE"""
 
-        self.conv = nn.Sequential(
-            RepConv(c1, c_, k=1, s=1, p=0, act=act, deploy=deploy),
-            RepConv(c_, c_, k=k, s=s, p=k//2, act=act, deploy=deploy),
-            RepConv(c_, c2, k=1, s=1, p=0, act=False, deploy=deploy)
+    def __init__(
+        self,
+        in_chs,
+        mid_chs,
+        out_chs,
+        dw_kernel_size=3,
+        stride=1,
+        se_ratio=0.0,
+        shortcut=True,
+        reparam=True,
+        reparam_bn=True,
+        reparam_identity=False,
+        deploy=False,
+    ):
+        super(RepGhostBottleneck, self).__init__()
+        has_se = se_ratio is not None and se_ratio > 0.0
+        self.stride = stride
+        self.enable_shortcut = shortcut
+        self.in_chs = in_chs
+        self.out_chs = out_chs
+
+        # Point-wise expansion
+        self.ghost1 = RepGhostModule(
+            in_chs,
+            mid_chs,
+            relu=True,
+            reparam_bn=reparam and reparam_bn,
+            reparam_identity=reparam and reparam_identity,
+            deploy=deploy,
         )
 
-        # Shortcut分支
-        if s == 2 or c1 != c2:
-            self.shortcut = RepConv(c1, c2, k=1, s=s, p=0, act=False, deploy=deploy)
+        # Depth-wise convolution
+        if self.stride > 1:
+            self.conv_dw = nn.Conv2d(
+                mid_chs,
+                mid_chs,
+                dw_kernel_size,
+                stride=stride,
+                padding=(dw_kernel_size - 1) // 2,
+                groups=mid_chs,
+                bias=False,
+            )
+            self.bn_dw = nn.BatchNorm2d(mid_chs)
+
+        # Squeeze-and-excitation
+        if has_se:
+            self.se = SqueezeExcite(mid_chs, se_ratio=se_ratio)
         else:
-            self.shortcut = nn.Identity()
+            self.se = None
+
+        # Point-wise linear projection
+        self.ghost2 = RepGhostModule(
+            mid_chs,
+            out_chs,
+            relu=False,
+            reparam_bn=reparam and reparam_bn,
+            reparam_identity=reparam and reparam_identity,
+            deploy=deploy,
+        )
+
+        # shortcut
+        if in_chs == out_chs and self.stride == 1:
+            self.shortcut = nn.Sequential()
+        else:
+            self.shortcut = nn.Sequential(
+                nn.Conv2d(
+                    in_chs,
+                    in_chs,
+                    dw_kernel_size,
+                    stride=stride,
+                    padding=(dw_kernel_size - 1) // 2,
+                    groups=in_chs,
+                    bias=False,
+                ),
+                nn.BatchNorm2d(in_chs),
+                nn.Conv2d(
+                    in_chs, out_chs, 1, stride=1,
+                    padding=0, bias=False,
+                ),
+                nn.BatchNorm2d(out_chs),
+            )
 
     def forward(self, x):
-        return self.conv(x) + self.shortcut(x)
+        residual = x
 
-    def fuse_convs(self):
-        """在推理前进行卷积融合"""
-        for m in self.modules():
-            if hasattr(m, 'fuse_convs'):
-                m.fuse_convs()
+        # 1st repghost bottleneck
+        x1 = self.ghost1(x)
 
+        # Depth-wise convolution
+        if self.stride > 1:
+            x = self.conv_dw(x1)
+            x = self.bn_dw(x)
+        else:
+            x = x1
+
+        # Squeeze-and-excitation
+        if self.se is not None:
+            x = self.se(x)
+
+        # 2nd repghost bottleneck
+        x = self.ghost2(x)
+        if not self.enable_shortcut and self.in_chs == self.out_chs and self.stride == 1:
+            return x
+        return x + self.shortcut(residual)
 
 class Bottleneck(nn.Module):
     """Standard bottleneck."""
@@ -2080,3 +2188,5 @@ class SAVPE(nn.Module):
         aggregated = score.transpose(-2, -3) @ x.reshape(B, self.c, C // self.c, -1).transpose(-1, -2)
 
         return F.normalize(aggregated.transpose(-2, -3).reshape(B, Q, -1), dim=-1, p=2)
+
+

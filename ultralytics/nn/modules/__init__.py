@@ -76,6 +76,7 @@ from .conv import (
     Index,
     LightConv,
     RepConv,
+    RepGhostModule,
     SpatialAttention,
 )
 from .head import (
