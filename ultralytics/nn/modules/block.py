@@ -650,8 +650,6 @@ class RepGhostBottleneck(nn.Module):
             return x
         return x + self.shortcut(residual)
 
-    def fuse_convs(self,x):
-        pass
 
 class Bottleneck(nn.Module):
     """Standard bottleneck."""
