@@ -287,10 +287,10 @@ class BaseModel(torch.nn.Module):
                     m.fuse_convs()
                     m.forward = m.forward_fuse  # update forward
                 if isinstance(m, RepGhostBottleneck):
-                    m.fuse_convs()
+                    # m.fuse_convs()
                     m.forward = m.forward_fuse  # update forward
                 if isinstance(m, RepGhostModule):
-                    # m.fuse_convs()
+                    m.fuse_convs()
                     m.forward = m.forward_fuse  # update forward
                 if isinstance(m, RepVGGDW):
                     m.fuse()
