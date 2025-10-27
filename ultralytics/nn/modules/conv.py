@@ -722,7 +722,7 @@ class RepGhostModule(nn.Module):
 
     default_act = nn.ReLU(inplace=True)
 
-    def __init__(self, c1, c2, kernel_size=1, dw_size=3, stride=1, relu=True, reparam_bn=True, reparam_identity=False):
+    def __init__(self, c1, c2, kernel_size=1, dw_size=3, stride=1, relu=True, reparam_bn=True, reparam_identity=False,deploy=False):
         super().__init__()
         self.c1 = c1
         self.c2 = c2
