@@ -29,7 +29,9 @@ __all__ = (
     "C3x",
     "C3TR",
     "C3Ghost",
+    "C3RepGhost",
     "GhostBottleneck",
+    "RepGhostBottleneck",
     "Bottleneck",
     "BottleneckCSP",
     "Proto",
@@ -418,6 +420,8 @@ class C3TR(C3):
         self.m = TransformerBlock(c_, c_, 4, n)
 
 
+
+
 class C3Ghost(C3):
     """C3 module with GhostBottleneck()."""
 
@@ -436,7 +440,19 @@ class C3Ghost(C3):
         super().__init__(c1, c2, n, shortcut, g, e)
         c_ = int(c2 * e)  # hidden channels
         self.m = nn.Sequential(*(GhostBottleneck(c_, c_) for _ in range(n)))
+class C3RepGhost(nn.Module):
+    """C3 module with RepGhostBottleneck()."""
 
+    def __init__(self, c1, c2, n=1, shortcut=True, g=1, e=0.5, deploy=False):
+        super().__init__()
+        c_ = int(c2 * e)
+        self.cv1 = Conv(c1, c_, 1, 1)
+        self.cv2 = Conv(c1, c_, 1, 1)
+        self.cv3 = Conv(2 * c_, c2, 1)
+        self.m = nn.Sequential(*(RepGhostBottleneck(c_, c_, deploy=deploy) for _ in range(n)))
+
+    def forward(self, x):
+        return self.cv3(torch.cat((self.m(self.cv1(x)), self.cv2(x)), dim=1))
 
 class GhostBottleneck(nn.Module):
     """Ghost Bottleneck https://github.com/huawei-noah/Efficient-AI-Backbones."""
@@ -465,6 +481,41 @@ class GhostBottleneck(nn.Module):
     def forward(self, x: torch.Tensor) -> torch.Tensor:
         """Apply skip connection and concatenation to input tensor."""
         return self.conv(x) + self.shortcut(x)
+class RepGhostBottleneck(nn.Module):
+    """Ghost Bottleneck with RepConv fusion support."""
+    def __init__(self, c1, c2, k=3, s=1, deploy=False, act=True):
+        """
+        Args:
+            c1 (int): input channels
+            c2 (int): output channels
+            k (int): kernel size
+            s (int): stride
+            deploy (bool): whether to fuse for inference
+            act (bool): activation
+        """
+        super().__init__()
+        c_ = c2 // 2  # hidden channels
+
+        self.conv = nn.Sequential(
+            RepConv(c1, c_, k=1, s=1, p=0, act=act, deploy=deploy),
+            RepConv(c_, c_, k=k, s=s, p=k//2, act=act, deploy=deploy),
+            RepConv(c_, c2, k=1, s=1, p=0, act=False, deploy=deploy)
+        )
+
+        # Shortcut分支
+        if s == 2 or c1 != c2:
+            self.shortcut = RepConv(c1, c2, k=1, s=s, p=0, act=False, deploy=deploy)
+        else:
+            self.shortcut = nn.Identity()
+
+    def forward(self, x):
+        return self.conv(x) + self.shortcut(x)
+
+    def fuse_convs(self):
+        """在推理前进行卷积融合"""
+        for m in self.modules():
+            if hasattr(m, 'fuse_convs'):
+                m.fuse_convs()
 
 
 class Bottleneck(nn.Module):
