@@ -4,7 +4,7 @@ from ultralytics import YOLO
 
 
 # 模型配置文件
-model_yaml_path = "Custom_Model_cfg/yolo11_Ghost.yaml"
+model_yaml_path = "Custom_Model_cfg/yolo11_Ghost_Rep_shuffle_2.yaml"
 # data="coco8.yaml"
 data = "Custom_dataset_cfg/vehicle_orientation.yaml"
 # 预训练模型
