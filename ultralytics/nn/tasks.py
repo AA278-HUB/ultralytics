@@ -94,7 +94,7 @@ from ultralytics.utils.torch_utils import (
     smart_inference_mode,
     time_sync,
 )
-from .modules.block import ShuffleV1Block
+from .modules.block import ShuffleV1Block, ShuffleV2Block
 
 
 class BaseModel(torch.nn.Module):
@@ -196,6 +196,8 @@ class BaseModel(torch.nn.Module):
                 embeddings.append(nn.functional.adaptive_avg_pool2d(x, (1, 1)).squeeze(-1).squeeze(-1))  # flatten
                 if m.i == max(embed):
                     return torch.unbind(torch.cat(embeddings, 1), dim=0)
+            # print(f"=================测试=======================")
+            # print(x.shape)
         return x
 
     #
@@ -1745,6 +1747,14 @@ def parse_model(d, ch, verbose=True):
             args[4]=temp
             # args = [c1, c2, *args[1:]]
             # print(args)
+        elif m in {ShuffleV2Block}:
+            c1, c2 = ch[f], args[0]
+            if c2 != nc:  # if c2 not equal to number of classes (i.e. for Classify() output)
+                c2 = make_divisible(min(c2, max_channels) * width, 8)
+            args = [c1, c2, *args[1:]]
+            temp = args[1]
+            temp = temp // 2
+            args[2] = temp
         # =====新加的动态检测头=====
         elif m in {Detect_DyHead}:
             args.append([ch[x] for x in f])
