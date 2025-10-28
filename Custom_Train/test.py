@@ -7,6 +7,8 @@ model_yaml_path = "Custom_Model_cfg/yolo11_dyhead.yaml"
 model_yaml_path = "Custom_Model_cfg/yolo11_Ghost_1.yaml"
 model_yaml_path = "Custom_Model_cfg/yolo11_Ghost_Rep.yaml"
 model_yaml_path = "Custom_Model_cfg/yolo11_Ghost_Rep_shuffle.yaml"
+model_yaml_path = "Custom_Model_cfg/yolo11n.yaml"
+model_yaml_path = "Custom_Model_cfg/yolo11_Ghost_Rep_shuffle_2.yaml"
 
 data="coco8.yaml"
 #data = "Custom_dataset_cfg/coco-vehicle.yaml"
@@ -23,7 +25,7 @@ if __name__ == '__main__':
                           cos_lr=True,
                           close_mosaic=50,
                           save= True,
-                          device="0",
+                          device=-1,
                           workers=16,
                           name="test"+datetime.now().strftime("%Y%m%d_%H_%M"))
 

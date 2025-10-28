@@ -2219,6 +2219,7 @@ class SAVPE(nn.Module):
 class ShuffleV1Block(nn.Module):
     def __init__(self, inp, oup,group, first_group, mid_channels, ksize, stride):
         super(ShuffleV1Block, self).__init__()
+        print(f"输入通道数(inp): {inp}, 输出通道数(oup): {oup}, 分组数(group): {group}, 首组标记(first_group): {first_group}, 中间通道数(mid_channels): {mid_channels}, 卷积核尺寸(ksize): {ksize}, 步长(stride): {stride}")
         self.stride = stride
         assert stride in [1, 2]
 
