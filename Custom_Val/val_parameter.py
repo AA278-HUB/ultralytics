@@ -5,6 +5,8 @@ from ultralytics import YOLO
 model_yaml_path = "Custom_Model_cfg/yolo11_dyhead.yaml"
 model_yaml_path = "Custom_Model_cfg/yolo11_Ghost_1.yaml"
 model_yaml_path = "Custom_Model_cfg/yolo11_Ghost_Rep.yaml"
+model_yaml_path = "Custom_Model_cfg/yolo11_Ghost_Rep.yaml"
+
 data="coco8.yaml"
 model = YOLO(model_yaml_path)
 model.info()

@@ -69,7 +69,7 @@ from ultralytics.nn.modules import (
     WorldDetect,
     YOLOEDetect,
     YOLOESegment,
-    v10Detect, RepGhostModule,
+    v10Detect, RepGhostModule, CBAM,
 )
 from ultralytics.utils import DEFAULT_CFG_DICT, LOGGER, YAML, colorstr, emojis
 from ultralytics.utils.checks import check_requirements, check_suffix, check_yaml
@@ -1755,6 +1755,10 @@ def parse_model(d, ch, verbose=True):
             temp = args[1]
             temp = temp // 2
             args[2] = temp
+        elif m in {CBAM}:
+            c1 = ch[f]
+            args = [c1,*args[:]]
+            print(args)
         # =====新加的动态检测头=====
         elif m in {Detect_DyHead}:
             args.append([ch[x] for x in f])
