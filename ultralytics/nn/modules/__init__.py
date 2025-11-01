@@ -61,6 +61,8 @@ from .block import (
     ResNetLayer,
     SCDown,
     TorchVision,
+    ShuffleV1Block,
+    ShuffleV2Block,
 )
 from .conv import (
     CBAM,
@@ -184,4 +186,6 @@ __all__ = (
     "TorchVision",
     "Index",
     "A2C2f",
+    "ShuffleV1Block",
+    "ShuffleV2Block",
 )
