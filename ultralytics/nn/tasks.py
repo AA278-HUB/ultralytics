@@ -69,7 +69,7 @@ from ultralytics.nn.modules import (
     WorldDetect,
     YOLOEDetect,
     YOLOESegment,
-    v10Detect, RepGhostModule, CBAM,
+    v10Detect, RepGhostModule, CBAM,ShuffleV1Block,ShuffleV2Block
 )
 from ultralytics.utils import DEFAULT_CFG_DICT, LOGGER, YAML, colorstr, emojis
 from ultralytics.utils.checks import check_requirements, check_suffix, check_yaml
