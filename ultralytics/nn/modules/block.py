@@ -54,6 +54,8 @@ __all__ = (
     "PSA",
     "SCDown",
     "TorchVision",
+    "ShuffleV1Block",
+    "ShuffleV2Block"
 )
 
 from ..Extramodule.Attension.SqueezeExcite import SqueezeExcite
