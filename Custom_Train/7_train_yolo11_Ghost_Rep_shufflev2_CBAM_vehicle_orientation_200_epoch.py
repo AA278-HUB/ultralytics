@@ -1,9 +1,9 @@
 # coding:utf-8      `
 from datetime import datetime
 from ultralytics import YOLO
-from ultralytics.nn import tasks
-from ultralytics.nn.modules import ShuffleV2Block
-tasks.__dict__['ShuffleV2Block'] = ShuffleV2Block
+# from ultralytics.nn import tasks
+# from ultralytics.nn.modules import ShuffleV2Block
+# tasks.__dict__['ShuffleV2Block'] = ShuffleV2Block
 # 模型配置文件
 model_yaml_path = "Custom_Model_cfg/yolo11_Ghost_Rep_shufflev2_CBAM.yaml"
 # data="coco8.yaml"
