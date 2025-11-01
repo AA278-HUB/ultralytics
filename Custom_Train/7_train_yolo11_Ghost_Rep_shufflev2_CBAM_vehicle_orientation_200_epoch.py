@@ -1,3 +1,13 @@
+# 获取当前脚本所在目录
+import os
+import sys
+
+current_dir = os.path.dirname(os.path.abspath(__file__))
+# 添加项目根目录（即桌面/ultralytics）到Python搜索路径
+project_root = os.path.abspath(os.path.join(current_dir, '..'))
+sys.path.insert(0, project_root)
+
+
 # coding:utf-8      `
 from datetime import datetime
 from ultralytics import YOLO
@@ -5,6 +15,7 @@ from ultralytics import YOLO
 # from ultralytics.nn.modules import ShuffleV2Block
 # tasks.__dict__['ShuffleV2Block'] = ShuffleV2Block
 # 模型配置文件
+
 model_yaml_path = "Custom_Model_cfg/yolo11_Ghost_Rep_shufflev2_CBAM.yaml"
 # data="coco8.yaml"
 data = "Custom_dataset_cfg/vehicle_orientation.yaml"
