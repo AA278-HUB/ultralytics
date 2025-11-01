@@ -1758,7 +1758,7 @@ def parse_model(d, ch, verbose=True):
         elif m in {CBAM}:
             c1 = ch[f]
             args = [c1,*args[:]]
-            print(args)
+            # print(args)
         # =====新加的动态检测头=====
         elif m in {Detect_DyHead}:
             args.append([ch[x] for x in f])
