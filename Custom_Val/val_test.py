@@ -10,7 +10,7 @@ model_path = [
     r"C:\Users\Hunger\Desktop\实验数据_new\yolo11_Ghost_Rep_shufflev2_CBAM20251101_19_03\weights\best.pt"
 ]
 
-data = r"Custom_dataset_cfg/test.yaml"
+data = r"Custom_dataset_cfg/vehicle_orientation.yaml"
 
 if __name__ == '__main__':
     for path in model_path:
