@@ -94,6 +94,7 @@ from ultralytics.utils.torch_utils import (
     smart_inference_mode,
     time_sync,
 )
+from .Extramodule.Attension.coordatt import CoordAtt
 from .modules.block import ShuffleV1Block, ShuffleV2Block
 
 
@@ -1758,6 +1759,10 @@ def parse_model(d, ch, verbose=True):
         elif m in {CBAM}:
             c1 = ch[f]
             args = [c1,*args[:]]
+            # print(args)
+        elif m in {CoordAtt}:
+            c1 = ch[f]
+            args = [c1,c1]
             # print(args)
         # =====新加的动态检测头=====
         elif m in {Detect_DyHead}:
