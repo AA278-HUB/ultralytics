@@ -11,7 +11,8 @@ data=r"Custom_dataset_cfg/test.yaml"
 
 if __name__ == '__main__':
     model=YOLO(model_path)
-    model.fuse()
+    model.model.is_fused = lambda: True
+    # model.fuse()
     model.eval()
     # Validate the model
     metrics = model.val(data=data,batch=32,device="0")  # no arguments needed, dataset and settings remembered
