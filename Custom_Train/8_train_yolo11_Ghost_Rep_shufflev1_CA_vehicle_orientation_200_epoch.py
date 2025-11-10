@@ -31,4 +31,4 @@ if __name__ == '__main__':
                           save=True,
                           save_period=1,
                           device="0",
-                          name="yolo11_Ghost_Rep_shufflev2_CBAM"+datetime.now().strftime("%Y%m%d_%H_%M"))
+                          name="yolo11_Ghost_Rep_shufflev1_CA"+"_"+datetime.now().strftime("%Y%m%d_%H_%M"))
