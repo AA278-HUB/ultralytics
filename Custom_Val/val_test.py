@@ -2,7 +2,7 @@ from ultralytics import YOLO
 
 # 模型路径列表
 model_path = [
-    "C:\Users\Hunger\Desktop\实验数据_new\yolo11n20251022_19_29\weights\best.pt",
+    r"C:\Users\Hunger\Desktop\实验数据_new\yolo11n20251022_19_29\weights\best.pt",
     r"C:\Users\Hunger\Desktop\实验数据_new\yolo11_ghost20251023_22_20\weights\best.pt",
     r"C:\Users\Hunger\Desktop\实验数据_new\yolo11_Rep_shufflev1_new20251028_21_48\weights\best.pt",
     r"C:\Users\Hunger\Desktop\实验数据_new\yolo11_Ghost_Rep_shufflev1_CBAM20251031_20_37\weights\best.pt",
