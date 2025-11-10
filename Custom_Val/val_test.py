@@ -1,26 +1,29 @@
-
-
-
-
 from ultralytics import YOLO
-#
-# # Load a model
-model_path=r"C:\Users\Hunger\Desktop\ultralytics\runs\detect\yolo11_Rep_shufflev1_new20251028_21_48\weights\last.pt"
-data=r"Custom_dataset_cfg/test.yaml"
 
+# 模型路径列表
+model_path = [
+    "C:\Users\Hunger\Desktop\实验数据_new\yolo11n20251022_19_29\weights\best.pt",
+    r"C:\Users\Hunger\Desktop\实验数据_new\yolo11_ghost20251023_22_20\weights\best.pt",
+    r"C:\Users\Hunger\Desktop\实验数据_new\yolo11_Rep_shufflev1_new20251028_21_48\weights\best.pt",
+    r"C:\Users\Hunger\Desktop\实验数据_new\yolo11_Ghost_Rep_shufflev1_CBAM20251031_20_37\weights\best.pt",
+    r"C:\Users\Hunger\Desktop\实验数据_new\yolo11_Rep_shufflev2_new20251031_21_38\weights\best.pt",
+    r"C:\Users\Hunger\Desktop\实验数据_new\yolo11_Ghost_Rep_shufflev2_CBAM20251101_19_03\weights\best.pt"
+]
+
+data = r"Custom_dataset_cfg/test.yaml"
 
 if __name__ == '__main__':
-    model=YOLO(model_path)
-    model.model.is_fused = lambda: True
-    # model.fuse()
-    model.eval()
-    # Validate the model
-    metrics = model.val(data=data,batch=32,device="0")  # no arguments needed, dataset and settings remembered
-    metrics.box.map  # map50-95
-    metrics.box.map50  # map50
-    metrics.box.map75  # map75
-    metrics.box.maps  # a list contains map50-95 of each category
-
+    for path in model_path:
+        print(f"\n正在验证模型: {path}")
+        model = YOLO(path)
+        # 模型推理阶段自动 fuse，因此手动 fuse 可省略
+        # model.fuse()
+        model.eval()
+        metrics = model.val(data=data,batch=32,device="0")  # no arguments needed, dataset and settings remembered
+        metrics.box.map  # map50-95
+        metrics.box.map50  # map50
+        metrics.box.map75  # map75
+        metrics.box.maps  # a list contains map50-95 of each category
 
 # import os
 # import shutil
