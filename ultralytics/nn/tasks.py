@@ -1762,7 +1762,8 @@ def parse_model(d, ch, verbose=True):
             # print(args)
         elif m in {CoordAtt}:
             c1 = ch[f]
-            args = [c1,c1]
+            temp=args[0]
+            args = [c1,c1,temp]
             # print(args)
         # =====新加的动态检测头=====
         elif m in {Detect_DyHead}:

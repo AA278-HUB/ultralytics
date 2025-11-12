@@ -15,9 +15,9 @@ backbone:
   - [-1, 1, Conv, [64, 3, 2]]  # 0-P1/2
   - [-1, 1, Conv, [128, 3, 2]]  # 1-P2/4
   - [-1, 1, ShuffleV1Block, [256, 4, False, 64, 3, 2]]  # 2-P3/8
-  - [-1, 1, CoordAtt, []]  # 3
+  - [-1, 1, CoordAtt, [32]]  # 3
   - [-1, 1, ShuffleV1Block, [512, 4, False, 128, 3, 2]]  # 4-P4/16
-  - [-1, 1, CoordAtt, []]  # 5
+  - [-1, 1, CoordAtt, [32]]  # 5
   - [-1, 1, ShuffleV1Block, [1024, 4, False, 256, 3, 2]]  # 6-P5/32
   - [-1, 1, ShuffleV1Block, [1024, 4, False, 256, 3, 1]]  # 7
   - [-1, 1, SPPF, [1024, 5]]  # 8
