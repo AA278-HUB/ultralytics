@@ -7,7 +7,9 @@ model_path = [
     r"C:\Users\Hunger\Desktop\实验数据_new\yolo11_Rep_shufflev1_new20251028_21_48\weights\best.pt",
     r"C:\Users\Hunger\Desktop\实验数据_new\yolo11_Ghost_Rep_shufflev1_CBAM20251031_20_37\weights\best.pt",
     r"C:\Users\Hunger\Desktop\实验数据_new\yolo11_Rep_shufflev2_new20251031_21_38\weights\best.pt",
-    r"C:\Users\Hunger\Desktop\实验数据_new\yolo11_Ghost_Rep_shufflev2_CBAM20251101_19_03\weights\best.pt"
+    r"C:\Users\Hunger\Desktop\实验数据_new\yolo11_Ghost_Rep_shufflev2_CBAM20251101_19_03\weights\best.pt",
+    r"C:\Users\Hunger\Desktop\实验数据_new\yolo11_Ghost_Rep_shufflev1_CA_20251110_14_44\weights\best.pt",
+    r"C:\Users\Hunger\Desktop\实验数据_new\yolo11_Ghost_Rep_shufflev1_CA_1_20251112_10_25\weights\best.pt"
 ]
 
 data = r"Custom_dataset_cfg/vehicle_orientation.yaml"
