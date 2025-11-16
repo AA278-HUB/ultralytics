@@ -175,7 +175,25 @@ class BaseModel(torch.nn.Module):
         y, dt, embeddings = [], [], []  # outputs
         for m in self.model:
             if m.f != -1:  # if not from previous layer
-                x = y[m.f] if isinstance(m.f, int) else [x if j == -1 else y[j] for j in m.f]  # from earlier layers
+                # x = y[m.f] if isinstance(m.f, int) else [x if j == -1 else y[j] for j in m.f]  # from earlier layers
+                # 原始代码：
+                # x = y[m.f] if isinstance(m.f, int) else [x if j == -1 else y[j] for j in m.f]
+
+                # 展开后的代码：
+                if isinstance(m.f, int):
+                    # 如果 m.f 是整数，直接从 y 中按索引取值
+                    x = y[m.f]
+                else:
+                    # 如果 m.f 不是整数（可能是列表、元组等可迭代对象），遍历其中的每个索引 j
+                    result_list = []
+                    for j in m.f:
+                        if j == -1:
+                            # 如果索引为 -1，使用当前的 x 值
+                            result_list.append(x)
+                        else:
+                            # 否则从 y 中按索引 j 取值
+                            result_list.append(y[j])
+                    x = result_list
             if profile:
                 self._profile_one_layer(m, x, dt)
             if hasattr(m, 'backbone'):
@@ -1687,11 +1705,10 @@ def parse_model(d, ch, verbose=True):
             A2C2f,
         }
     )
-
+    # =======添加======
+    backbone = False
     for i, (f, n, m, args) in enumerate(d["backbone"] + d["head"]):  # from, number, module, args
 
-        # =======添加======
-        backbone=False
         t = m
         m = (
             getattr(torch.nn, m[3:])

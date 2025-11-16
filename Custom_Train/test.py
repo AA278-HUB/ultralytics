@@ -10,11 +10,11 @@ model_yaml_path = "Custom_Model_cfg/yolo11_Ghost_Rep_shuffle.yaml"
 # model_yaml_path = "Custom_Model_cfg/yolo11n.yaml"
 model_yaml_path = "Custom_Model_cfg/yolo11_Ghost_Rep_shuffle_2.yaml"
 model_yaml_path = "Custom_Model_cfg/yolo11_Ghost_Rep_shufflev2.yaml"
-# model_yaml_path = "Custom_Model_cfg/yolo11_Ghost_Rep_shufflev1_CBAM.yaml"
-# model_yaml_path = "Custom_Model_cfg/yolo11_Ghost_Rep_shufflev1_CA.yaml"
+model_yaml_path = "Custom_Model_cfg/yolo11_Ghost_Rep_shufflev1_CBAM.yaml"
+model_yaml_path = "Custom_Model_cfg/yolo11_Ghost_Rep_shufflev1_CA.yaml"
 model_yaml_path = "Custom_Model_cfg/yolo11_Ghost_Rep_shufflev1_CA_1.yaml"
-
 model_yaml_path = "Custom_Model_cfg/yolo11_Ghost_Rep_shufflev2_CA.yaml"
+model_yaml_path = "Custom_Model_cfg/MobileNetV4.yaml"
 
 
 data="coco8.yaml"
