@@ -4,13 +4,13 @@
 nc: 80  # number of classes
 
 scale:
-  # model compound scaling constants (depth, width, max_channels)
+  n
+scales:
   n: [0.50, 0.25, 1024]
   s: [0.50, 0.50, 1024]
   m: [0.50, 1.00, 512]
   l: [1.00, 1.00, 512]
   x: [1.00, 1.50, 512]
-
 # YOLO11 backbone (with CoordAtt after P3/P4/P5)
 backbone:
   # [from, repeats, module, args]
