@@ -13,7 +13,8 @@ from datetime import datetime
 from ultralytics import YOLO
 # 模型配置文件
 
-model_yaml_path = "Custom_Model_cfg/MobileNetV4.yaml"
+model_yaml_path = r"C:\Users\Hunger\Desktop\ultralytics\runs\detect\MobileNetV4_20251201_11_31\weights\last.pt"
+# model_yaml_path = r"runs/detect/MobileNetV4_20251201_11_31/weights/epoch140.pt"
 # data="coco8.yaml"
 data = "Custom_dataset_cfg/vehicle_orientation.yaml"
 # 预训练模型
@@ -21,14 +22,15 @@ if __name__ == '__main__':
     # 加载预训练模型
     # model =YOLO(model_yaml_path)
     model = YOLO(model_yaml_path)
+    results=model.train(resume=True)
 
-    results = model.train(data=data,
-                          epochs=200,
-                          batch=16,
-                          imgsz=640,
-                          cos_lr=True,
-                          close_mosaic=50,
-                          save=True,
-                          save_period=10,
-                          device="0",
-                          name="MobileNetV4"+"_"+datetime.now().strftime("%Y%m%d_%H_%M"))
+    # results = model.train(data=data,
+    #                       epochs=60,
+    #                       batch=16,
+    #                       imgsz=640,
+    #                       cos_lr=True,
+    #                       close_mosaic=50,
+    #                       save=True,
+    #                       save_period=10,
+    #                       device="0",
+    #                       name="MobileNetV4"+"_"+datetime.now().strftime("%Y%m%d_%H_%M"))

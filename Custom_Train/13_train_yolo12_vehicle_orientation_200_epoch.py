@@ -24,11 +24,11 @@ if __name__ == '__main__':
 
     results = model.train(data=data,
                           epochs=200,
-                          batch=16git ,
+                          batch=16,
                           imgsz=640,
                           cos_lr=True,
                           close_mosaic=50,
                           save=True,
                           save_period=10,
                           device="0",
-                          name="yolov12n"+"_"+datetime.now().strftime("%Y%m%d_%H_%M"))
+                          name="yolo12n"+"_"+datetime.now().strftime("%Y%m%d_%H_%M"))
