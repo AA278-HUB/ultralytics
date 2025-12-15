@@ -13,7 +13,7 @@ from datetime import datetime
 from ultralytics import YOLO
 # 模型配置文件
 
-model_yaml_path = "Custom_Model_cfg/yolov8n.yaml"
+model_yaml_path = "Custom_Model_cfg/yolo12n.yaml"
 # data="coco8.yaml"
 data = "Custom_dataset_cfg/vehicle_orientation.yaml"
 # 预训练模型
@@ -24,11 +24,11 @@ if __name__ == '__main__':
 
     results = model.train(data=data,
                           epochs=200,
-                          batch=32,
+                          batch=16git ,
                           imgsz=640,
                           cos_lr=True,
                           close_mosaic=50,
                           save=True,
                           save_period=10,
                           device="0",
-                          name="yolov8n"+"_"+datetime.now().strftime("%Y%m%d_%H_%M"))
+                          name="yolov12n"+"_"+datetime.now().strftime("%Y%m%d_%H_%M"))
