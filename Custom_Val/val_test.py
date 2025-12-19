@@ -8,8 +8,8 @@ model_path = [
     r"C:\Users\Hunger\Desktop\实验数据_new\yolo11_Rep_shufflev2_new20251031_21_38\weights\best.pt",
     r"C:\Users\Hunger\Desktop\实验数据_new\yolo11_Ghost_Rep_shufflev1_CBAM20251031_20_37\weights\best.pt",
     r"C:\Users\Hunger\Desktop\实验数据_new\yolo11_Ghost_Rep_shufflev2_CBAM20251101_19_03\weights\best.pt",
-    r"C:\Users\Hunger\Desktop\实验数据_new\yolo11_Ghost_Rep_shufflev1_CA_1_20251112_10_25\weights\best.pt"
-    r"C:\Users\Hunger\Desktop\实验数据_new\yolo11_Ghost_Rep_shufflev2_CA_20251116_10_17",
+    r"C:\Users\Hunger\Desktop\实验数据_new\yolo11_Ghost_Rep_shufflev1_CA_1_20251112_10_25\weights\best.pt",
+    r"C:\Users\Hunger\Desktop\实验数据_new\yolo11_Ghost_Rep_shufflev2_CA_20251116_10_17\weights\best.pt",
     r"C:\Users\Hunger\Desktop\实验数据_new\MobileNetV4_20251201_11_31\weights\best.pt",
     r"C:\Users\Hunger\Desktop\实验数据_new\yolo12n_20251215_15_37\weights\best.pt"
 ]
