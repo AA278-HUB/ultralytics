@@ -21,9 +21,9 @@ data_yaml=r"Custom_dataset_cfg/test.yaml"
 print("开始多模型 Benchmark 测试...")
 
 for i, model_path in enumerate(models_list):
-    print(f"\n{'=' * 50}")
-    print(f"正在测试第 {i + 1} 个模型: {model_path.split('/')[-3]}")  # 打印文件夹名识别模型
-    print(f"{'=' * 50}")
+    # print(f"\n{'=' * 50}")
+    # print(f"正在测试第 {i + 1} 个模型: {model_path.split('/')[-3]}")  # 打印文件夹名识别模型
+    # print(f"{'=' * 50}")
     # 1. 强制等待，让 GPU 降温（冷却 5 秒）
     time.sleep(5)
 
