@@ -39,7 +39,6 @@ for i, model_path in enumerate(models_list):
             imgsz=640,
             half=False,  # 如果是 T4 GPU，可以尝试改为 True 跑 FP16 加速
             device="CPU",  # 先尝试 GPU
-            format="ncnn"
         )
         print(f"✅ 模型 {i + 1} 测试完成")
 
