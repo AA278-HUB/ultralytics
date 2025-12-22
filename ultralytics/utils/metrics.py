@@ -523,7 +523,11 @@ class ConfusionMatrix(DataExportMixin):
         """
         import matplotlib.pyplot as plt  # scope for faster 'import ultralytics'
 
-        array = self.matrix / ((self.matrix.sum(0).reshape(1, -1) + 1e-9) if normalize else 1)  # normalize columns
+        # array = self.matrix / ((self.matrix.sum(0).reshape(1, -1) + 1e-9) if normalize else 1)  # normalize columns
+        #改动1
+        matrix = self.matrix[:-1, :-1] if self.task != "classify" else self.matrix
+        array = matrix / ((matrix.sum(0).reshape(1, -1) + 1e-9) if normalize else 1)
+
         array[array < 0.005] = np.nan  # don't annotate (would appear as 0.00)
 
         fig, ax = plt.subplots(1, 1, figsize=(12, 9))
@@ -534,8 +538,14 @@ class ConfusionMatrix(DataExportMixin):
             names = names[keep_idx]  # slice class names
             array = array[keep_idx, :][:, keep_idx]  # slice matrix rows and cols
             n = (self.nc + k - 1) // k  # number of retained classes
-        nc = nn = n if self.task == "classify" else n + 1  # adjust for background if needed
-        ticklabels = (names + ["background"]) if (0 < nn < 99) and (nn == nc) else "auto"
+        # nc = nn = n if self.task == "classify" else n + 1  # adjust for background if needed
+        #改动2
+        nc = nn = n
+
+        # ticklabels = (names + ["background"]) if (0 < nn < 99) and (nn == nc) else "auto"
+        #改动3
+        ticklabels = names if 0 < nn < 99 else "auto"
+
         xy_ticks = np.arange(len(ticklabels))
         tick_fontsize = max(6, 15 - 0.1 * nc)  # Minimum size is 6
         label_fontsize = max(6, 12 - 0.1 * nc)
