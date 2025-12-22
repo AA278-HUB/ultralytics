@@ -12,7 +12,7 @@ model_path = [
     r"C:\Users\Hunger\Desktop\实验数据_new\yolo11_Ghost_Rep_shufflev2_CA_20251116_10_17\weights\best.pt",
     r"C:\Users\Hunger\Desktop\实验数据_new\MobileNetV4_20251201_11_31\weights\best.pt",
     r"C:\Users\Hunger\Desktop\实验数据_new\yolo12n_20251215_15_37\weights\best.pt",
-    r"C:\Users\Hunger\Desktop\实验数据_new\yolov8n_20251117_12_50\weights\last.pt"
+    r"C:\Users\Hunger\Desktop\实验数据_new\yolov8n_20251117_12_50\weights\best.pt"
 ]
 # r"C:\Users\Hunger\Desktop\实验数据_new\yolo11_Ghost_Rep_shufflev1_CA_20251110_14_44\weights\best.pt",
 
