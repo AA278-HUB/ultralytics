@@ -14,7 +14,7 @@ from ultralytics import YOLO
 # 模型配置文件
 
 model_yaml_path = r"Custom_Model_cfg/yolov10n.yaml"
-model_yaml_path =r"runs/detect/YOLOV10n_20251223_11_11/weights/last.pt"
+model_yaml_path =r"C:\Users\Hunger\Desktop\ultralytics\runs\detect\YOLOV10n_20251223_11_11\weights\last.pt"
 # data="coco8.yaml"
 data = "Custom_dataset_cfg/vehicle_orientation.yaml"
 # 预训练模型
