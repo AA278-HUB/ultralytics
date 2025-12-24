@@ -14,6 +14,7 @@ from ultralytics import YOLO
 # 模型配置文件
 
 model_yaml_path = r"Custom_Model_cfg/yolov10n.yaml"
+model_yaml_path =r"C:\Users\Hunger\Desktop\ultralytics\runs\detect\YOLOV10n_20251223_11_11\weights\last.pt"
 # data="coco8.yaml"
 data = "Custom_dataset_cfg/vehicle_orientation.yaml"
 # 预训练模型
@@ -21,15 +22,15 @@ if __name__ == '__main__':
     # 加载预训练模型
     # model =YOLO(model_yaml_path)
     model = YOLO(model_yaml_path)
-    # results=model.train(resume=True)
-
-    results = model.train(data=data,
-                          epochs=200,
-                          batch=32,
-                          imgsz=640,
-                          cos_lr=True,
-                          close_mosaic=50,
-                          save=True,
-                          save_period=10,
-                          device="0",
-                          name="YOLOV10n"+"_"+datetime.now().strftime("%Y%m%d_%H_%M"))
+    results=model.train(resume=True)
+    #
+    # results = model.train(data=data,
+    #                       epochs=200,
+    #                       batch=32,
+    #                       imgsz=640,
+    #                       cos_lr=True,
+    #                       close_mosaic=50,
+    #                       save=True,
+    #                       save_period=10,
+    #                       device="0",
+    #                       name="YOLOV10n"+"_"+datetime.now().strftime("%Y%m%d_%H_%M"))
