@@ -95,6 +95,7 @@ from ultralytics.utils.torch_utils import (
     time_sync,
 )
 from .Extramodule.Attension.coordatt import CoordAtt
+from .Extramodule.Attension.eca_module import ECA
 from .modules.block import ShuffleV1Block, ShuffleV2Block
 
 
@@ -1781,6 +1782,9 @@ def parse_model(d, ch, verbose=True):
             c1 = ch[f]
             temp=args[0]
             args = [c1,c1,temp]
+        elif m in {ECA}:
+            c1 = ch[f]
+            args = [c1, *args[:]]
             # print(args)
         # =====新加的动态检测头=====
         elif m in {Detect_DyHead}:

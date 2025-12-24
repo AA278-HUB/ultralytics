@@ -15,7 +15,7 @@ model_yaml_path = "Custom_Model_cfg/yolo11_Ghost_Rep_shufflev1_CA.yaml"
 model_yaml_path = "Custom_Model_cfg/yolo11_Ghost_Rep_shufflev1_CA_1.yaml"
 model_yaml_path = "Custom_Model_cfg/yolo11_Ghost_Rep_shufflev2_CA.yaml"
 model_yaml_path = "Custom_Model_cfg/MobileNetV4.yaml"
-
+model_yaml_path = "Custom_Model_cfg/yolo11_Ghost_Rep_shufflev2_ECA.yaml"
 
 data="coco8.yaml"
 #data = "Custom_dataset_cfg/coco-vehicle.yaml"
