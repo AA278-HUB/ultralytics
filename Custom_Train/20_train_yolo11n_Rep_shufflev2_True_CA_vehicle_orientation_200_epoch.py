@@ -22,4 +22,4 @@ if __name__ == '__main__':
                           close_mosaic=50,
                           save=True,
                           device="0",
-                          name="yolo11_Ghost_Rep_shuffle2_True"+datetime.now().strftime("%Y%m%d_%H_%M"))
+                          name="yolo11_Ghost_Rep_shuffle2_True_CA"+datetime.now().strftime("%Y%m%d_%H_%M"))
