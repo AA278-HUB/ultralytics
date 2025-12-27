@@ -1,0 +1,163 @@
+D:\AnacondaEnviroment\.conda\envs\Utralytics_python39\python.exe C:\Users\Hunger\Desktop\ultralytics\Custom_Val\val_test.py 
+
+正在验证模型: C:\Users\Hunger\Desktop\实验数据_new\yolo11n20251022_19_29\weights\best.pt
+Ultralytics 8.3.218  Python-3.9.23 torch-2.8.0+cu126 CUDA:0 (NVIDIA GeForce RTX 4060 Ti, 8188MiB)
+YOLO11n summary (fused): 100 layers, 2,582,932 parameters, 0 gradients, 6.3 GFLOPs
+val: Fast image access  (ping: 0.00.0 ms, read: 1942.82120.7 MB/s, size: 495.2 KB)
+                 Class     Images  Instances      Box(P          R      mAP50  mAP50-95): 100% ━━━━━━━━━━━━ 312/312 7.7it/s 40.5s
+                   all       9977      47305      0.876      0.778      0.871      0.705
+                   car       9750      39620      0.929      0.864      0.948       0.79
+            motorcycle        293        334      0.815      0.671      0.759      0.524
+                   bus        706        754      0.841      0.728      0.832      0.704
+                 truck       4362       6597      0.918       0.85      0.944      0.801
+Speed: 0.5ms preprocess, 1.2ms inference, 0.0ms loss, 0.5ms postprocess per image
+Results saved to C:\Users\Hunger\Desktop\ultralytics\runs\detect\val57
+
+正在验证模型: C:\Users\Hunger\Desktop\实验数据_new\yolo11_Rep_shufflev1_new20251028_21_48\weights\best.pt
+Ultralytics 8.3.218  Python-3.9.23 torch-2.8.0+cu126 CUDA:0 (NVIDIA GeForce RTX 4060 Ti, 8188MiB)
+YOLO11_Ghost_Rep_shufflev1 summary: 104 layers, 1,629,996 parameters, 0 gradients, 4.5 GFLOPs
+                 Class     Images  Instances      Box(P          R      mAP50  mAP50-95): 100% ━━━━━━━━━━━━ 312/312 8.0it/s 39.1s
+                   all       9977      47305      0.843      0.709      0.806      0.606
+                   car       9750      39620      0.908      0.821      0.915      0.712
+            motorcycle        293        334      0.771      0.593      0.658       0.39
+                   bus        706        754      0.817      0.615      0.747      0.602
+                 truck       4362       6597      0.876      0.808      0.903      0.718
+Speed: 0.5ms preprocess, 0.9ms inference, 0.0ms loss, 0.6ms postprocess per image
+Results saved to C:\Users\Hunger\Desktop\ultralytics\runs\detect\val58
+
+正在验证模型: C:\Users\Hunger\Desktop\实验数据_new\yolo11_Rep_shufflev2_new20251031_21_38\weights\best.pt
+Ultralytics 8.3.218  Python-3.9.23 torch-2.8.0+cu126 CUDA:0 (NVIDIA GeForce RTX 4060 Ti, 8188MiB)
+YOLO11_Ghost_Rep_shufflev2 summary: 120 layers, 1,718,652 parameters, 0 gradients, 4.7 GFLOPs
+
+                 Class     Images  Instances      Box(P          R      mAP50  mAP50-95): 100% ━━━━━━━━━━━━ 312/312 6.4it/s 48.4s
+                   all       9977      47305      0.823      0.747      0.829      0.635
+                   car       9750      39620       0.89      0.854      0.926      0.732
+            motorcycle        293        334      0.786      0.593      0.701      0.438
+                   bus        706        754      0.758      0.696      0.772      0.631
+                 truck       4362       6597      0.859      0.845      0.917      0.739
+Speed: 0.5ms preprocess, 0.9ms inference, 0.0ms loss, 0.8ms postprocess per image
+Results saved to C:\Users\Hunger\Desktop\ultralytics\runs\detect\val59
+
+正在验证模型: C:\Users\Hunger\Desktop\实验数据_new\yolo11_Ghost_Rep_shufflev1_CBAM20251031_20_37\weights\best.pt
+Ultralytics 8.3.218  Python-3.9.23 torch-2.8.0+cu126 CUDA:0 (NVIDIA GeForce RTX 4060 Ti, 8188MiB)
+YOLO11_Ghost_Rep_shufflev1_CBAM summary: 119 layers, 1,716,754 parameters, 0 gradients, 4.6 GFLOPs
+
+                 Class     Images  Instances      Box(P          R      mAP50  mAP50-95): 100% ━━━━━━━━━━━━ 312/312 6.2it/s 50.0s
+                   all       9977      47305      0.808      0.744      0.818       0.62
+                   car       9750      39620      0.882      0.844      0.918      0.722
+            motorcycle        293        334      0.743      0.615      0.686      0.412
+                   bus        706        754      0.763      0.672      0.757      0.613
+                 truck       4362       6597      0.845      0.844       0.91      0.732
+Speed: 0.5ms preprocess, 0.9ms inference, 0.0ms loss, 0.8ms postprocess per image
+Results saved to C:\Users\Hunger\Desktop\ultralytics\runs\detect\val60
+
+正在验证模型: C:\Users\Hunger\Desktop\实验数据_new\yolo11_Ghost_Rep_shufflev2_CBAM20251101_19_03\weights\best.pt
+Ultralytics 8.3.218  Python-3.9.23 torch-2.8.0+cu126 CUDA:0 (NVIDIA GeForce RTX 4060 Ti, 8188MiB)
+YOLO11_Ghost_Rep_shufflev2_CBAM summary: 135 layers, 1,805,410 parameters, 0 gradients, 4.8 GFLOPs
+val: Fast image access  (ping: 0.00.0 ms, read: 2454.9339.5 MB/s, size: 571.8 KB)
+                 Class     Images  Instances      Box(P          R      mAP50  mAP50-95): 100% ━━━━━━━━━━━━ 312/312 6.5it/s 48.1s
+                   all       9977      47305      0.808      0.749       0.83      0.641
+                   car       9750      39620      0.856      0.874      0.927       0.74
+            motorcycle        293        334      0.731      0.578      0.694      0.431
+                   bus        706        754      0.791      0.697      0.783       0.65
+                 truck       4362       6597      0.854      0.848      0.915      0.745
+Speed: 0.5ms preprocess, 0.9ms inference, 0.0ms loss, 0.8ms postprocess per image
+Results saved to C:\Users\Hunger\Desktop\ultralytics\runs\detect\val61
+
+正在验证模型: C:\Users\Hunger\Desktop\实验数据_new\yolo11_Ghost_Rep_shufflev1_CA_1_20251112_10_25\weights\best.pt
+Ultralytics 8.3.218  Python-3.9.23 torch-2.8.0+cu126 CUDA:0 (NVIDIA GeForce RTX 4060 Ti, 8188MiB)
+YOLO11_Ghost_Rep_shufflev1_CA_1 summary: 125 layers, 1,663,316 parameters, 0 gradients, 4.5 GFLOPs
+                 Class     Images  Instances      Box(P          R      mAP50  mAP50-95): 100% ━━━━━━━━━━━━ 312/312 6.4it/s 48.4s
+                   all       9977      47305      0.844      0.723      0.822      0.632
+                   car       9750      39620      0.887      0.847      0.921      0.729
+            motorcycle        293        334      0.806      0.572      0.694      0.437
+                   bus        706        754      0.814      0.646      0.764      0.624
+                 truck       4362       6597       0.87      0.826       0.91      0.737
+Speed: 0.5ms preprocess, 0.9ms inference, 0.0ms loss, 0.8ms postprocess per image
+Results saved to C:\Users\Hunger\Desktop\ultralytics\runs\detect\val62
+
+正在验证模型: C:\Users\Hunger\Desktop\实验数据_new\yolo11_Ghost_Rep_shufflev2_CA_20251116_10_17\weights\best.pt
+Ultralytics 8.3.218  Python-3.9.23 torch-2.8.0+cu126 CUDA:0 (NVIDIA GeForce RTX 4060 Ti, 8188MiB)
+YOLO11_Ghost_Rep_shufflev2_CA summary: 141 layers, 1,751,972 parameters, 0 gradients, 4.8 GFLOPs
+                 Class     Images  Instances      Box(P          R      mAP50  mAP50-95): 100% ━━━━━━━━━━━━ 312/312 6.5it/s 48.3s
+                   all       9977      47305      0.854      0.741      0.845      0.663
+                   car       9750      39620      0.898      0.857       0.93      0.748
+            motorcycle        293        334      0.807        0.6      0.735      0.485
+                   bus        706        754      0.832      0.672      0.793      0.661
+                 truck       4362       6597      0.878      0.836       0.92      0.757
+Speed: 0.5ms preprocess, 1.0ms inference, 0.0ms loss, 0.8ms postprocess per image
+Results saved to C:\Users\Hunger\Desktop\ultralytics\runs\detect\val63
+
+正在验证模型: C:\Users\Hunger\Desktop\实验数据_new\MobileNetV4_20251201_11_31\weights\best.pt
+Ultralytics 8.3.218  Python-3.9.23 torch-2.8.0+cu126 CUDA:0 (NVIDIA GeForce RTX 4060 Ti, 8188MiB)
+MobileNetV4 summary: 191 layers, 4,028,844 parameters, 0 gradients, 6.5 GFLOPs
+
+                 Class     Images  Instances      Box(P          R      mAP50  mAP50-95): 100% ━━━━━━━━━━━━ 312/312 6.1it/s 51.4s
+                   all       9977      47305      0.861      0.783      0.871      0.692
+                   car       9750      39620      0.906      0.872      0.943      0.777
+            motorcycle        293        334      0.796      0.704      0.787      0.521
+                   bus        706        754      0.849      0.693      0.817      0.685
+                 truck       4362       6597      0.893      0.862      0.939      0.786
+Speed: 0.5ms preprocess, 1.5ms inference, 0.0ms loss, 0.7ms postprocess per image
+Results saved to C:\Users\Hunger\Desktop\ultralytics\runs\detect\val64
+
+正在验证模型: C:\Users\Hunger\Desktop\实验数据_new\yolo12n_20251215_15_37\weights\best.pt
+Ultralytics 8.3.218  Python-3.9.23 torch-2.8.0+cu126 CUDA:0 (NVIDIA GeForce RTX 4060 Ti, 8188MiB)
+YOLO12n summary (fused): 159 layers, 2,557,508 parameters, 0 gradients, 6.3 GFLOPs
+
+                 Class     Images  Instances      Box(P          R      mAP50  mAP50-95): 100% ━━━━━━━━━━━━ 312/312 5.8it/s 54.0s
+                   all       9977      47305      0.857      0.791      0.869      0.703
+                   car       9750      39620      0.922      0.874      0.949      0.791
+            motorcycle        293        334      0.792      0.672      0.747      0.513
+                   bus        706        754       0.81      0.751      0.836      0.709
+                 truck       4362       6597      0.903      0.866      0.945        0.8
+Speed: 0.5ms preprocess, 1.7ms inference, 0.0ms loss, 0.7ms postprocess per image
+Results saved to C:\Users\Hunger\Desktop\ultralytics\runs\detect\val65
+
+进程已结束，退出代码为 0
+
+YOLOV7tiny
+               Class      Images      Labels           P           R      mAP@.5  mAP@.5:.95: 100%|███████████████████████████████████████████████████████████████████████| 156/156 [01:21<00:00,  1.91it/s]
+                 all        9926       46996       0.857       0.829       0.895       0.721
+                 car        9926       39357       0.922       0.901       0.962       0.795
+          motorcycle        9926         328       0.777       0.741       0.817       0.568
+                 bus        9926         748       0.831       0.779       0.848       0.715
+               truck        9926        6563       0.897       0.894       0.953       0.806
+200 epochs completed in 43.239 hours.
+Validating C:\Users\Hunger\Desktop\ultralytics\runs\detect\YOLOV10n_20251223_11_11\weights\best.pt...
+Ultralytics 8.3.218  Python-3.9.23 torch-2.8.0+cu126 CUDA:0 (NVIDIA GeForce RTX 4060 Ti, 8188MiB)
+YOLOv10n summary (fused): 102 layers, 2,265,948 parameters, 0 gradients, 6.5 GFLOPs
+                 Class     Images  Instances      Box(P          R      mAP50  mAP50-95): 100% ━━━━━━━━━━━━ 156/156 4.3it/s 36.1s
+                   all       9977      47305      0.858      0.803      0.877      0.713
+                   car       9750      39620      0.897      0.891       0.95      0.794
+            motorcycle        293        334      0.832      0.701      0.799      0.557
+                   bus        706        754      0.828       0.74      0.818      0.702
+                 truck       4362       6597      0.877      0.878      0.941      0.801
+Speed: 0.1ms preprocess, 0.8ms inference, 0.0ms loss, 0.1ms postprocess per image
+Results saved to C:\Users\Hunger\Desktop\ultralytics\runs\detect\YOLOV10n_20251223_11_11
+
+Validating C:\Users\Hunger\Desktop\ultralytics\runs\detect\YOLOV6n_20251224_22_55\weights\best.pt...
+Ultralytics 8.3.218  Python-3.9.23 torch-2.8.0+cu126 CUDA:0 (NVIDIA GeForce RTX 4060 Ti, 8188MiB)
+YOLOv6n summary (fused): 68 layers, 4,234,140 parameters, 0 gradients, 11.7 GFLOPs
+                 Class     Images  Instances      Box(P          R      mAP50  mAP50-95): 100% ━━━━━━━━━━━━ 156/156 3.8it/s 40.7s
+                   all       9977      47305      0.838      0.807       0.87      0.696
+                   car       9750      39620        0.9      0.889      0.946      0.781
+            motorcycle        293        334      0.776      0.705      0.773      0.525
+                   bus        706        754      0.798      0.755      0.819       0.69
+                 truck       4362       6597      0.877      0.879      0.941       0.79
+Speed: 0.1ms preprocess, 0.8ms inference, 0.0ms loss, 0.9ms postprocess per image
+Results saved to C:\Users\Hunger\Desktop\ultralytics\runs\detect\YOLOV6n_20251224_22_55
+
+Validating C:\Users\Hunger\Desktop\ultralytics\runs\detect\yolo11_Ghost_Rep_shuffle2_True20251225_18_17\weights\best.pt...
+Ultralytics 8.3.218  Python-3.9.23 torch-2.8.0+cu126 CUDA:0 (NVIDIA GeForce RTX 4060 Ti, 8188MiB)
+YOLO11_Ghost_Rep_shufflev2_True summary: 120 layers, 1,718,652 parameters, 0 gradients, 4.7 GFLOPs
+                 Class     Images  Instances      Box(P          R      mAP50  mAP50-95): 100% ━━━━━━━━━━━━ 156/156 3.9it/s 39.5s
+                   all       9977      47305      0.838      0.745      0.835      0.645
+                   car       9750      39620      0.903      0.848      0.927       0.74
+            motorcycle        293        334      0.777      0.623      0.714      0.448
+                   bus        706        754      0.793      0.678      0.778      0.641
+                 truck       4362       6597      0.879       0.83      0.918       0.75
+Speed: 0.1ms preprocess, 0.6ms inference, 0.0ms loss, 0.8ms postprocess per image
+Results saved to C:\Users\Hunger\Desktop\ultralytics\runs\detect\yolo11_Ghost_Rep_shuffle2_True20251225_18_17
+
+
