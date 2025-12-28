@@ -1785,8 +1785,11 @@ def parse_model(d, ch, verbose=True):
             temp=args[0]
             args = [c1,c1,temp]
         elif m in {CoordAtt2}:
-            c1 = ch[f]
-            # temp = args[0]
+            c1, c2 = ch[f], args[0]
+            c2=c1
+            if c2 != nc:  # if c2 not equal to number of classes (i.e. for Classify() output)
+                c2 = make_divisible(min(c2, max_channels) * width, 8)
+            c2 = c1
             args = [c1,c1]
         elif m in {EMA_attention}:
             c1, c2 = ch[f], args[0]

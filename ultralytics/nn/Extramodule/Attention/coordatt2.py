@@ -18,7 +18,7 @@ class h_swish(nn.Module):
         return x * self.sigmoid(x)
 
 class CoordAtt2(nn.Module):
-    def __init__(self, inp, oup, reduction=32):
+    def __init__(self, inp, oup, reduction=8):
         """
         inp: 输入通道数 (由 tasks.py 自动传入)
         oup: 输出通道数 (由 tasks.py 自动传入)
