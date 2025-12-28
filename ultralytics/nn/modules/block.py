@@ -58,7 +58,7 @@ __all__ = (
     "ShuffleV2Block"
 )
 
-from ..Extramodule.Attension.SqueezeExcite import SqueezeExcite
+from ..Extramodule.Attention.SqueezeExcite import SqueezeExcite
 
 
 class DFL(nn.Module):

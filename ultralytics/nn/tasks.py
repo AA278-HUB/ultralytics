@@ -94,8 +94,10 @@ from ultralytics.utils.torch_utils import (
     smart_inference_mode,
     time_sync,
 )
-from .Extramodule.Attension.coordatt import CoordAtt
-from .Extramodule.Attension.eca_module import ECA
+from .Extramodule.Attention.coordatt import CoordAtt
+from .Extramodule.Attention.coordatt2 import CoordAtt2
+from .Extramodule.Attention.eca_module import ECA
+from .Extramodule.Attention.EMA_Attention import EMA_attention
 from .modules.block import ShuffleV1Block, ShuffleV2Block
 
 
@@ -1782,6 +1784,15 @@ def parse_model(d, ch, verbose=True):
             c1 = ch[f]
             temp=args[0]
             args = [c1,c1,temp]
+        elif m in {CoordAtt2}:
+            c1 = ch[f]
+            # temp = args[0]
+            args = [c1,c1]
+        elif m in {EMA_attention}:
+            c1, c2 = ch[f], args[0]
+            if c2 != nc:  # if c2 not equal to number of classes (i.e. for Classify() output)
+                c2 = make_divisible(min(c2, max_channels) * width, 8)
+            args = [c2]
         elif m in {ECA}:
             c1 = ch[f]
             args = [c1, *args[:]]
