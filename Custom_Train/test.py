@@ -19,9 +19,10 @@ model_yaml_path = "Custom_Model_cfg/yolo11_Ghost_Rep_shufflev2_ECA.yaml"
 model_yaml_path = "Custom_Model_cfg/yolo11_Ghost_Rep_shufflev2_True.yaml"
 model_yaml_path = "Custom_Model_cfg/yolo11_Ghost_Rep_shufflev2_CA_Detect.yaml"
 # model_yaml_path = "Custom_Model_cfg/yolo11_Ghost_Rep_shufflev2_EMA.yaml"
-model_yaml_path = "Custom_Model_cfg/yolo11_Ghost_Rep_shufflev2_CA.yaml"
-model_yaml_path = "Custom_Model_cfg/yolo11_Detect_CA.yaml"
-
+# model_yaml_path = "Custom_Model_cfg/yolo11_Ghost_Rep_shufflev2_CA.yaml"
+# model_yaml_path = "Custom_Model_cfg/yolo11_Detect_CA.yaml"
+model_yaml_path="Custom_Model_cfg/yolo11_Ghost_Rep_Bottleneck_shufflev2.yaml"
+# model_yaml_path = "Custom_Model_cfg/yolo11_Ghost_Rep_shufflev2.yaml"
 
 data="coco8.yaml"
 #data = "Custom_dataset_cfg/coco-vehicle.yaml"

@@ -1655,7 +1655,7 @@ def parse_model(d, ch, verbose=True):
             GhostConv,
             Bottleneck,
             GhostBottleneck,
-            RepGhostBottleneck,
+            # RepGhostBottleneck,
             SPP,
             SPPF,
             C2fPSA,
@@ -1776,6 +1776,12 @@ def parse_model(d, ch, verbose=True):
             temp = args[1]
             temp = temp // 2
             args[2] = temp
+        elif m in {RepGhostBottleneck}:
+            c1, c2 = ch[f], args[0]
+            if c2 != nc:  # if c2 not equal to number of classes (i.e. for Classify() output)
+                c2 = make_divisible(min(c2, max_channels) * width, 8)
+            args=[c1,c2,c2,3,1,0.0,True,True,True,False,False]
+            # args = [c1, c2, *args[:]]
         elif m in {CBAM}:
             c1 = ch[f]
             args = [c1,*args[:]]
