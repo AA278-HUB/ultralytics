@@ -13,13 +13,13 @@ if __name__ == '__main__':
     # 加载预训练模型
     # model =YOLO(model_yaml_path)
     model = YOLO(model_yaml_path)
-    # results=model.train(resume=True)
-    results = model.train(data=data,
-                          epochs=200,
-                          batch=32,
-                          imgsz=640,
-                          cos_lr=True,
-                          close_mosaic=50,
-                          save=True,
-                          device="0",
-                          name="yolo11_Ghost_Rep_shuffle2_Detect_EMA"+datetime.now().strftime("%Y%m%d_%H_%M"))
+    results=model.train(resume=True)
+    # results = model.train(data=data,
+    #                       epochs=200,
+    #                       batch=32,
+    #                       imgsz=640,
+    #                       cos_lr=True,
+    #                       close_mosaic=50,
+    #                       save=True,
+    #                       device="0",
+    #                       name="yolo11_Ghost_Rep_shuffle2_Detect_EMA"+datetime.now().strftime("%Y%m%d_%H_%M"))
