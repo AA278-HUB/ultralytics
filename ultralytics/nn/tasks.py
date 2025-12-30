@@ -94,6 +94,7 @@ from ultralytics.utils.torch_utils import (
     smart_inference_mode,
     time_sync,
 )
+from .Extramodule.Attention.C2PSA_MLCA import C2PSA_MLCA
 from .Extramodule.Attention.coordatt import CoordAtt
 from .Extramodule.Attention.coordatt2 import CoordAtt2
 from .Extramodule.Attention.eca_module import ECA
@@ -1705,6 +1706,7 @@ def parse_model(d, ch, verbose=True):
             C2fPSA,
             C2fCIB,
             C2PSA,
+            C2PSA_MLCA,
             A2C2f,
         }
     )
