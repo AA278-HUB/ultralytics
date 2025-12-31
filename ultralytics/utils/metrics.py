@@ -83,6 +83,7 @@ def bbox_iou(
     GIoU: bool = False,
     DIoU: bool = False,
     CIoU: bool = False,
+    EIoU: bool = False,  # 👈 新增
     eps: float = 1e-7,
 ) -> torch.Tensor:
     """
@@ -128,9 +129,22 @@ def bbox_iou(
 
     # IoU
     iou = inter / union
-    if CIoU or DIoU or GIoU:
+    if CIoU or DIoU or GIoU or EIoU:
         cw = b1_x2.maximum(b2_x2) - b1_x1.minimum(b2_x1)  # convex (smallest enclosing box) width
         ch = b1_y2.maximum(b2_y2) - b1_y1.minimum(b2_y1)  # convex height
+        if EIoU :
+            w_diff = (w1 - w2).pow(2)
+            h_diff = (h1 - h2).pow(2)
+            rho2 = (
+                           (b2_x1 + b2_x2 - b1_x1 - b1_x2).pow(2) + (b2_y1 + b2_y2 - b1_y1 - b1_y2).pow(2)
+                   ) / 4
+            c2 = cw.pow(2) + ch.pow(2) + eps  # convex diagonal squared
+            return iou - (
+                    rho2 / c2
+                    + w_diff / (cw.pow(2) + eps)
+                    + h_diff / (ch.pow(2) + eps)
+            )
+
         if CIoU or DIoU:  # Distance or Complete IoU https://arxiv.org/abs/1911.08287v1
             c2 = cw.pow(2) + ch.pow(2) + eps  # convex diagonal squared
             rho2 = (
