@@ -99,7 +99,7 @@ from .Extramodule.Attention.coordatt import CoordAtt
 from .Extramodule.Attention.coordatt2 import CoordAtt2
 from .Extramodule.Attention.eca_module import ECA
 from .Extramodule.Attention.EMA_Attention import EMA_attention
-from .modules.block import ShuffleV1Block, ShuffleV2Block
+from .modules.block import ShuffleV1Block, ShuffleV2Block, C3RepGhost2, C2faster
 
 
 class BaseModel(torch.nn.Module):
@@ -1678,6 +1678,7 @@ def parse_model(d, ch, verbose=True):
             C3TR,
             C3Ghost,
             C3RepGhost,
+            C3RepGhost2,
             torch.nn.ConvTranspose2d,
             DWConvTranspose2d,
             C3x,
@@ -1701,6 +1702,7 @@ def parse_model(d, ch, verbose=True):
             C3TR,
             C3Ghost,
             C3RepGhost,
+            C3RepGhost2,
             C3x,
             RepC3,
             C2fPSA,
@@ -1784,6 +1786,11 @@ def parse_model(d, ch, verbose=True):
                 c2 = make_divisible(min(c2, max_channels) * width, 8)
             args=[c1,c2,c2,3,1,0.0,True,True,True,False,False]
             # args = [c1, c2, *args[:]]
+        elif m in {C2faster}:
+            c1, c2 = ch[f], args[0]
+            if c2 != nc:  # if c2 not equal to number of classes (i.e. for Classify() output)
+                c2 = make_divisible(min(c2, max_channels) * width, 8)
+            args = [c1, c2, *args[1:]]
         elif m in {CBAM}:
             c1 = ch[f]
             args = [c1,*args[:]]

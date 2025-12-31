@@ -444,6 +444,8 @@ class C3Ghost(C3):
         super().__init__(c1, c2, n, shortcut, g, e)
         c_ = int(c2 * e)  # hidden channels
         self.m = nn.Sequential(*(GhostBottleneck(c_, c_) for _ in range(n)))
+
+
 class C3RepGhost(nn.Module):
     """C3 module with RepGhostBottleneck()."""
 
@@ -460,6 +462,12 @@ class C3RepGhost(nn.Module):
     def forward(self, x):
         return self.cv3(torch.cat((self.m(self.cv1(x)), self.cv2(x)), dim=1))
 
+class C3RepGhost2(C2f):
+    def __init__(self, c1, c2, n, shortcut, g, e, deploy):
+        super().__init__(c1, c2, n, shortcut, g, e)
+        c_ = int(c2 * e)
+        self.m = nn.Sequential(*(RepGhostBottleneck(c_, c_, c_, deploy=deploy) for _ in range(n)))
+        # print(f"input:{c_}",f"middle:{c_}",f"output:{c_}")
 class GhostBottleneck(nn.Module):
     """Ghost Bottleneck https://github.com/huawei-noah/Efficient-AI-Backbones."""
 
@@ -2357,6 +2365,43 @@ class ShuffleV2Block(nn.Module):
 
 
 
+class PConv(nn.Module):
+    """Partial Convolution (PConv) 核心实现"""
+    def __init__(self, dim, n_div=4, forward='split_cat'):
+        super().__init__()
+        self.dim_conv3 = dim // n_div  # 只有 1/4 的通道参与卷积
+        self.dim_untouched = dim - self.dim_conv3
+        self.partial_conv3 = nn.Conv2d(self.dim_conv3, self.dim_conv3, 3, 1, 1, bias=False)
+
+    def forward(self, x):
+        # 针对推理优化：分割 -> 卷积 -> 拼接
+        x1, x2 = torch.split(x, [self.dim_conv3, self.dim_untouched], dim=1)
+        x1 = self.partial_conv3(x1)
+        return torch.cat((x1, x2), dim=1)
+
+class Faster_Block(nn.Module):
+    """基于 PConv 的 FasterNet 模块"""
+    def __init__(self, c1, c2, shortcut=True, g=1, e=0.5):
+        super().__init__()
+        self.conv = PConv(c1) # 使用 PConv 替换普通卷积
+        self.shortcut = shortcut and c1 == c2
+
+    def forward(self, x):
+        return x + self.conv(x) if self.shortcut else self.conv(x)
+
+class C2faster(nn.Module):
+    """参考 C2f 结构，将 Bottleneck 替换为 Faster_Block"""
+    def __init__(self, c1, c2, n=1, shortcut=False, g=1, e=0.5):
+        super().__init__()
+        self.c = int(c2 * e)
+        self.cv1 = Conv(c1, 2 * self.c, 1, 1)
+        self.cv2 = Conv((2 + n) * self.c, c2, 1)
+        self.m = nn.ModuleList(Faster_Block(self.c, self.c, shortcut, g, e=1.0) for _ in range(n))
+
+    def forward(self, x):
+        y = list(self.cv1(x).chunk(2, 1))
+        y.extend(m(y[-1]) for m in self.m)
+        return self.cv2(torch.cat(y, 1))
 
 ##=============这个是被我瞎改过的ShuffleV2Block=====================
 ##=============要么通道上升补上增大，要么=====================

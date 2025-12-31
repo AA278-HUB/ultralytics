@@ -203,3 +203,18 @@ Speed: 0.1ms preprocess, 0.7ms inference, 0.0ms loss, 0.8ms postprocess per imag
 Results saved to C:\Users\Hunger\Desktop\ultralytics\runs\detect\yolo11_Ghost_Rep_shufflev2_CA_Detect20251229_17_02
 
 进程已结束，退出代码为 0
+
+
+Validating C:\Users\Hunger\Desktop\ultralytics\runs\detect\yolo11_Ghost_Rep_shufflev2_CA_Detect_C2PSA_MLCA20251230_13_59\weights\best.pt...
+Ultralytics 8.3.218  Python-3.9.23 torch-2.8.0+cu126 CUDA:0 (NVIDIA GeForce RTX 4060 Ti, 8188MiB)
+YOLO11_Ghost_Rep_shufflev2_CA_Detect_C2PSA_MLCA summary: 141 layers, 1,751,972 parameters, 0 gradients, 4.8 GFLOPs
+                 Class     Images  Instances      Box(P          R      mAP50  mAP50-95): 100% ━━━━━━━━━━━━ 156/156 4.1it/s 38.2s
+                   all       9977      47305      0.821      0.757       0.84      0.651
+                   car       9750      39620      0.865      0.875       0.93      0.747
+            motorcycle        293        334      0.793      0.597      0.717      0.455
+                   bus        706        754      0.769      0.704      0.794      0.653
+                 truck       4362       6597      0.857      0.852       0.92      0.752
+Speed: 0.1ms preprocess, 0.7ms inference, 0.0ms loss, 0.8ms postprocess per image
+Results saved to C:\Users\Hunger\Desktop\ultralytics\runs\detect\yolo11_Ghost_Rep_shufflev2_CA_Detect_C2PSA_MLCA20251230_13_59
+
+进程已结束，退出代码为 0
