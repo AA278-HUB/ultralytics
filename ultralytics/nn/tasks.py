@@ -1729,7 +1729,9 @@ def parse_model(d, ch, verbose=True):
                 with contextlib.suppress(ValueError):
                     args[j] = locals()[a] if a in locals() else ast.literal_eval(a)
         n = n_ = max(round(n * depth), 1) if n > 1 else n  # depth gain
-        #
+
+        if m in {RepConv}:
+            pass
         # if m in{C3Ghost} :
         #     print("调试")
         if m in base_modules:
@@ -1791,6 +1793,9 @@ def parse_model(d, ch, verbose=True):
             if c2 != nc:  # if c2 not equal to number of classes (i.e. for Classify() output)
                 c2 = make_divisible(min(c2, max_channels) * width, 8)
             args = [c1, c2, *args[1:]]
+        # elif m in {RepConv}:
+        #     pass
+        #
         elif m in {CBAM}:
             c1 = ch[f]
             args = [c1,*args[:]]
@@ -1864,6 +1869,7 @@ def parse_model(d, ch, verbose=True):
                 # 创建 n 个相同的模块，并把它们放到一个 nn.Sequential 里
                 m_ = nn.Sequential(*(m(*args) for _ in range(n)))
             else:
+
                 # 只创建一个模块
                 m_ = m(*args)
 
