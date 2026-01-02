@@ -44,4 +44,10 @@ head:
   - [[-1, 7], 1, Concat, [1]] #18  cat head P5
   - [-1, 2, C3RepGhost, [1024,True,1,0.25]] #19 (P5/32-large)
 
-  - [[13, 16, 19], 1, Detect, [nc]] # Detect(P3, P4, P5)
+  # --- 添加 Coordinate Attention 层 ---
+  - [ 13, 1, CoordAtt2, [ 256 ] ] # 20: 作用于 P3 (来自第13层)
+  - [ 16, 1, CoordAtt2, [ 512 ] ] # 21: 作用于 P4 (来自第16层)
+  - [ 19, 1, CoordAtt2, [ 1024 ] ] # 22: 作用于 P5 (来自第19层)
+
+  # 修改 Detect 的输入，使用经过 CoordAtt 处理后的索引 [20, 21, 22]
+  - [ [ 20, 21,22 ], 1, Detect, [ nc ] ] # 23: Detect(P3, P4, P5)
