@@ -218,3 +218,20 @@ Speed: 0.1ms preprocess, 0.7ms inference, 0.0ms loss, 0.8ms postprocess per imag
 Results saved to C:\Users\Hunger\Desktop\ultralytics\runs\detect\yolo11_Ghost_Rep_shufflev2_CA_Detect_C2PSA_MLCA20251230_13_59
 
 进程已结束，退出代码为 0
+
+
+200 epochs completed in 15.790 hours.
+Optimizer stripped from C:\Users\Hunger\Desktop\ultralytics\runs\detect\yolo11_Ghost_Rep_Ghost_shufflev2_CA20260103_10_31\weights\last.pt, 3.4MB
+Optimizer stripped from C:\Users\Hunger\Desktop\ultralytics\runs\detect\yolo11_Ghost_Rep_Ghost_shufflev2_CA20260103_10_31\weights\best.pt, 3.4MB
+
+Validating C:\Users\Hunger\Desktop\ultralytics\runs\detect\yolo11_Ghost_Rep_Ghost_shufflev2_CA20260103_10_31\weights\best.pt...
+Ultralytics 8.3.218  Python-3.9.23 torch-2.8.0+cu126 CUDA:0 (NVIDIA GeForce RTX 4060 Ti, 8188MiB)
+YOLO11_Ghost_Rep_Ghost_shufflev2_CA summary: 145 layers, 1,660,292 parameters, 0 gradients, 4.6 GFLOPs
+                 Class     Images  Instances      Box(P          R      mAP50  mAP50-95): 100% ━━━━━━━━━━━━ 156/156 3.9it/s 39.7s
+                   all       9977      47305      0.861      0.732       0.84      0.657
+                   car       9750      39620      0.906      0.844      0.926      0.739
+            motorcycle        293        334       0.84      0.575      0.725      0.483
+                   bus        706        754      0.805      0.684      0.789       0.65
+                 truck       4362       6597      0.895      0.826      0.919      0.755
+Speed: 0.1ms preprocess, 0.7ms inference, 0.0ms loss, 0.8ms postprocess per image
+Results saved to C:\Users\Hunger\Desktop\ultralytics\runs\detect\yolo11_Ghost_Rep_Ghost_shufflev2_CA20260103_10_31

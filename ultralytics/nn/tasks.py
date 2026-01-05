@@ -99,6 +99,7 @@ from .Extramodule.Attention.coordatt import CoordAtt
 from .Extramodule.Attention.coordatt2 import CoordAtt2
 from .Extramodule.Attention.eca_module import ECA
 from .Extramodule.Attention.EMA_Attention import EMA_attention
+from .Extramodule.Neck.BiFPN import BiFPN_Concat2, BiFPN_Concat3, BiFPN_Sum2, BiFPN_Sum3
 from .modules.block import ShuffleV1Block, ShuffleV2Block, C3RepGhost2, C2faster
 
 
@@ -1715,7 +1716,8 @@ def parse_model(d, ch, verbose=True):
     # =======添加======
     backbone = False
     for i, (f, n, m, args) in enumerate(d["backbone"] + d["head"]):  # from, number, module, args
-
+        if m is C3RepGhost:
+            pass
         t = m
         m = (
             getattr(torch.nn, m[3:])
@@ -1730,8 +1732,7 @@ def parse_model(d, ch, verbose=True):
                     args[j] = locals()[a] if a in locals() else ast.literal_eval(a)
         n = n_ = max(round(n * depth), 1) if n > 1 else n  # depth gain
 
-        if m in {RepConv}:
-            pass
+
         # if m in{C3Ghost} :
         #     print("调试")
         if m in base_modules:
@@ -1836,8 +1837,12 @@ def parse_model(d, ch, verbose=True):
             c2 = args[1] if args[3] else args[1] * 4
         elif m is torch.nn.BatchNorm2d:
             args = [ch[f]]
-        elif m is Concat:
+        # elif m is Concat:
+        elif m in {Concat, BiFPN_Concat2, BiFPN_Concat3,BiFPN_Sum2,BiFPN_Sum3}:
             c2 = sum(ch[x] for x in f)
+            if m in {BiFPN_Sum2, BiFPN_Sum3}:
+            # Sum 操作的输出通道等于其中任意一个输入的通道（假设已经对齐）
+                c2 = ch[f[0]]
         elif m in frozenset(
             {Detect, WorldDetect, YOLOEDetect, Segment, YOLOESegment, Pose, OBB, ImagePoolingAttn, v10Detect}
         ):
@@ -1869,7 +1874,8 @@ def parse_model(d, ch, verbose=True):
                 # 创建 n 个相同的模块，并把它们放到一个 nn.Sequential 里
                 m_ = nn.Sequential(*(m(*args) for _ in range(n)))
             else:
-
+                if m is C3RepGhost:
+                    pass
                 # 只创建一个模块
                 m_ = m(*args)
 

@@ -35,6 +35,10 @@ model_yaml_path = "Custom_Model_cfg/yolo11_Ghost_2.yaml"
 
 model_yaml_path = "Custom_Model_cfg_2/yolo11_Ghost_Rep_Dw_shufflev2_.yaml"
 model_yaml_path = "Custom_Model_cfg_2/yolo11_Ghost_Rep_Ghost_shufflev2_.yaml"
+model_yaml_path = "Custom_Model_cfg_2/yolo11_Ghost_Rep_Ghost_shufflev2_CA_BiFPN.yaml"
+model_yaml_path = "Custom_Model_cfg_2/yolo11_Ghost_Rep_Ghost_shufflev2_CA_BiFPN_Fusion.yaml"
+
+# model_yaml_path = "Custom_Model_cfg_2/test.yaml"
 
 data="coco8.yaml"
 #data = "Custom_dataset_cfg/coco-vehicle.yaml"
