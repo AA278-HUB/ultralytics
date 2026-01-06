@@ -235,3 +235,26 @@ YOLO11_Ghost_Rep_Ghost_shufflev2_CA summary: 145 layers, 1,660,292 parameters, 0
                  truck       4362       6597      0.895      0.826      0.919      0.755
 Speed: 0.1ms preprocess, 0.7ms inference, 0.0ms loss, 0.8ms postprocess per image
 Results saved to C:\Users\Hunger\Desktop\ultralytics\runs\detect\yolo11_Ghost_Rep_Ghost_shufflev2_CA20260103_10_31
+
+
+D:\AnacondaEnviroment\.conda\envs\Utralytics_python39\lib\site-packages\torch\autograd\graph.py:829: UserWarning: adaptive_avg_pool2d_backward_cuda does not have a deterministic implementation, but you set 'torch.use_deterministic_algorithms(True, warn_only=True)'. You can file an issue at https://github.com/pytorch/pytorch/issues to help us prioritize adding deterministic support for this operation. (Triggered internally at C:\actions-runner\_work\pytorch\pytorch\pytorch\aten\src\ATen\Context.cpp:97.)
+  return Variable._execution_engine.run_backward(  # Calls into the C++ engine to run the backward pass
+    200/200      3.86G     0.6677     0.4367       0.87         15        640: 100% ━━━━━━━━━━━━ 1248/1248 5.5it/s 3:48
+                 Class     Images  Instances      Box(P          R      mAP50  mAP50-95): 100% ━━━━━━━━━━━━ 156/156 4.2it/s 36.9s
+                   all       9977      47305      0.821      0.752      0.827       0.64
+
+200 epochs completed in 15.077 hours.
+Optimizer stripped from C:\Users\Hunger\Desktop\ultralytics\runs\detect\yolo11_Ghost_Rep_Ghost_shufflev2_CA_BiFPN_Fusion20260105_10_32\weights\last.pt, 3.6MB
+Optimizer stripped from C:\Users\Hunger\Desktop\ultralytics\runs\detect\yolo11_Ghost_Rep_Ghost_shufflev2_CA_BiFPN_Fusion20260105_10_32\weights\best.pt, 3.6MB
+
+Validating C:\Users\Hunger\Desktop\ultralytics\runs\detect\yolo11_Ghost_Rep_Ghost_shufflev2_CA_BiFPN_Fusion20260105_10_32\weights\best.pt...
+Ultralytics 8.3.218  Python-3.9.23 torch-2.8.0+cu126 CUDA:0 (NVIDIA GeForce RTX 4060 Ti, 8188MiB)
+YOLO11_Ghost_Rep_Ghost_shufflev2_CA_BiFPN_Fusion summary: 149 layers, 1,737,165 parameters, 0 gradients, 4.6 GFLOPs
+                 Class     Images  Instances      Box(P          R      mAP50  mAP50-95): 100% ━━━━━━━━━━━━ 156/156 4.2it/s 37.5s
+                   all       9977      47305      0.829      0.745      0.829      0.641
+                   car       9750      39620      0.881      0.856      0.923      0.734
+            motorcycle        293        334      0.784      0.587      0.701      0.442
+                   bus        706        754      0.791      0.697      0.775      0.644
+                 truck       4362       6597      0.862       0.84      0.915      0.745
+Speed: 0.1ms preprocess, 0.7ms inference, 0.0ms loss, 0.8ms postprocess per image
+Results saved to C:\Users\Hunger\Desktop\ultralytics\runs\detect\yolo11_Ghost_Rep_Ghost_shufflev2_CA_BiFPN_Fusion20260105_10_32
