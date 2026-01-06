@@ -1,0 +1,54 @@
+# Parameters
+nc: 80  # number of classes
+
+scales:
+  n: [0.50, 0.25, 1024]
+  s: [0.50, 0.50, 1024]
+  m: [0.50, 1.00, 512]
+  l: [1.00, 1.00, 512]
+  x: [1.00, 1.50, 512]
+
+# YOLO11 backbone
+backbone:
+  # [from, repeats, module, args]
+  - [-1, 1, GhostConv, [64, 3, 2]]                 # 0  P1/2 (stride 2)
+  - [-1, 1, GhostConv, [128, 3, 2]]                # 1  P2/4 (stride 4)
+
+  - [-1, 1, ShuffleV2Block, [256, 3, 2]]           # 2  P3/8 (stride 8)
+  - [-1, 1, CoordAtt, [8]]                         # 3  CA on P3
+
+  - [-1, 1, ShuffleV2Block, [512, 3, 2]]           # 4  P4/16 (stride 16)
+  - [-1, 1, CoordAtt, [8]]                         # 5  CA on P4
+
+  - [-1, 1, ShuffleV2Block, [1024, 3, 2]]          # 6  P5/32 (stride 32)
+  - [-1, 1, CoordAtt, [8]]                         # 7  CA on P5
+
+  - [-1, 1, ShuffleV2Block, [1024, 3, 1]]          # 8
+  - [-1, 1, SPPF, [1024, 5]]                       # 9
+  - [-1, 2, C2PSA, [1024]]                         # 10 final high-level PSA
+
+head:
+  # 1. 预对齐：让 P3, P4, P5 都在同一个通道维度 (例如 256)
+  - [3, 1, GhostConv, [256, 1, 1]]           # 11: P3_aligned (256)
+  - [5, 1, GhostConv, [256, 1, 1]]           # 12: P4_aligned (256)
+  - [10, 1, GhostConv, [256, 1, 1]]          # 13: P5_aligned (256)
+
+  # 2. Top-down
+  - [13, 1, nn.Upsample, [None, 2, "nearest"]] # 14: P5↑ (256)
+  - [[-1, 12], 1, BiFPN_Sum2, [1]]            # 15: P5↑ + P4 (256+256)
+  - [-1, 2, C3RepGhost, [256, False]]          # 16: P4_td (256)
+
+  - [-1, 1, nn.Upsample, [None, 2, "nearest"]] # 17: P4↑ (256)
+  - [[-1, 11], 1, BiFPN_Sum2, [1]]            # 18: P4↑ + P3 (256+256)
+  - [-1, 2, C3RepGhost, [256, False]]          # 19: P3_out (256)
+
+  # 3. Bottom-up
+  - [-1, 1, GhostConv, [256, 3, 2]]            # 20: P3↓ (256)
+  - [[-1, 12, 16], 1, BiFPN_Sum3, [1]]         # 21: P3↓ + P4_aligned + P4_td (256)
+  - [-1, 2, C3RepGhost, [256, False]]          # 22: P4_out (256)
+
+  - [-1, 1, GhostConv, [256, 3, 2]]            # 23: P4↓ (256)
+  - [[-1, 13], 1, BiFPN_Sum2, [1]]             # 24: P4↓ + P5_aligned (256)
+  - [-1, 2, C3RepGhost, [256, False]]          # 25: P5_out (256)
+
+  - [[19, 22, 25], 1, Detect, [nc]]            # 26
