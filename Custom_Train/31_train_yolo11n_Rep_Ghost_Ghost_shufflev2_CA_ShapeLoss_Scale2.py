@@ -16,7 +16,7 @@ if __name__ == '__main__':
     # results=model.train(resume=True)
     results = model.train(data=data,
                           epochs=200,
-                          batch=32,
+                          batch=128,
                           imgsz=640,
                           cos_lr=True,
                           close_mosaic=50,
