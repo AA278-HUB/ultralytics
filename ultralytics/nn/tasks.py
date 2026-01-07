@@ -94,7 +94,9 @@ from ultralytics.utils.torch_utils import (
     smart_inference_mode,
     time_sync,
 )
+
 from .Extramodule.Attention.C2PSA_MLCA import C2PSA_MLCA
+from .Extramodule.Attention.SimAM import SimAM
 from .Extramodule.Attention.coordatt import CoordAtt
 from .Extramodule.Attention.coordatt2 import CoordAtt2
 from .Extramodule.Attention.eca_module import ECA
@@ -1689,6 +1691,9 @@ def parse_model(d, ch, verbose=True):
             SCDown,
             C2fCIB,
             A2C2f,
+
+            SimAM,
+
             GSConv,
             GSConvE,
             GSConvE2,
@@ -1725,8 +1730,7 @@ def parse_model(d, ch, verbose=True):
     # =======添加======
     backbone = False
     for i, (f, n, m, args) in enumerate(d["backbone"] + d["head"]):  # from, number, module, args
-        if m is C3RepGhost:
-            pass
+
         t = m
         m = (
             getattr(torch.nn, m[3:])
@@ -1741,7 +1745,8 @@ def parse_model(d, ch, verbose=True):
                     args[j] = locals()[a] if a in locals() else ast.literal_eval(a)
         n = n_ = max(round(n * depth), 1) if n > 1 else n  # depth gain
 
-
+        if m is SimAM:
+            pass
         # if m in{C3Ghost} :
         #     print("调试")
         if m in base_modules:
