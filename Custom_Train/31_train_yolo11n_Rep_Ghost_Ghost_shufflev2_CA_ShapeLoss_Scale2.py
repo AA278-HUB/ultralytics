@@ -21,5 +21,5 @@ if __name__ == '__main__':
                           cos_lr=True,
                           close_mosaic=50,
                           save=True,
-                          device=-1,
+                          device=[0,1,2,3],
                           name="yolo11_Ghost_Rep_Ghost_shufflev2_CA"+datetime.now().strftime("%Y%m%d_%H_%M"))
