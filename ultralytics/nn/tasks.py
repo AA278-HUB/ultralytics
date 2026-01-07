@@ -101,6 +101,7 @@ from .Extramodule.Attention.eca_module import ECA
 from .Extramodule.Attention.EMA_Attention import EMA_attention
 from .Extramodule.Neck.BiFPN import BiFPN_Concat2, BiFPN_Concat3, BiFPN_Sum2, BiFPN_Sum3
 from .modules.block import ShuffleV1Block, ShuffleV2Block, C3RepGhost2, C2faster
+from .modules.conv import GSConv, GSConvE, GSConvE2, GSBottleneckC, GSBottleneck, GSConvns, VoVGSCSPC, VoVGSCSP
 
 
 class BaseModel(torch.nn.Module):
@@ -1688,6 +1689,14 @@ def parse_model(d, ch, verbose=True):
             SCDown,
             C2fCIB,
             A2C2f,
+            GSConv,
+            GSConvE,
+            GSConvE2,
+            GSBottleneckC,
+            GSBottleneck,
+            GSConvns,
+            VoVGSCSPC,
+            VoVGSCSP
             # ShuffleV1Block,
         }
     )

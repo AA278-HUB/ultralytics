@@ -39,7 +39,7 @@ model_yaml_path = "Custom_Model_cfg_2/yolo11_Ghost_Rep_Ghost_shufflev2_CA_BiFPN.
 model_yaml_path = "Custom_Model_cfg_2/yolo11_Ghost_Rep_Ghost_shufflev2_CA_BiFPN_Fusion.yaml"
 model_yaml_path = "Custom_Model_cfg_2/yolo11_Ghost_Rep_Ghost_shufflev2_CA_BiFPN_FusionV2.yaml"
 
-
+model_yaml_path="Custom_Model_cfg_3/test.yaml"
 # model_yaml_path = "Custom_Model_cfg_2/test.yaml"
 
 data="coco8.yaml"
