@@ -269,6 +269,103 @@ class RepViTBlock(nn.Module):
     def forward(self, x):
         return self.channel_mixer(self.token_mixer(x))
 
+
+import torch
+import torch.nn as nn
+
+
+# ------------------- 核心轻量化算子 -------------------
+
+class LiteRep_Attention(nn.Module):
+    def __init__(self, channels):
+        super().__init__()
+        self.avg_pool = nn.AdaptiveAvgPool2d(1)
+        self.conv = nn.Conv1d(1, 1, kernel_size=3, padding=1, bias=False)
+        self.sigmoid = nn.Sigmoid()
+
+    def forward(self, x):
+        y = self.avg_pool(x)
+        y = self.conv(y.squeeze(-1).transpose(-1, -2)).transpose(-1, -2).unsqueeze(-1)
+        return x * self.sigmoid(y)
+
+
+class LiteRep_TokenMixer(nn.Module):
+    def __init__(self, dim):
+        super().__init__()
+        n_div = 4
+        self.dim_conv3x3 = dim // n_div
+        self.dim_untouched = dim - self.dim_conv3x3
+        self.partial_conv3x3 = nn.Conv2d(self.dim_conv3x3, self.dim_conv3x3, 3, 1, 1, groups=self.dim_conv3x3,
+                                         bias=False)
+        self.re_conv = nn.Conv2d(dim, dim, 1, 1, 0, groups=dim, bias=False)
+        self.bn = nn.BatchNorm2d(dim)
+
+    def forward(self, x):
+        x1, x2 = torch.split(x, [self.dim_conv3x3, self.dim_untouched], dim=1)
+        x1 = self.partial_conv3x3(x1)
+        out = torch.cat((x1, x2), dim=1)
+        return self.bn(out + self.re_conv(x) + x)
+
+
+class LiteRep_Block(nn.Module):
+    """
+    替代原有 Bottleneck 的核心模块
+    """
+
+    def __init__(self, c1, c2, shortcut=True, g=1, e=0.5):
+        super().__init__()
+        c_ = int(c2 * e)
+        # Token Mixer: 空间特征提取
+        self.token_mixer = LiteRep_TokenMixer(c1)
+        # Attention: 轻量化通道注意力
+        self.attn = LiteRep_Attention(c1)
+        # Channel Mixer: 1x1 映射
+        self.cv1 = nn.Conv2d(c1, c_, 1, 1, bias=False)
+        self.bn1 = nn.BatchNorm2d(c_)
+        self.act = nn.GELU()
+        self.cv2 = nn.Conv2d(c_, c2, 1, 1, bias=False)
+        self.bn2 = nn.BatchNorm2d(c2)
+        self.add = shortcut and c1 == c2
+
+    def forward(self, x):
+        res = x
+        x = self.token_mixer(x)
+        x = self.attn(x)
+        x = self.act(self.bn1(self.cv1(x)))
+        x = self.bn2(self.cv2(x))
+        return res + x if self.add else x
+
+
+# ------------------- 集成到 C3k2 -------------------
+
+class C3k2_LiteRep(nn.Module):
+    """
+    基于 YOLO11 C3k2 改进的 LiteRep 版本
+    """
+
+    def __init__(self, c1, c2, n=1, c3k=False, e=0.5, g=1, shortcut=True):
+        super().__init__()
+        self.c = int(c2 * e)
+        # 这里的 Conv 是你代码中定义的标准 Conv(c1, c2, k, s, p, g)
+        self.cv1 = Conv(c1, 2 * self.c, 1, 1)
+        self.cv2 = Conv((2 + n) * self.c, c2, 1)
+
+        # 使用我们的 LiteRep_Block 替换原有的 Bottleneck 或 C3k
+        self.m = nn.ModuleList(
+            LiteRep_Block(self.c, self.c, shortcut, g, e=1.0) for _ in range(n)
+        )
+
+    def forward(self, x):
+        y = list(self.cv1(x).chunk(2, 1))
+        y.extend(m(y[-1]) for m in self.m)
+        return self.cv2(torch.cat(y, 1))
+
+
+
+
+
+
+
 if __name__ == '__main__':
     # 定义输入张量的形状为 B, C, H, W
     input = torch.randn(1, 32, 64, 64)
@@ -279,3 +376,7 @@ if __name__ == '__main__':
     # 打印输入和输出的形状
     print('input_size:',input.size())
     print('output_size:',output.size())
+
+    # 打印参数量对比（示意）
+    params = sum(p.numel() for p in model.parameters())
+    print(f'Total parameters: {params}')

@@ -58,6 +58,8 @@ __all__ = (
     "ShuffleV2Block"
 )
 
+from ..Extramodule.Attention.EMA_Attention import EMA
+
 from ..Extramodule.Attention.SqueezeExcite import SqueezeExcite
 
 
@@ -2365,19 +2367,19 @@ class ShuffleV2Block(nn.Module):
 
 
 
-class PConv(nn.Module):
-    """Partial Convolution (PConv) 核心实现"""
-    def __init__(self, dim, n_div=4, forward='split_cat'):
-        super().__init__()
-        self.dim_conv3 = dim // n_div  # 只有 1/4 的通道参与卷积
-        self.dim_untouched = dim - self.dim_conv3
-        self.partial_conv3 = nn.Conv2d(self.dim_conv3, self.dim_conv3, 3, 1, 1, bias=False)
-
-    def forward(self, x):
-        # 针对推理优化：分割 -> 卷积 -> 拼接
-        x1, x2 = torch.split(x, [self.dim_conv3, self.dim_untouched], dim=1)
-        x1 = self.partial_conv3(x1)
-        return torch.cat((x1, x2), dim=1)
+# class PConv(nn.Module):
+#     """Partial Convolution (PConv) 核心实现"""
+#     def __init__(self, dim, n_div=4, forward='split_cat'):
+#         super().__init__()
+#         self.dim_conv3 = dim // n_div  # 只有 1/4 的通道参与卷积
+#         self.dim_untouched = dim - self.dim_conv3
+#         self.partial_conv3 = nn.Conv2d(self.dim_conv3, self.dim_conv3, 3, 1, 1, bias=False)
+#
+#     def forward(self, x):
+#         # 针对推理优化：分割 -> 卷积 -> 拼接
+#         x1, x2 = torch.split(x, [self.dim_conv3, self.dim_untouched], dim=1)
+#         x1 = self.partial_conv3(x1)
+#         return torch.cat((x1, x2), dim=1)
 
 class Faster_Block(nn.Module):
     """基于 PConv 的 FasterNet 模块"""
@@ -2402,6 +2404,7 @@ class C2faster(nn.Module):
         y = list(self.cv1(x).chunk(2, 1))
         y.extend(m(y[-1]) for m in self.m)
         return self.cv2(torch.cat(y, 1))
+
 
 ##=============这个是被我瞎改过的ShuffleV2Block=====================
 ##=============要么通道上升补上增大，要么=====================
@@ -2499,3 +2502,468 @@ class C2faster(nn.Module):
 #         x = x.permute(1, 0, 2)
 #         x = x.reshape(2, -1, num_channels // 2, height, width)
 #         return x[0], x[1]
+#-------------------------重新设计瓶颈和特征提取-------------------------
+
+
+class PConv(nn.Module):
+    """Partial Convolution (PConv) 用于极致轻量化"""
+    def __init__(self, dim, n_div=4, forward='split_cat'):
+        super().__init__()
+        self.dim_conv3 = dim // n_div
+        self.dim_untouched = dim - self.dim_conv3
+        self.partial_conv3 = nn.Conv2d(self.dim_conv3, self.dim_conv3, 3, 1, 1, bias=False)
+
+    def forward(self, x):
+        # 仅对部分通道进行卷积，其余通道直接跳过，极大地节省计算资源
+        x1, x2 = torch.split(x, [self.dim_conv3, self.dim_untouched], dim=1)
+        x1 = self.partial_conv3(x1)
+        return torch.cat((x1, x2), dim=1)
+class Bottleneck_PEMA(nn.Module):
+    """原创轻量化 Bottleneck: PConv + EMA"""
+    def __init__(self, c1, c2, shortcut=True, g=1, k=(3, 3), e=0.5):
+        super().__init__()
+        c_ = int(c2 * e)
+        # 第一层使用 1x1 压缩
+        self.cv1 = Conv(c1, c_, 1, 1)
+        # 第二层使用 PConv 代替标准 3x3 卷积
+        self.pconv = PConv(c_)
+        self.cv2 = Conv(c_, c2, 1, 1) # 1x1 恢复
+        self.ema = EMA(c2) # 之前定义的 EMA 类
+        self.add = shortcut and c1 == c2
+
+    def forward(self, x):
+        out = self.cv1(x)
+        out = self.pconv(out)
+        out = self.cv2(out)
+        out = self.ema(out)
+        return x + out if self.add else out
+
+class C3k2_PEMA(nn.Module):
+    """原创模块：基于 Partial Conv 和 EMA 的轻量化 CSP 模块"""
+    def __init__(self, c1, c2, n=1, c3k=False, e=0.5, g=1, shortcut=True):
+        super().__init__()
+        self.c = int(c2 * e)
+        self.cv1 = Conv(c1, 2 * self.c, 1, 1)
+        self.cv2 = Conv((2 + n) * self.c, c2, 1)
+        self.m = nn.ModuleList(
+            Bottleneck_PEMA(self.c, self.c, shortcut, g, k=(3, 3), e=1.0) for _ in range(n)
+        )
+
+    def forward(self, x):
+        y = list(self.cv1(x).chunk(2, 1))
+        y.extend(m(y[-1]) for m in self.m)
+        return self.cv2(torch.cat(y, 1))
+
+class StarNetBlock(nn.Module):
+    def __init__(self, dim, shortcut=True, mlp_ratio=2.0):
+        super().__init__()
+        # 1. 第一层深度卷积 (Large Kernel 7x7)
+        self.dwconv1 = Conv(dim, dim, k=7, s=1, p=3, g=dim, act=False)
+
+        # 2. 星形运算分支
+        hidden_dim = int(mlp_ratio * dim)
+        self.f1 = nn.Conv2d(dim, hidden_dim, 1)
+        self.f2 = nn.Conv2d(dim, hidden_dim, 1)
+
+        # 3. 投影与第二层深度卷积
+        self.g = Conv(hidden_dim, dim, k=1, s=1, act=False)
+        self.dwconv2 = nn.Conv2d(dim, dim, 7, 1, 3, groups=dim)
+
+        self.act = nn.ReLU6()  # StarNet 原论文使用 ReLU6
+        self.add = shortcut  # 对应 YOLO 的 shortcut 逻辑
+
+    def forward(self, x):
+        identity = x
+        x = self.dwconv1(x)
+
+        # Star Operation
+        x1 = self.f1(x)
+        x2 = self.f2(x)
+        x = self.act(x1) * x2  # 核心交互逻辑
+
+        x = self.dwconv2(self.g(x))
+        return identity + x if self.add else x
+
+# 包装成 C3k2 风格，方便 YAML 调用
+class C3k2_StarNet(nn.Module):
+    def __init__(self, c1, c2, n=1, shortcut=True, g=1, e=0.5):
+        super().__init__()
+        self.c = int(c2 * e)
+        self.cv1 = Conv(c1, 2 * self.c, 1, 1)
+        self.cv2 = Conv((2 + n) * self.c, c2, 1)
+        self.m = nn.ModuleList(StarNetBlock(self.c, shortcut) for _ in range(n))
+
+    def forward(self, x):
+        y = list(self.cv1(x).chunk(2, 1))
+        y.extend(m(y[-1]) for m in self.m)
+        return self.cv2(torch.cat(y, 1))
+
+# ================= 1. 基于通道洗牌的 C3k2_Sema =================
+class C3k2_Sema(nn.Module):
+    def __init__(self, c1, c2, n=1, shortcut=True, g=1, e=0.5):
+        super().__init__()
+        self.c = int(c2 * e)
+        self.cv1 = Conv(c1, 2 * self.c, 1, 1)
+        self.cv2 = Conv((2 + n) * self.c, c2, 1)
+        self.m = nn.ModuleList(Bottleneck_Sema(self.c, self.c, shortcut, g, k=(3, 3), e=1.0) for _ in range(n))
+
+    def forward(self, x):
+        y = list(self.cv1(x).chunk(2, 1))
+        y.extend(m(y[-1]) for m in self.m)
+        return self.cv2(torch.cat(y, 1))
+
+# 修正后的 Bottleneck_Sema (增加了 self)
+class Bottleneck_Sema(nn.Module):
+    def __init__(self, c1, c2, shortcut=True, g=1, k=(3, 3), e=0.5):
+        super().__init__()
+        c_ = int(c2 * e)
+        self.cv1 = Conv(c1, c_, 1, 1)
+        self.cv2 = Conv(c_, c2, 3, 1)
+        self.ema = EMA(c2)
+        self.add = shortcut and c1 == c2
+
+    def forward(self, x):
+        out = self.ema(self.cv2(self.cv1(x)))
+        out = self.channel_shuffle(out, 4)
+        return x + out if self.add else out
+
+    def channel_shuffle(self, x, groups): # 必须带 self
+        batchsize, num_channels, height, width = x.data.size()
+        channels_per_group = num_channels // groups
+        x = x.view(batchsize, groups, channels_per_group, height, width)
+        x = torch.transpose(x, 1, 2).contiguous()
+        return x.view(batchsize, -1, height, width)
+class Bottleneck_Sema(nn.Module):
+    """通道洗牌 Bottleneck: 集成 Shuffle 操作和 EMA"""
+    def __init__(self, c1, c2, shortcut=True, g=1, k=(3, 3), e=0.5):
+        super().__init__()
+        c_ = int(c2 * e)
+        self.cv1 = Conv(c1, c_, 1, 1)
+        self.cv2 = Conv(c_, c2, 3, 1)
+        self.ema = EMA(c2)
+        self.add = shortcut and c1 == c2
+
+    def forward(self, x):
+        out = self.ema(self.cv2(self.cv1(x)))
+        out = self.channel_shuffle(out, 4) # 强制 4 组洗牌
+        return x + out if self.add else out
+
+    def channel_shuffle(x, groups):
+        batchsize, num_channels, height, width = x.data.size()
+        channels_per_group = num_channels // groups
+        x = x.view(batchsize, groups, channels_per_group, height, width)
+        x = torch.transpose(x, 1, 2).contiguous()
+        return x.view(batchsize, -1, height, width)
+
+
+
+# ================= 2. 基于深度卷积的 C3k2_DEMA =================
+class C3k2_DEMA(nn.Module):
+    def __init__(self, c1, c2, n=1, shortcut=True, g=1, e=0.5):
+        super().__init__()
+        self.c = int(c2 * e)
+        self.cv1 = Conv(c1, 2 * self.c, 1, 1)
+        self.cv2 = Conv((2 + n) * self.c, c2, 1)
+        self.m = nn.ModuleList(Bottleneck_DEMA(self.c, self.c, shortcut, g, k=(3, 3), e=1.0) for _ in range(n))
+
+    def forward(self, x):
+        y = list(self.cv1(x).chunk(2, 1))
+        y.extend(m(y[-1]) for m in self.m)
+        return self.cv2(torch.cat(y, 1))
+
+
+
+class Bottleneck_DEMA(nn.Module):
+    """极致轻量化：DepthWise Conv + EMA"""
+    def __init__(self, c1, c2, shortcut=True, g=1, k=(3, 3), e=0.5):
+        super().__init__()
+        c_ = int(c2 * e)
+        self.cv1 = Conv(c1, c_, 1, 1) # PW 卷积增加通道交互
+        self.dwconv = Conv(c_, c_, 3, 1, g=c_) # DW 深度卷积提取空间
+        self.cv2 = Conv(c_, c2, 1, 1) # PW 恢复
+        self.ema = EMA(c2)
+        self.add = shortcut and c1 == c2
+
+    def forward(self, x):
+        out = self.cv2(self.ema(self.dwconv(self.cv1(x))))
+        return x + out if self.add else out
+class Bottleneck_GEMA(nn.Module):
+    """GhostConv 风格的轻量化 Bottleneck + EMA"""
+    def __init__(self, c1, c2, shortcut=True, g=1, k=(3, 3), e=0.5):
+        super().__init__()
+        c_ = int(c2 * e)
+        self.cv1 = GhostConv(c1, c_, 1, 1) # 使用 GhostConv 压缩
+        self.cv2 = GhostConv(c_, c2, 3, 1) # 使用 GhostConv 提取
+        self.ema = EMA(c2)
+        self.add = shortcut and c1 == c2
+
+    def forward(self, x):
+        return x + self.ema(self.cv2(self.cv1(x))) if self.add else self.ema(self.cv2(self.cv1(x)))
+# ================= 3. 基于 Ghost 卷积的 C3k2_GEMA =================
+class C3k2_GEMA(nn.Module):
+    def __init__(self, c1, c2, n=1, shortcut=True, g=1, e=0.5):
+        super().__init__()
+        self.c = int(c2 * e)
+        self.cv1 = Conv(c1, 2 * self.c, 1, 1)
+        self.cv2 = Conv((2 + n) * self.c, c2, 1)
+        self.m = nn.ModuleList(Bottleneck_GEMA(self.c, self.c, shortcut, g, k=(3, 3), e=1.0) for _ in range(n))
+
+    def forward(self, x):
+        y = list(self.cv1(x).chunk(2, 1))
+        y.extend(m(y[-1]) for m in self.m)
+        return self.cv2(torch.cat(y, 1))
+
+
+
+#=================ChatGPT设计===========
+
+# -----------------------------
+# Channel Gate (ECA-style)
+# -----------------------------
+class ChannelGate(nn.Module):
+    """
+    Lightweight channel re-calibration module.
+    Avoids FFN / Transformer-style channel mixing.
+    """
+    def __init__(self, channels, k_size=3):
+        super().__init__()
+        self.avg_pool = nn.AdaptiveAvgPool2d(1)
+        self.conv = nn.Conv1d(
+            in_channels=1,
+            out_channels=1,
+            kernel_size=k_size,
+            padding=(k_size - 1) // 2,
+            bias=False
+        )
+        self.sigmoid = nn.Sigmoid()
+
+    def forward(self, x):
+        # x: [B, C, H, W]
+        y = self.avg_pool(x)                   # [B, C, 1, 1]
+        y = y.squeeze(-1).transpose(-1, -2)    # [B, 1, C]
+        y = self.conv(y)                       # [B, 1, C]
+        y = self.sigmoid(y)
+        y = y.transpose(-1, -2).unsqueeze(-1)  # [B, C, 1, 1]
+        return x * y
+
+
+# -----------------------------
+# Spatial Branch (Multi-scale DWConv)
+# -----------------------------
+class SpatialBranch(nn.Module):
+    """
+    Parallel multi-scale spatial modeling branch.
+    """
+    def __init__(self, channels):
+        super().__init__()
+        self.dw3 = nn.Conv2d(
+            channels, channels,
+            kernel_size=3,
+            padding=1,
+            groups=channels,
+            bias=False
+        )
+        self.dw5 = nn.Conv2d(
+            channels, channels,
+            kernel_size=5,
+            padding=2,
+            groups=channels,
+            bias=False
+        )
+        self.bn = nn.BatchNorm2d(channels)
+
+        # Learnable scale fusion weights
+        self.alpha = nn.Parameter(torch.ones(2))
+
+    def forward(self, x):
+        w = F.softmax(self.alpha, dim=0)
+        out = w[0] * self.dw3(x) + w[1] * self.dw5(x)
+        return self.bn(out)
+
+
+# -----------------------------
+# Channel Branch
+# -----------------------------
+class ChannelBranch(nn.Module):
+    """
+    Channel interaction branch with lightweight projection
+    and channel-wise re-calibration.
+    """
+    def __init__(self, channels, reduction=4):
+        super().__init__()
+        hidden = max(channels // reduction, 1)
+
+        self.conv1 = nn.Conv2d(channels, hidden, kernel_size=1, bias=False)
+        self.act = nn.SiLU()
+        self.gate = ChannelGate(hidden)
+        self.conv2 = nn.Conv2d(hidden, channels, kernel_size=1, bias=False)
+        self.bn = nn.BatchNorm2d(channels)
+
+    def forward(self, x):
+        x = self.conv1(x)
+        x = self.act(x)
+        x = self.gate(x)
+        x = self.conv2(x)
+        return self.bn(x)
+
+
+
+
+# -----------------------------
+# PSCBlock (Parallel Spatial–Channel Block)
+# -----------------------------
+class PSCBlock(nn.Module):
+    """
+    Parallel Spatial–Channel Block (PSCBlock)
+
+    Core idea:
+    - Spatial modeling and channel interaction are performed in parallel
+    - Adaptive fusion instead of serial stacking
+    """
+    def __init__(self, channels):
+        super().__init__()
+        self.spatial = SpatialBranch(channels)
+        self.channel = ChannelBranch(channels)
+
+        # Adaptive fusion weights
+        self.fuse_weight = nn.Parameter(torch.ones(2))
+        self.act = nn.SiLU()
+
+    def forward(self, x):
+        s = self.spatial(x)
+        c = self.channel(x)
+
+        w = F.softmax(self.fuse_weight, dim=0)
+        out = w[0] * s + w[1] * c
+
+        return self.act(out + x)
+
+
+class C2f_PSC(nn.Module):
+    """
+    C2f with PSCBlock as inner block
+    """
+    def __init__(
+        self,
+        c1: int,
+        c2: int,
+        n: int = 1,
+        shortcut: bool = False,
+        g: int = 1,
+        e: float = 0.5
+    ):
+        super().__init__()
+        self.c = int(c2 * e)  # hidden channels
+
+        self.cv1 = Conv(c1, 2 * self.c, 1, 1)
+        self.cv2 = Conv((2 + n) * self.c, c2, 1)
+
+        # 核心：用 PSCBlock 替代 Bottleneck
+        self.m = nn.ModuleList(
+            PSCBlock(self.c) for _ in range(n)
+        )
+
+    def forward(self, x: torch.Tensor) -> torch.Tensor:
+        y = list(self.cv1(x).chunk(2, 1))
+        y.extend(m(y[-1]) for m in self.m)
+        return self.cv2(torch.cat(y, 1))
+
+
+
+
+class DirectionalTokenMixer(nn.Module):
+    """
+    方向性 Token Mixing（H / W 分解）
+    """
+    def __init__(self, channels):
+        super().__init__()
+        self.proj_h = nn.Conv1d(channels, channels, kernel_size=1, bias=False)
+        self.proj_w = nn.Conv1d(channels, channels, kernel_size=1, bias=False)
+
+    def forward(self, x):
+        B, C, H, W = x.shape
+
+        # H-direction mixing
+        x_h = x.mean(dim=3)              # B, C, H
+        x_h = self.proj_h(x_h)
+        x_h = x_h.unsqueeze(3)           # B, C, H, 1
+
+        # W-direction mixing
+        x_w = x.mean(dim=2)              # B, C, W
+        x_w = self.proj_w(x_w)
+        x_w = x_w.unsqueeze(2)           # B, C, 1, W
+
+        return x + x_h + x_w
+
+
+class LiteRepMixerBlock(nn.Module):
+    """
+    Lite-RepMixer Block
+    轻量、无重参数化、YOLO 友好
+    """
+    def __init__(self, channels):
+        super().__init__()
+
+        self.dwconv = nn.Conv2d(
+            channels, channels,
+            kernel_size=3, stride=1, padding=1,
+            groups=channels, bias=False
+        )
+
+        self.token_mixer = DirectionalTokenMixer(channels)
+
+        self.pwconv = nn.Conv2d(channels, channels, kernel_size=1, bias=False)
+
+        self.bn = nn.BatchNorm2d(channels)
+        self.act = nn.SiLU()
+
+    def forward(self, x):
+        identity = x
+
+        x = self.dwconv(x)
+        x = self.token_mixer(x)
+        x = self.pwconv(x)
+
+        x = self.bn(x)
+        x = self.act(x)
+
+        return x + identity
+
+
+class C2f_LiteRepMixer(nn.Module):
+    """
+    C2f with Lite-RepMixerBlock instead of Bottleneck
+    """
+    def __init__(self, c1, c2, n=1, e=0.5):
+        super().__init__()
+        self.c = int(c2 * e)
+
+        self.cv1 = Conv(c1, 2 * self.c, 1, 1)
+        self.cv2 = Conv((2 + n) * self.c, c2, 1)
+
+        self.m = nn.ModuleList(
+            LiteRepMixerBlock(self.c) for _ in range(n)
+        )
+
+    def forward(self, x):
+        y = list(self.cv1(x).chunk(2, 1))
+        y.extend(m(y[-1]) for m in self.m)
+        return self.cv2(torch.cat(y, 1))
+class C3k2_LiteRepMixer(C2f):
+    """
+    C3k2 variant using Lite-RepMixerBlock
+    """
+    def __init__(
+        self,
+        c1,
+        c2,
+        n=1,
+        e=0.5,
+        shortcut=True,
+        g=1,
+    ):
+        super().__init__(c1, c2, n, shortcut, g, e)
+
+        self.m = nn.ModuleList(
+            LiteRepMixerBlock(self.c) for _ in range(n)
+        )
