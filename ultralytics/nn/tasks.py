@@ -101,6 +101,7 @@ from .Extramodule.Attention.coordatt import CoordAtt
 from .Extramodule.Attention.coordatt2 import CoordAtt2
 from .Extramodule.Attention.eca_module import ECA
 from .Extramodule.Attention.EMA_Attention import EMA_attention
+from .Extramodule.Block_C3kx.RepViT import C3k2_RepViTBlock
 from .Extramodule.Neck.BiFPN import BiFPN_Concat2, BiFPN_Concat3, BiFPN_Sum2, BiFPN_Sum3
 from .modules.block import ShuffleV1Block, ShuffleV2Block, C3RepGhost2, C2faster
 from .modules.conv import GSConv, GSConvE, GSConvE2, GSBottleneckC, GSBottleneck, GSConvns, VoVGSCSPC, VoVGSCSP
@@ -1811,6 +1812,11 @@ def parse_model(d, ch, verbose=True):
         # elif m in {RepConv}:
         #     pass
         #
+        elif m in {C3k2_RepViTBlock}:
+            c1, c2 = ch[f], args[0]
+            if c2 != nc:  # if c2 not equal to number of classes (i.e. for Classify() output)
+                c2 = make_divisible(min(c2, max_channels) * width, 8)
+            args = [c1, c2,1,*args[1:]]
         elif m in {CBAM}:
             c1 = ch[f]
             args = [c1,*args[:]]
