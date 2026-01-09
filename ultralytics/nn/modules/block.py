@@ -2599,19 +2599,6 @@ class C3k2_StarNet(nn.Module):
         return self.cv2(torch.cat(y, 1))
 
 # ================= 1. 基于通道洗牌的 C3k2_Sema =================
-class C3k2_Sema(nn.Module):
-    def __init__(self, c1, c2, n=1, shortcut=True, g=1, e=0.5):
-        super().__init__()
-        self.c = int(c2 * e)
-        self.cv1 = Conv(c1, 2 * self.c, 1, 1)
-        self.cv2 = Conv((2 + n) * self.c, c2, 1)
-        self.m = nn.ModuleList(Bottleneck_Sema(self.c, self.c, shortcut, g, k=(3, 3), e=1.0) for _ in range(n))
-
-    def forward(self, x):
-        y = list(self.cv1(x).chunk(2, 1))
-        y.extend(m(y[-1]) for m in self.m)
-        return self.cv2(torch.cat(y, 1))
-
 # 修正后的 Bottleneck_Sema (增加了 self)
 class Bottleneck_Sema(nn.Module):
     def __init__(self, c1, c2, shortcut=True, g=1, k=(3, 3), e=0.5):
@@ -2633,38 +2620,13 @@ class Bottleneck_Sema(nn.Module):
         x = x.view(batchsize, groups, channels_per_group, height, width)
         x = torch.transpose(x, 1, 2).contiguous()
         return x.view(batchsize, -1, height, width)
-class Bottleneck_Sema(nn.Module):
-    """通道洗牌 Bottleneck: 集成 Shuffle 操作和 EMA"""
-    def __init__(self, c1, c2, shortcut=True, g=1, k=(3, 3), e=0.5):
-        super().__init__()
-        c_ = int(c2 * e)
-        self.cv1 = Conv(c1, c_, 1, 1)
-        self.cv2 = Conv(c_, c2, 3, 1)
-        self.ema = EMA(c2)
-        self.add = shortcut and c1 == c2
-
-    def forward(self, x):
-        out = self.ema(self.cv2(self.cv1(x)))
-        out = self.channel_shuffle(out, 4) # 强制 4 组洗牌
-        return x + out if self.add else out
-
-    def channel_shuffle(x, groups):
-        batchsize, num_channels, height, width = x.data.size()
-        channels_per_group = num_channels // groups
-        x = x.view(batchsize, groups, channels_per_group, height, width)
-        x = torch.transpose(x, 1, 2).contiguous()
-        return x.view(batchsize, -1, height, width)
-
-
-
-# ================= 2. 基于深度卷积的 C3k2_DEMA =================
-class C3k2_DEMA(nn.Module):
+class C3k2_Sema(nn.Module):
     def __init__(self, c1, c2, n=1, shortcut=True, g=1, e=0.5):
         super().__init__()
         self.c = int(c2 * e)
         self.cv1 = Conv(c1, 2 * self.c, 1, 1)
         self.cv2 = Conv((2 + n) * self.c, c2, 1)
-        self.m = nn.ModuleList(Bottleneck_DEMA(self.c, self.c, shortcut, g, k=(3, 3), e=1.0) for _ in range(n))
+        self.m = nn.ModuleList(Bottleneck_Sema(self.c, self.c, shortcut, g, k=(3, 3), e=1.0) for _ in range(n))
 
     def forward(self, x):
         y = list(self.cv1(x).chunk(2, 1))
@@ -2672,7 +2634,31 @@ class C3k2_DEMA(nn.Module):
         return self.cv2(torch.cat(y, 1))
 
 
+# class Bottleneck_Sema(nn.Module):
+#     """通道洗牌 Bottleneck: 集成 Shuffle 操作和 EMA"""
+#     def __init__(self, c1, c2, shortcut=True, g=1, k=(3, 3), e=0.5):
+#         super().__init__()
+#         c_ = int(c2 * e)
+#         self.cv1 = Conv(c1, c_, 1, 1)
+#         self.cv2 = Conv(c_, c2, 3, 1)
+#         self.ema = EMA(c2)
+#         self.add = shortcut and c1 == c2
+#
+#     def forward(self, x):
+#         out = self.ema(self.cv2(self.cv1(x)))
+#         out = self.channel_shuffle(out, 4) # 强制 4 组洗牌
+#         return x + out if self.add else out
+#
+#     def channel_shuffle(x, groups):
+#         batchsize, num_channels, height, width = x.data.size()
+#         channels_per_group = num_channels // groups
+#         x = x.view(batchsize, groups, channels_per_group, height, width)
+#         x = torch.transpose(x, 1, 2).contiguous()
+#         return x.view(batchsize, -1, height, width)
 
+
+
+# ================= 2. 基于深度卷积的 C3k2_DEMA =================
 class Bottleneck_DEMA(nn.Module):
     """极致轻量化：DepthWise Conv + EMA"""
     def __init__(self, c1, c2, shortcut=True, g=1, k=(3, 3), e=0.5):
@@ -2687,6 +2673,19 @@ class Bottleneck_DEMA(nn.Module):
     def forward(self, x):
         out = self.cv2(self.ema(self.dwconv(self.cv1(x))))
         return x + out if self.add else out
+class C3k2_DEMA(nn.Module):
+    def __init__(self, c1, c2, n=1, shortcut=True, g=1, e=0.5):
+        super().__init__()
+        self.c = int(c2 * e)
+        self.cv1 = Conv(c1, 2 * self.c, 1, 1)
+        self.cv2 = Conv((2 + n) * self.c, c2, 1)
+        self.m = nn.ModuleList(Bottleneck_DEMA(self.c, self.c, shortcut, g, k=(3, 3), e=1.0) for _ in range(n))
+
+    def forward(self, x):
+        y = list(self.cv1(x).chunk(2, 1))
+        y.extend(m(y[-1]) for m in self.m)
+        return self.cv2(torch.cat(y, 1))
+
 class Bottleneck_GEMA(nn.Module):
     """GhostConv 风格的轻量化 Bottleneck + EMA"""
     def __init__(self, c1, c2, shortcut=True, g=1, k=(3, 3), e=0.5):
@@ -2870,7 +2869,7 @@ class C2f_PSC(nn.Module):
 
 
 
-
+#===================Gemni帮写------------------
 class DirectionalTokenMixer(nn.Module):
     """
     方向性 Token Mixing（H / W 分解）
@@ -2879,7 +2878,7 @@ class DirectionalTokenMixer(nn.Module):
         super().__init__()
         self.proj_h = nn.Conv1d(channels, channels, kernel_size=1, bias=False)
         self.proj_w = nn.Conv1d(channels, channels, kernel_size=1, bias=False)
-
+        self.alpha = nn.Parameter(torch.zeros(1))
     def forward(self, x):
         B, C, H, W = x.shape
 
@@ -2893,9 +2892,7 @@ class DirectionalTokenMixer(nn.Module):
         x_w = self.proj_w(x_w)
         x_w = x_w.unsqueeze(2)           # B, C, 1, W
 
-        return x + x_h + x_w
-
-
+        return x + self.alpha * (x_h + x_w)
 class LiteRepMixerBlock(nn.Module):
     """
     Lite-RepMixer Block
@@ -2928,8 +2925,6 @@ class LiteRepMixerBlock(nn.Module):
         x = self.act(x)
 
         return x + identity
-
-
 class C2f_LiteRepMixer(nn.Module):
     """
     C2f with Lite-RepMixerBlock instead of Bottleneck
@@ -2958,9 +2953,10 @@ class C3k2_LiteRepMixer(C2f):
         c1,
         c2,
         n=1,
-        e=0.5,
         shortcut=True,
         g=1,
+        e=0.5,
+
     ):
         super().__init__(c1, c2, n, shortcut, g, e)
 

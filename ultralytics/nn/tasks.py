@@ -104,7 +104,7 @@ from .Extramodule.Attention.EMA_Attention import EMA_attention
 from .Extramodule.Block_C3kx.RepViT import C3k2_RepViTBlock, C3k2_LiteRep
 from .Extramodule.Neck.BiFPN import BiFPN_Concat2, BiFPN_Concat3, BiFPN_Sum2, BiFPN_Sum3
 from .modules.block import ShuffleV1Block, ShuffleV2Block, C3RepGhost2, C2faster, C3k2_PEMA, C3k2_StarNet, C3k2_DEMA, \
-    C3k2_GEMA, C3k2_Sema
+    C3k2_GEMA, C3k2_Sema, C2f_LiteRepMixer, C2f_PSC, C3k2_LiteRepMixer
 from .modules.conv import GSConv, GSConvE, GSConvE2, GSBottleneckC, GSBottleneck, GSConvns, VoVGSCSPC, VoVGSCSP
 
 
@@ -1813,7 +1813,8 @@ def parse_model(d, ch, verbose=True):
         # elif m in {RepConv}:
         #     pass
         #
-        elif m in {C3k2_RepViTBlock,C3k2_LiteRep,C3k2_PEMA,C3k2_StarNet,C3k2_DEMA,C3k2_GEMA,C3k2_Sema}:
+        elif m in {C3k2_RepViTBlock,C3k2_LiteRep,C3k2_PEMA,C3k2_StarNet,C3k2_DEMA,C3k2_GEMA,C3k2_Sema,
+                   C2f_LiteRepMixer,C2f_PSC,C3k2_LiteRepMixer}:
             c1, c2 = ch[f], args[0]
             if c2 != nc:  # if c2 not equal to number of classes (i.e. for Classify() output)
                 c2 = make_divisible(min(c2, max_channels) * width, 8)
