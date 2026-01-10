@@ -16,6 +16,9 @@ model_yaml_paths = [
     # "Custom_Model_cfg_3/yolo11_Dwconv_Ghost_shufflev2_CA.yaml",
     # "Custom_Model_cfg_3/yolo11m.yaml",
     "Custom_Model_cfg_3/yolo11_C3k2_Ghost_shufflev2_CA.yaml",
+    "Custom_Model_cfg_3/yolo11_shufflev2_CA.yaml",
+    "Custom_Model_cfg_3/yolo11m.yaml",
+
 ]
 
 data = "Custom_dataset_cfg/vehicle_orientation.yaml"
