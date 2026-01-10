@@ -131,20 +131,20 @@ class BboxLoss(nn.Module):
         num_points = anchor_points.shape[0]
         h = w = int(num_points ** 0.5)
         hw = h * h + w * w
-        # iou = bbox_iou(pred_bboxes[fg_mask], target_bboxes[fg_mask], xywh=False, CIoU=True)
+        iou = bbox_iou(pred_bboxes[fg_mask], target_bboxes[fg_mask], xywh=False, CIoU=True)
         # iou = bbox_iou(
         #     pred_bboxes[fg_mask],
         #     target_bboxes[fg_mask],
         #     xywh=False,
         #     ShapeIoU=True
         # )
-        iou = bbox_iou(
-            pred_bboxes[fg_mask],
-            target_bboxes[fg_mask],
-            xywh=False,
-            MPDIoU=True,
-            hw=hw
-        )
+        # iou = bbox_iou(
+        #     pred_bboxes[fg_mask],
+        #     target_bboxes[fg_mask],
+        #     xywh=False,
+        #     MPDIoU=True,
+        #     hw=hw
+        # )
 
         # iou = bbox_iou(
         #     pred_bboxes[fg_mask],
