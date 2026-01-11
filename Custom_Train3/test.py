@@ -17,8 +17,9 @@ model_yaml_paths = [
                     # r"Custom_Model_cfg_3/yolo11_C3k2_LiteRep_Ghost_shufflev2.yaml",
                     # "Custom_Model_cfg_3/yolo11_Dwconv_Ghost_shufflev2_CA.yaml",
                     "Custom_Model_cfg_3/yolo11_C3k2_Ghost_shufflev2_CA.yaml",
-                    "Custom_Model_cfg_3/yolo11m.yaml",
+                    # "Custom_Model_cfg_3/yolo11m.yaml",
                     "Custom_Model_cfg_3/yolo11_shufflev2_CA.yaml",
+                    "Custom_Model_cfg_3/yolo11_shufflev2_CA_2.yaml",
                     # "Custom_Model_cfg_3/yolo11_VoVGSCSPC_Ghost_shufflev2_CA.yaml"
                     ]
 
