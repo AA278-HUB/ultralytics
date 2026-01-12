@@ -127,35 +127,6 @@ class KDDetectionTrainer(DetectionTrainer):
         self.teacher.model.eval()  # 将教师模型设置为评估模式
         for param in self.teacher.model.parameters():
             param.requires_grad = False  # 教师模型不需要梯度
-
-        # # 获取学生和教师的通道（检测头的输入通道）
-        # channels_s = self.model.model[-1].ch  # 列表，例如 [128, 256, 512]
-        # channels_t = self.teacher.model.model[-1].ch
-        #
-        # # 初始化特征损失（在'mgd'和'cwd'之间选择）
-        # self.feature_loss = FeatureLoss(
-        #     channels_s=channels_s,
-        #     channels_t=channels_t,
-        #     distiller=distiller,
-        #     loss_weight=loss_weight
-        # )
-        #
-        # # 将kd_loss添加到损失名称中
-        # self.loss_names = self.loss_names + ['kd_loss']
-        #
-        # # 设置钩子来捕获中间特征（检测头的输入）
-        # self.student_features = None
-        # self.teacher_features = None
-        #
-        # def student_hook(module, input, output):
-        #     self.student_features = input[0]  # input[0] 是特征图列表
-        #
-        # def teacher_hook(module, input, output):
-        #     self.teacher_features = input[0]
-        #
-        # self.model.model[-1].register_forward_hook(student_hook)
-        # self.teacher.model.model[-1].register_forward_hook(teacher_hook)
-
     def _setup_train(self, world_size):
         """Builds dataloaders and optimizer on correct rank process."""
 
