@@ -3,113 +3,151 @@ import random
 import shutil
 from collections import defaultdict
 
-# ================= 配置 =================
+# =======================
+# 1. 路径配置
+# =======================
 
 SRC_ROOT = r"E:\datasets\vehicle_orientation"
 DST_ROOT = r"E:\datasets\vehicle_orientation_mini"
 
-IMG_EXT = ".jpg"
-TRAIN_RATIO = 0.8
-SEED = 42
-random.seed(SEED)
+SRC_IMG = [
+    os.path.join(SRC_ROOT, "images", "train"),
+    os.path.join(SRC_ROOT, "images", "val"),
+]
+SRC_LAB = [
+    os.path.join(SRC_ROOT, "labels", "train"),
+    os.path.join(SRC_ROOT, "labels", "val"),
+]
 
-# 类别定义
-NAMES = ['car', 'motorcycle', 'bus', 'truck']
-CAR_CLS = 0
+DST_IMG_TRAIN = os.path.join(DST_ROOT, "images", "train")
+DST_IMG_VAL   = os.path.join(DST_ROOT, "images", "val")
+DST_LAB_TRAIN = os.path.join(DST_ROOT, "labels", "train")
+DST_LAB_VAL   = os.path.join(DST_ROOT, "labels", "val")
 
-# ================= 工具 =================
-
-def mkdir(p):
+for p in [DST_IMG_TRAIN, DST_IMG_VAL, DST_LAB_TRAIN, DST_LAB_VAL]:
     os.makedirs(p, exist_ok=True)
 
-# ================= 路径 =================
+# =======================
+# 2. 类别定义
+# =======================
 
-src_img_train = os.path.join(SRC_ROOT, "images", "train")
-src_lbl_train = os.path.join(SRC_ROOT, "labels", "train")
-src_img_val   = os.path.join(SRC_ROOT, "images", "val")
-src_lbl_val   = os.path.join(SRC_ROOT, "labels", "val")
+ID2NAME = {
+    0: "car",
+    1: "motorcycle",
+    2: "bus",
+    3: "truck",
+}
 
-dst_img_train = os.path.join(DST_ROOT, "images", "train")
-dst_lbl_train = os.path.join(DST_ROOT, "labels", "train")
-dst_img_val   = os.path.join(DST_ROOT, "images", "val")
-dst_lbl_val   = os.path.join(DST_ROOT, "labels", "val")
+KEEP_ALL = {"motorcycle", "bus"}
+SAMPLE_CLASSES = {"car", "truck"}
 
-for d in [dst_img_train, dst_lbl_train, dst_img_val, dst_lbl_val]:
-    mkdir(d)
+TRAIN_RATIO = 0.8
 
-# ================= 统计 train + val =================
+# =======================
+# 3. 合并 train + val
+# =======================
 
-class_to_imgs = defaultdict(set)
-all_images = set()
+class_to_items = defaultdict(list)
 
-def collect(label_dir):
-    for f in os.listdir(label_dir):
-        if not f.endswith(".txt"):
+for img_dir, lab_dir in zip(SRC_IMG, SRC_LAB):
+    for img_name in os.listdir(img_dir):
+        if not img_name.lower().endswith((".jpg", ".png", ".jpeg")):
             continue
-        img = f.replace(".txt", IMG_EXT)
-        all_images.add(img)
-        with open(os.path.join(label_dir, f)) as fp:
-            for line in fp:
-                cls = int(line.split()[0])
-                class_to_imgs[cls].add(img)
 
-collect(src_lbl_train)
-collect(src_lbl_val)
+        img_path = os.path.join(img_dir, img_name)
+        lab_path = os.path.join(lab_dir, img_name.replace(".jpg", ".txt"))
 
-print("===== 原始类别统计 =====")
-for k in sorted(class_to_imgs):
-    print(NAMES[k], len(class_to_imgs[k]))
+        if not os.path.exists(lab_path):
+            continue
 
-# ================= 均衡策略 =================
+        with open(lab_path, "r") as f:
+            lines = f.readlines()
+            if not lines:
+                continue
 
-# 非 car 类别的最大数量
-non_car_counts = [
-    len(class_to_imgs[c]) for c in class_to_imgs if c != CAR_CLS
-]
-target_per_class = max(non_car_counts)
+            cls_id = int(lines[0].split()[0])
+            cls_name = ID2NAME[cls_id]
 
-print("目标每类数量（car 会被压到这个量级）:", target_per_class)
+        class_to_items[cls_name].append((img_path, lab_path))
 
-selected_imgs = set()
+# =======================
+# 4. 原始统计
+# =======================
 
-for cls, imgs in class_to_imgs.items():
-    imgs = list(imgs)
-    if cls == CAR_CLS:
-        sampled = random.sample(imgs, min(len(imgs), target_per_class))
-    else:
-        sampled = random.sample(imgs, min(len(imgs), target_per_class))
-    selected_imgs.update(sampled)
+print("📊 原始数据集统计：")
+total_count = 0
+for cls, items in class_to_items.items():
+    print(f"{cls}: {len(items)}")
+    total_count += len(items)
 
-print("最终图片总数:", len(selected_imgs))
+target_total = total_count // 4
+print(f"\n🎯 目标 mini 总数：{target_total} (原始 /4)")
 
-# ================= 重新划分 train / val =================
+# =======================
+# 5. 全保留的小类
+# =======================
 
-selected_imgs = list(selected_imgs)
-random.shuffle(selected_imgs)
+selected = []
 
-train_n = int(len(selected_imgs) * TRAIN_RATIO)
-train_imgs = selected_imgs[:train_n]
-val_imgs   = selected_imgs[train_n:]
+keep_count = 0
+for cls in KEEP_ALL:
+    items = class_to_items.get(cls, [])
+    selected.extend(items)
+    keep_count += len(items)
+    print(f"✅ {cls} 全保留：{len(items)}")
 
-# ================= 复制文件 =================
+# =======================
+# 6. 给 car + truck 分配剩余额度
+# =======================
 
-def copy_imgs(img_list, dst_img, dst_lbl):
-    for img in img_list:
-        lbl = img.replace(IMG_EXT, ".txt")
-        for idir, ldir in [
-            (src_img_train, src_lbl_train),
-            (src_img_val, src_lbl_val)
-        ]:
-            ip = os.path.join(idir, img)
-            lp = os.path.join(ldir, lbl)
-            if os.path.exists(ip):
-                shutil.copy(ip, os.path.join(dst_img, img))
-                shutil.copy(lp, os.path.join(dst_lbl, lbl))
-                break
+remaining_quota = target_total - keep_count
+assert remaining_quota > 0, "❌ motorcycle + bus 已超过 1/4，总量不可能满足"
 
-copy_imgs(train_imgs, dst_img_train, dst_lbl_train)
-copy_imgs(val_imgs, dst_img_val, dst_lbl_val)
+big_items = []
+for cls in SAMPLE_CLASSES:
+    big_items.extend(class_to_items.get(cls, []))
 
-print("===== mini 数据集完成 =====")
-print("train:", len(train_imgs))
-print("val:", len(val_imgs))
+big_total = len(big_items)
+
+print(f"\n📌 car + truck 总数：{big_total}")
+print(f"📌 剩余可用名额：{remaining_quota}")
+
+# 按比例抽取
+num_to_sample = remaining_quota
+sampled_big = random.sample(big_items, num_to_sample)
+
+selected.extend(sampled_big)
+
+print(f"✂️ car + truck 实际抽取：{len(sampled_big)}")
+
+# =======================
+# 7. 打乱并重新划分 train / val
+# =======================
+
+random.shuffle(selected)
+
+train_num = int(len(selected) * TRAIN_RATIO)
+
+train_items = selected[:train_num]
+val_items   = selected[train_num:]
+
+# =======================
+# 8. 拷贝文件
+# =======================
+
+def copy(items, img_dst, lab_dst):
+    for img, lab in items:
+        shutil.copy(img, img_dst)
+        shutil.copy(lab, lab_dst)
+
+copy(train_items, DST_IMG_TRAIN, DST_LAB_TRAIN)
+copy(val_items,   DST_IMG_VAL,   DST_LAB_VAL)
+
+# =======================
+# 9. 最终结果
+# =======================
+
+print("\n✅ vehicle_orientation_mini 构建完成")
+print(f"Total: {len(selected)}（严格 = 原始 /4）")
+print(f"Train: {len(train_items)}")
+print(f"Val:   {len(val_items)}")
