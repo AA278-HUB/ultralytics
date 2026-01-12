@@ -1,7 +1,6 @@
 import os
 import random
 import shutil
-from collections import defaultdict
 
 # =======================
 # 1. 路径配置
@@ -10,11 +9,12 @@ from collections import defaultdict
 SRC_ROOT = r"E:\datasets\vehicle_orientation"
 DST_ROOT = r"E:\datasets\vehicle_orientation_mini"
 
-SRC_IMG = [
+SRC_IMG_DIRS = [
     os.path.join(SRC_ROOT, "images", "train"),
     os.path.join(SRC_ROOT, "images", "val"),
 ]
-SRC_LAB = [
+
+SRC_LAB_DIRS = [
     os.path.join(SRC_ROOT, "labels", "train"),
     os.path.join(SRC_ROOT, "labels", "val"),
 ]
@@ -28,28 +28,26 @@ for p in [DST_IMG_TRAIN, DST_IMG_VAL, DST_LAB_TRAIN, DST_LAB_VAL]:
     os.makedirs(p, exist_ok=True)
 
 # =======================
-# 2. 类别定义
+# 2. 类别 ID 定义
 # =======================
 
-ID2NAME = {
-    0: "car",
-    1: "motorcycle",
-    2: "bus",
-    3: "truck",
-}
-
-KEEP_ALL = {"motorcycle", "bus"}
-SAMPLE_CLASSES = {"car", "truck"}
+BUS_ID = 2
+MOTOR_ID = 1
 
 TRAIN_RATIO = 0.8
 
 # =======================
-# 3. 合并 train + val
+# 3. 两个“去重集合”
 # =======================
 
-class_to_items = defaultdict(list)
+must_keep = set()   # 只要出现 bus 或 motorcycle
+others = set()      # 完全不含 bus / motorcycle
 
-for img_dir, lab_dir in zip(SRC_IMG, SRC_LAB):
+# =======================
+# 4. 合并 train + val，并逐个检查 label
+# =======================
+
+for img_dir, lab_dir in zip(SRC_IMG_DIRS, SRC_LAB_DIRS):
     for img_name in os.listdir(img_dir):
         if not img_name.lower().endswith((".jpg", ".png", ".jpeg")):
             continue
@@ -60,68 +58,44 @@ for img_dir, lab_dir in zip(SRC_IMG, SRC_LAB):
         if not os.path.exists(lab_path):
             continue
 
+        # 读取 label 中所有目标的类别 id
         with open(lab_path, "r") as f:
-            lines = f.readlines()
-            if not lines:
-                continue
+            cls_ids = {int(line.split()[0]) for line in f if line.strip()}
 
-            cls_id = int(lines[0].split()[0])
-            cls_name = ID2NAME[cls_id]
+        item = (img_path, lab_path)
 
-        class_to_items[cls_name].append((img_path, lab_path))
-
-# =======================
-# 4. 原始统计
-# =======================
-
-print("📊 原始数据集统计：")
-total_count = 0
-for cls, items in class_to_items.items():
-    print(f"{cls}: {len(items)}")
-    total_count += len(items)
-
-target_total = total_count // 4
-print(f"\n🎯 目标 mini 总数：{target_total} (原始 /4)")
+        # 只要出现 bus 或 motorcycle，整张图强制保留
+        if BUS_ID in cls_ids or MOTOR_ID in cls_ids:
+            must_keep.add(item)
+        else:
+            others.add(item)
 
 # =======================
-# 5. 全保留的小类
+# 5. 统计
 # =======================
 
-selected = []
+total_original = len(must_keep) + len(others)
+target_total = total_original // 4
 
-keep_count = 0
-for cls in KEEP_ALL:
-    items = class_to_items.get(cls, [])
-    selected.extend(items)
-    keep_count += len(items)
-    print(f"✅ {cls} 全保留：{len(items)}")
+print(f"原始总图片数: {total_original}")
+print(f"目标 mini 数量 (/4): {target_total}")
+print(f"必须保留(bus+motor): {len(must_keep)}")
 
-# =======================
-# 6. 给 car + truck 分配剩余额度
-# =======================
+remaining = target_total - len(must_keep)
+assert remaining > 0, "❌ bus + motorcycle 数量已经超过 /4，逻辑不成立"
 
-remaining_quota = target_total - keep_count
-assert remaining_quota > 0, "❌ motorcycle + bus 已超过 1/4，总量不可能满足"
-
-big_items = []
-for cls in SAMPLE_CLASSES:
-    big_items.extend(class_to_items.get(cls, []))
-
-big_total = len(big_items)
-
-print(f"\n📌 car + truck 总数：{big_total}")
-print(f"📌 剩余可用名额：{remaining_quota}")
-
-# 按比例抽取
-num_to_sample = remaining_quota
-sampled_big = random.sample(big_items, num_to_sample)
-
-selected.extend(sampled_big)
-
-print(f"✂️ car + truck 实际抽取：{len(sampled_big)}")
+print(f"需要从其他类别抽取: {remaining}")
 
 # =======================
-# 7. 打乱并重新划分 train / val
+# 6. 随机抽取其余图片
+# =======================
+
+sampled_others = random.sample(list(others), remaining)
+
+selected = list(must_keep) + sampled_others
+
+# =======================
+# 7. 打乱并划分 train / val
 # =======================
 
 random.shuffle(selected)
@@ -144,7 +118,7 @@ copy(train_items, DST_IMG_TRAIN, DST_LAB_TRAIN)
 copy(val_items,   DST_IMG_VAL,   DST_LAB_VAL)
 
 # =======================
-# 9. 最终结果
+# 9. 完成提示
 # =======================
 
 print("\n✅ vehicle_orientation_mini 构建完成")
