@@ -240,7 +240,7 @@ class BaseModel(torch.nn.Module):
                     return torch.unbind(torch.cat(embeddings, 1), dim=0)
             # print(f"=================测试=======================")
             # print(x.shape)
-            print(f"层数:{m.i}")
+            # print(f"层数:{m.i}")
         return x
 
     #
