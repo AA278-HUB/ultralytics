@@ -5,7 +5,7 @@ from ultralytics import YOLO
 # 模型配置文件
 model_yaml_path = "Custom_Model_cfg/yolo11n.yaml"
 # data="coco8.yaml"
-data = "Custom_dataset_cfg/vehicle_orientation.yaml"
+data = "Custom_dataset_cfg/vehicle_orientation_mini.yaml"
 # 预训练模型
 if __name__ == '__main__':
     # 加载预训练模型

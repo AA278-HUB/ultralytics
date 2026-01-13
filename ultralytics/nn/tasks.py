@@ -109,8 +109,11 @@ from .Extramodule.gold_yolo_v3.model.gold_yolo import Low_FAM, Low_IFM, Split, S
 # from .Extramodule.gold_yolo_v3.model import Low_FAM, Low_IFM, Split, SimConv, Low_LAF, Inject, RepBlock, High_FAM, \
 #     High_IFM, High_LAF
 from .modules.block import ShuffleV1Block, ShuffleV2Block, C3RepGhost2, C2faster, C3k2_PEMA, C3k2_StarNet, C3k2_DEMA, \
-    C3k2_GEMA, C3k2_Sema, C2f_LiteRepMixer, C2f_PSC, C3k2_LiteRepMixer,GSConv, VoVGSCSPC, GSBottleneckC, GSBottleneck, GSConvns, VoVGSCSPC, VoVGSCSP
+    C3k2_GEMA, C3k2_Sema, C2f_LiteRepMixer, C2f_PSC, C3k2_LiteRepMixer, GSConv, VoVGSCSPC, GSBottleneckC, GSBottleneck, \
+    GSConvns, VoVGSCSPC, VoVGSCSP, C2f_DCNv4
 
+
+# AMP=False,
 
 # from .modules.conv import GSConv, GSConvE, GSConvE2, GSBottleneckC, GSBottleneck, GSConvns, VoVGSCSPC, VoVGSCSP
 
@@ -189,6 +192,9 @@ class BaseModel(torch.nn.Module):
         Returns:
             (torch.Tensor): The last output of the model.
         """
+        if torch.cuda.is_available():
+            self.model.cuda()
+            x=x.cuda()
         y, dt, embeddings = [], [], []  # outputs
         for m in self.model:
             if m.f != -1:  # if not from previous layer
@@ -1766,7 +1772,6 @@ def parse_model(d, ch, verbose=True):
             pass
         # if m in{C3Ghost} :
         #     print("调试")
-        from ultralytics.nn.modules.DCNv4.dcnv4 import C2f_DCNv4
         if m in base_modules:
             c1, c2 = ch[f], args[0]
             if c2 != nc:  # if c2 not equal to number of classes (i.e. for Classify() output)

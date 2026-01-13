@@ -34,7 +34,7 @@ if __name__ == '__main__':
                               cos_lr=True,
                               close_mosaic=50,
                               save= True,
-                              device=-1,
+                              device=0,
                               workers=16,
                               name="test"+datetime.now().strftime("%Y%m%d_%H_%M"))
 

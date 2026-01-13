@@ -6,7 +6,9 @@ from __future__ import annotations
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
-
+# 尝试不同的导入方式
+# 直接导入
+from DCNv4 import DCNv4
 from ultralytics.utils.torch_utils import fuse_conv_and_bn
 
 from .conv import Conv, DWConv, GhostConv, LightConv, RepConv, autopad, RepGhostModule
@@ -3129,6 +3131,122 @@ class VoVGSCSPC(VoVGSCSP):
 
 
 
+class DCNv4Conv2d(nn.Module):
+    """
+    DCNv4 wrapper for NCHW feature maps
+    """
+
+    def __init__(
+        self,
+        channels,
+        kernel_size=3,
+        stride=1,
+        padding=1,
+        dilation=1,
+        group=4,
+        offset_scale=1.0,
+        **kwargs
+    ):
+        super().__init__()
+
+        self.channels = channels
+        self.stride = stride
+
+        self.dcnv4 = DCNv4(
+            channels=channels,
+            kernel_size=kernel_size,
+            stride=stride,
+            pad=padding,
+            dilation=dilation,
+            group=group,
+            offset_scale=offset_scale,
+            **kwargs
+        )
+
+    def forward(self, x):
+        """
+        x: (N, C, H, W)
+        return: (N, C, H, W)
+        """
+        n, c, h, w = x.shape
+
+        # flatten -> (N, L, C)
+        x = x.permute(0, 2, 3, 1).contiguous().view(n, h * w, c)
+
+        x = self.dcnv4(x, shape=(h, w))
+
+        # restore -> (N, C, H, W)
+        x = x.view(n, h, w, c).permute(0, 3, 1, 2).contiguous()
+
+        return x
+
+class Bottleneck_DCNv4(nn.Module):
+    """YOLO Bottleneck with DCNv4"""
+
+    def __init__(
+        self,
+        c1,
+        c2,
+        shortcut=True,
+        g=1,
+        e=0.5,
+        dcn_group=4
+    ):
+        super().__init__()
+        c_ = int(c2 * e)
+
+        # 1x1 conv (普通卷积)
+        self.cv1 = Conv(c1, c_, 1, 1)
+
+        # 3x3 DCNv4
+        self.cv2 = DCNv4Conv2d(
+            channels=c_,
+            kernel_size=3,
+            stride=1,
+            padding=1,
+            group=dcn_group,
+        )
+
+        self.add = shortcut and c1 == c2
+
+    def forward(self, x):
+        y = self.cv2(self.cv1(x))
+        return x + y if self.add else y
+class C2f_DCNv4(nn.Module):
+    """C2f with DCNv4 Bottleneck"""
+
+    def __init__(
+        self,
+        c1,
+        c2,
+        n=1,
+        shortcut=False,
+        g=1,
+        e=0.5,
+        dcn_group=4
+    ):
+        super().__init__()
+        self.c = int(c2 * e)
+
+        self.cv1 = Conv(c1, 2 * self.c, 1, 1)
+        self.cv2 = Conv((2 + n) * self.c, c2, 1)
+
+        self.m = nn.ModuleList(
+            Bottleneck_DCNv4(
+                self.c,
+                self.c,
+                shortcut=shortcut,
+                g=g,
+                e=1.0,
+                dcn_group=dcn_group
+            )
+            for _ in range(n)
+        )
+
+    def forward(self, x):
+        y = list(self.cv1(x).chunk(2, 1))
+        y.extend(m(y[-1]) for m in self.m)
+        return self.cv2(torch.cat(y, 1))
 
 
 
