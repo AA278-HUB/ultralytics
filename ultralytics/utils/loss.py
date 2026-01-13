@@ -329,6 +329,77 @@ class v8DetectionLoss:
         return loss * batch_size, loss.detach()  # loss(box, cls, dfl)
 
 
+import torch
+import torch.nn.functional as F
+from ultralytics.utils.loss import v8DetectionLoss
+
+
+class KDDetectionLoss(v8DetectionLoss):
+
+    def __init__(
+        self,
+        model,
+        teacher,
+        tal_topk=10,
+        kd_weight=1.0,
+    ):
+        super().__init__(model, tal_topk)
+
+        self.model = model
+        self.teacher = teacher
+        self.kd_weight = kd_weight
+
+        # 找 Detect
+        self.student_detect = self._get_detect(model.model)
+        self.teacher_detect = self._get_detect(teacher.model)
+
+        # 让 Detect 缓存 P3/P4/P5
+        self.student_detect.kd_collect = True
+        self.teacher_detect.kd_collect = True
+
+        # 冻结 teacher
+        self.teacher.eval()
+        for p in self.teacher.parameters():
+            p.requires_grad = False
+
+    @staticmethod
+    def _get_detect(model):
+        for m in model.modules():
+            if getattr(m, "is_detect", False):
+                return m
+        raise RuntimeError("Detect module not found")
+
+    def __call__(self, batch, preds):
+        """
+        batch: dict
+        preds: student forward output
+        """
+
+        # 1️⃣ 原始 YOLO detection loss
+        det_loss, loss_items = super().__call__(preds, batch)
+
+        # 2️⃣ forward teacher（必须手动）
+        with torch.no_grad():
+            _ = self.teacher(batch["img"])
+
+        # 3️⃣ 取 P3/P4/P5
+        s_feats = getattr(self.student_detect, "_kd_feat", None)
+        t_feats = getattr(self.teacher_detect, "_kd_feat", None)
+
+        if s_feats is None or t_feats is None:
+            return det_loss, loss_items
+
+        # 4️⃣ Feature KD loss
+        kd_loss = 0.0
+        for fs, ft in zip(s_feats, t_feats):
+            kd_loss += F.mse_loss(fs, ft.detach())
+
+        total_loss = det_loss + self.kd_weight * kd_loss
+
+        return total_loss, loss_items
+
+
+
 class v8SegmentationLoss(v8DetectionLoss):
     """Criterion class for computing training losses for YOLOv8 segmentation."""
 

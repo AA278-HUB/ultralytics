@@ -1,2 +1,2 @@
 git clone https://github.com/OpenGVLab/DCNv4.git
-python setup.py build installc
+python setup.py build install

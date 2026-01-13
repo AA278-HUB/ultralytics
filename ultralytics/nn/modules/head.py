@@ -115,6 +115,8 @@ class Detect(nn.Module):
 
     def forward(self, x: list[torch.Tensor]) -> list[torch.Tensor] | tuple:
         """Concatenate and return predicted bounding boxes and class probabilities."""
+        if getattr(self, "kd_collect", False):
+            self._kd_feat = x  # x = [P3, P4, P5]
         if self.end2end:
             return self.forward_end2end(x)
 

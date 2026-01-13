@@ -1935,6 +1935,7 @@ def parse_model(d, ch, verbose=True):
                 args[2] = make_divisible(min(args[2], max_channels) * width, 8)
             if m in {Detect, YOLOEDetect, Segment, YOLOESegment, Pose, OBB}:
                 m.legacy = legacy
+                m.is_detect = True  # ★ 关键标记
         elif m is RTDETRDecoder:  # special case, channels arg must be passed in index 1
             args.insert(1, [ch[x] for x in f])
         elif m is CBLinear:
@@ -1976,6 +1977,21 @@ def parse_model(d, ch, verbose=True):
 
         m.np = sum(x.numel() for x in m_.parameters())  # number params
         m_.i, m_.f, m_.type = i + 4 if backbone else i, f, t  # attach index, 'from' index, type
+        #===================================蒸馏打标记===================================
+        m_.kd_collect = False
+        m_.kd_role = None
+        m_._kd_feat = None
+
+        # 1️⃣ Detect head（用于 logits KD / feature KD）
+        if m in {Detect, YOLOEDetect, v10Detect}:
+            m_.kd_role = "head"
+            m_.kd_collect = True  # Detect forward 输入就是 [P3,P4,P5]
+        # # 2️⃣ Neck 输出（Detect 前一层，最推荐蒸的 feature）
+        # if m_.type in {"Concat", "BiFPN_Concat2", "BiFPN_Concat3", "BiFPN_Sum2", "BiFPN_Sum3"}:
+        #     m_.kd_role = "neck"
+        #     m_.kd_collect = True
+        if getattr(m, "is_detect", False):
+            m_.kd_collect = False  # 默认关闭
         # input_nums>1 说明有多个输入
         if m in [Inject, High_LAF]:
             m_.input_nums = len(f)
