@@ -4,7 +4,7 @@ scale:
   m
 scales: # model compound scaling constants, i.e. 'model=yolo11n.yaml' will call yolo11.yaml with scale 'n'
   # [depth, width, max_channels]
-  n: [0.50, 0.25, 1024] # summary: 181 layers, 2624080 parameters, 2624064 gradients, 6.6 GFLOPs
+  n: [0.50, 0.25, 2048] # summary: 181 layers, 2624080 parameters, 2624064 gradients, 6.6 GFLOPs
   s: [0.50, 0.50, 1024] # summary: 181 layers, 9458752 parameters, 9458736 gradients, 21.7 GFLOPs
   m: [0.50, 1.00, 512] # summary: 231 layers, 20114688 parameters, 20114672 gradients, 68.5 GFLOPs
   l: [1.00, 1.00, 512] # summary: 357 layers, 25372160 parameters, 25372144 gradients, 87.6 GFLOPs
@@ -41,7 +41,7 @@ head:
 
   # inject low-level global info to P3
   - [-1, 1, SimConv, [256, 1, 1]]                   # 18 (P4_half)
-  - [[2, 4, -1], 1, Low_LAF, [128]]                 # 19
+  - [[1, 4, -1], 1, Low_LAF, [128]]                 # 19
   - [[-1, 13], 1, Inject, [256, 1, 'SyncBN']]       # 20
   - [-1, 1, RepBlock, [256, 4]]                     # 21 (P3)
 

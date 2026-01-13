@@ -6,10 +6,10 @@ from ultralytics import YOLO
 
 # 模型配置文件
 model_yaml_paths = [
-           r"Custom_Model_cfg_4/yolo11n.yaml",
+           # r"Custom_Model_cfg_4/yolo11n.yaml",
            # r"Custom_Model_cfg_4/yolo11_bifpn.yaml",
            # r"Custom_Model_cfg_4/yolo11_bifpn_2.yaml",
-           r"Custom_Model_cfg_4/yolo11_C3RepGhost.yaml",
+           # r"Custom_Model_cfg_4/yolo11_C3RepGhost.yaml",
            # r"Custom_Model_cfg_4/yolo11_Star_Ghost_shufflev2.yaml",
            # r"Custom_Model_cfg_4/yolo11_Dwconv_Ghost_shufflev2.yaml",
            # r"Custom_Model_cfg_4/yolo11_RepViTBlock_Ghost_shufflev2.yaml",
@@ -17,6 +17,7 @@ model_yaml_paths = [
            # r"Custom_Model_cfg_4/yolo11_Pconv_Ghost_shufflev2.yaml",
            # r"Custom_Model_cfg_4/yolov8n_gold_yolo_neck_v3.yaml",
            # r"Custom_Model_cfg_4/yolo11_gold_Neck.yaml"
+            r"Custom_Model_cfg_4/yolo11_DCNv4.yaml"
                     ]
 
 data="coco8.yaml"

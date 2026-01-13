@@ -1766,6 +1766,7 @@ def parse_model(d, ch, verbose=True):
             pass
         # if m in{C3Ghost} :
         #     print("调试")
+        from ultralytics.nn.modules.DCNv4.dcnv4 import C2f_DCNv4
         if m in base_modules:
             c1, c2 = ch[f], args[0]
             if c2 != nc:  # if c2 not equal to number of classes (i.e. for Classify() output)
@@ -1833,7 +1834,7 @@ def parse_model(d, ch, verbose=True):
         #     pass
         #
         elif m in {C3k2_RepViTBlock,C2f_RepViTBlock,C3k2_LiteRep,C3k2_PEMA,C3k2_StarNet,C3k2_DEMA,C3k2_GEMA,C3k2_Sema,
-                   C2f_LiteRepMixer,C2f_PSC,C3k2_LiteRepMixer,VoVGSCSPC}:
+                   C2f_LiteRepMixer,C2f_PSC,C3k2_LiteRepMixer,VoVGSCSPC,C2f_DCNv4}:
             c1, c2 = ch[f], args[0]
             if c2 != nc:  # if c2 not equal to number of classes (i.e. for Classify() output)
                 c2 = make_divisible(min(c2, max_channels) * width, 8)
@@ -2007,6 +2008,8 @@ def parse_model(d, ch, verbose=True):
 
         t1 = nn.Sequential(*layers)
         t2 =  sorted(list(set(save)))  # 使用 set 去重
+        print(f"层号:{m_.i},名称:{m},输入参数:{args}")
+
     return t1, t2
 
 
