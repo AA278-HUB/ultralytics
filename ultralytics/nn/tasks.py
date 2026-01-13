@@ -101,8 +101,13 @@ from .Extramodule.Attention.coordatt import CoordAtt
 from .Extramodule.Attention.coordatt2 import CoordAtt2
 from .Extramodule.Attention.eca_module import ECA
 from .Extramodule.Attention.EMA_Attention import EMA_attention
-from .Extramodule.Block_C3kx.RepViT import C3k2_RepViTBlock, C3k2_LiteRep
+from .Extramodule.Block_C3kx.RepViT import C3k2_RepViTBlock, C3k2_LiteRep, C2f_RepViTBlock
 from .Extramodule.Neck.BiFPN import BiFPN_Concat2, BiFPN_Concat3, BiFPN_Sum2, BiFPN_Sum3
+from .Extramodule.gold_yolo_v3.model.gold_yolo import Low_FAM, Low_IFM, Split, SimConv, Low_LAF, Inject, RepBlock, \
+    High_FAM, High_IFM, High_LAF
+# from .Extramodule.Neck.Gold import RepGDNeck
+# from .Extramodule.gold_yolo_v3.model import Low_FAM, Low_IFM, Split, SimConv, Low_LAF, Inject, RepBlock, High_FAM, \
+#     High_IFM, High_LAF
 from .modules.block import ShuffleV1Block, ShuffleV2Block, C3RepGhost2, C2faster, C3k2_PEMA, C3k2_StarNet, C3k2_DEMA, \
     C3k2_GEMA, C3k2_Sema, C2f_LiteRepMixer, C2f_PSC, C3k2_LiteRepMixer,GSConv, VoVGSCSPC, GSBottleneckC, GSBottleneck, GSConvns, VoVGSCSPC, VoVGSCSP
 
@@ -219,7 +224,13 @@ class BaseModel(torch.nn.Module):
                         y.append(None)
                 x = x[-1]  # 最后一个输出传给下一层
             else:
-                x = m(x)  # run
+                if hasattr(m,"test"):
+                    pass
+                if m.input_nums> 1:
+                    x = m(*x)
+                else:
+                    x = m(x)
+                # x = m(x)  # run
                 y.append(x if m.i in self.save else None)  # save output
             if visualize:
                 feature_visualization(x, m.type, m.i, save_dir=visualize)
@@ -229,6 +240,7 @@ class BaseModel(torch.nn.Module):
                     return torch.unbind(torch.cat(embeddings, 1), dim=0)
             # print(f"=================测试=======================")
             # print(x.shape)
+            print(f"层数:{m.i}")
         return x
 
     #
@@ -1733,6 +1745,7 @@ def parse_model(d, ch, verbose=True):
     )
     # =======添加======
     backbone = False
+    Neck =False
     for i, (f, n, m, args) in enumerate(d["backbone"] + d["head"]):  # from, number, module, args
 
         t = m
@@ -1748,7 +1761,7 @@ def parse_model(d, ch, verbose=True):
                 with contextlib.suppress(ValueError):
                     args[j] = locals()[a] if a in locals() else ast.literal_eval(a)
         n = n_ = max(round(n * depth), 1) if n > 1 else n  # depth gain
-
+        # print(f"m是什么{m}")
         if m is SimAM:
             pass
         # if m in{C3Ghost} :
@@ -1782,6 +1795,10 @@ def parse_model(d, ch, verbose=True):
                 m = m(*args)
                 c2 = m.width_list
                 backbone = True
+        # elif m in {RepGDNeck}:
+        #     m = m(*args)
+        #     c2=m.width_list
+        #     Neck=True
         #======新加shuffle系列=======
         elif m in {ShuffleV1Block}:
             c1, c2 = ch[f], args[0]
@@ -1815,7 +1832,7 @@ def parse_model(d, ch, verbose=True):
         # elif m in {RepConv}:
         #     pass
         #
-        elif m in {C3k2_RepViTBlock,C3k2_LiteRep,C3k2_PEMA,C3k2_StarNet,C3k2_DEMA,C3k2_GEMA,C3k2_Sema,
+        elif m in {C3k2_RepViTBlock,C2f_RepViTBlock,C3k2_LiteRep,C3k2_PEMA,C3k2_StarNet,C3k2_DEMA,C3k2_GEMA,C3k2_Sema,
                    C2f_LiteRepMixer,C2f_PSC,C3k2_LiteRepMixer,VoVGSCSPC}:
             c1, c2 = ch[f], args[0]
             if c2 != nc:  # if c2 not equal to number of classes (i.e. for Classify() output)
@@ -1848,6 +1865,43 @@ def parse_model(d, ch, verbose=True):
         # =====新加的动态检测头=====
         elif m in {Detect_DyHead}:
             args.append([ch[x] for x in f])
+        elif m in {Low_FAM, Low_IFM, Split, SimConv, Low_LAF, Inject, RepBlock, High_FAM, High_IFM, High_LAF}:
+
+            # print(m)
+            if m in {Low_FAM,High_FAM,High_LAF}:
+                # 没有参数
+                c2 = sum(ch[x] for x in f)
+            if  m in {Low_IFM,SimConv,RepBlock}:
+                # if m in {RepBlock}:
+                #     pass
+                if m in {Low_IFM}:
+                    pass
+                c1, c2 = ch[f], args[0]
+                if c2 != nc:  # if c2 not equal to number of classes (i.e. for Classify() output)
+                    c2 = make_divisible(min(c2, max_channels) * width, 8)
+                args = [c1,c2, *args[1:]]
+            if m in {Low_LAF}:
+                c1, c2 = ch[f[1]], args[0]
+                if c2 != nc:  # if c2 not equal to number of classes (i.e. for Classify() output)
+                    c2 = make_divisible(min(c2, max_channels) * width, 8)
+                args = [c1, c2]
+            if m in {Split}:
+                c2 = []
+                for arg in args:
+                    if arg != nc:  # if c2 not equal to number of classes (i.e. for Classify() output)
+                        c2.append(make_divisible(min(arg, max_channels) * width, 8))
+                args = [c2]
+            if  m in {Inject}:
+                global_index = args[1]
+                c2=args[0]
+                # from1=f[1]
+                c1=ch[f[1]][global_index]
+
+                if c2 != nc:  # if c2 not equal to number of classes (i.e. for Classify() output)
+                    c2 = make_divisible(min(c2, max_channels) * width, 8)
+                args = [c1, c2, *args[1:]]
+            if m in {High_IFM}:
+                c2 = args[1]
         elif m is AIFI:
             args = [ch[f], *args]
         elif m in frozenset({HGStem, HGBlock}):
@@ -1891,8 +1945,13 @@ def parse_model(d, ch, verbose=True):
             c2 = ch[f]
 
         if isinstance(c2, list):
-            m_ = m
-            m_.backbone = True
+            if m in { Split}:
+                m_ = m(*args)
+                # m_ = nn.Sequential(*(m(*args) for _ in range(n)))
+            else:
+                print("严重警告")
+                m_ = m
+                m_.backbone = True
         else:
             if n > 1:
                 # 创建 n 个相同的模块，并把它们放到一个 nn.Sequential 里
@@ -1902,29 +1961,52 @@ def parse_model(d, ch, verbose=True):
                     pass
                 # 只创建一个模块
                 m_ = m(*args)
+                if m in {Low_FAM}:
+                    m_.test = True
+
 
             # m_ = nn.Sequential(*(m(*args) for _ in range(n))) if n > 1 else m(*args)  # module
-            t = str(m)[8:-2].replace('__main__.', '')  # module type
+        t = str(m)[8:-2].replace('__main__.', '')  # module type
 
         m.np = sum(x.numel() for x in m_.parameters())  # number params
         m_.i, m_.f, m_.type = i + 4 if backbone else i, f, t  # attach index, 'from' index, type
+        # input_nums>1 说明有多个输入
+        if m in [Inject, High_LAF]:
+            m_.input_nums = len(f)
+        else:
+            m_.input_nums = 1
 
         if verbose:
             LOGGER.info(f'{i:>3}{str(f):>20}{n_:>3}{m.np:10.0f}  {t:<45}{str(args):<30}')  # print
-        save.extend(
-            x % (i + 4 if backbone else i) for x in ([f] if isinstance(f, int) else f) if x != -1)  # append to savelist
+        # 遍历当前层 from 参数中提到的所有来源索引 x
+        # 如果 from 是 [2, 4, 6, 10]，则 x 依次为 2, 4, 6, 10
+        for x in ([f] if isinstance(f, int) else f):
+            if x != -1:  # -1 代表前一层，自动保留，不需要额外存入 save 列表
+
+                # 计算该层在整个模型中的全局索引
+                # 如果当前正在解析 backbone，索引偏移通常是 0（或者根据具体逻辑调整）
+                # 如果是在解析 head，由于层数接在 backbone 后面，索引需要加上 backbone 的长度
+                actual_index = x % (i + 4 if backbone else i)
+
+                # 将这个必须保留的层索引加入 save 列表
+                save.append(actual_index)
+        # save.extend(
+        #     x % (i + 4 if backbone else i) for x in ([f] if isinstance(f, int) else f) if x != -1)  # append to savelist
         layers.append(m_)
         if i == 0:
             ch = []
         if isinstance(c2, list):
-            ch.extend(c2)
-            if len(c2) != 5:
-                ch.insert(0, 0)
+            if m in {Split}:
+                ch.append(c2)
+            else:
+                ch.extend(c2)
+                if len(c2) != 5:
+                    ch.insert(0, 0)
         else:
             ch.append(c2)
 
         t1 = nn.Sequential(*layers)
-        t2 = sorted(save)
+        t2 =  sorted(list(set(save)))  # 使用 set 去重
     return t1, t2
 
 

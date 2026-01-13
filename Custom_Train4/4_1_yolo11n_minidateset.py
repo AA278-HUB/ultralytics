@@ -5,10 +5,11 @@ import os
 
 # 模型配置文件
 model_yaml_paths = [
-           r"Custom_Model_cfg_4/yolo11n.yaml",
-           r"Custom_Model_cfg_4/yolo11_bifpn.yaml",
-           r"Custom_Model_cfg_4/yolo11_bifpn_2.yaml",
-           r"Custom_Model_cfg_4/yolo11_C3RepGhost.yaml"
+           # r"Custom_Model_cfg_4/yolo11n.yaml",
+           # r"Custom_Model_cfg_4/yolo11_bifpn.yaml",
+           # r"Custom_Model_cfg_4/yolo11_bifpn_2.yaml",
+           # r"Custom_Model_cfg_4/yolo11_C3RepGhost.yaml",
+           r"Custom_Model_cfg_4/yolo11_Ghost_Rep_Ghost_shufflev2.yaml"
                     ]
 data = "Custom_dataset_cfg/vehicle_orientation_mini.yaml"
 
