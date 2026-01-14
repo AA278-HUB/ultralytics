@@ -6,9 +6,9 @@ from ultralytics.models.yolo.detect.KDDetectionTrainer import KDDetectionTrainer
 from ultralytics.utils import DEFAULT_CFG
 
 student_model =YOLO("yolo11n.yaml")
-teacher_model=YOLO(r"C:\Users\Hunger\Desktop\ultralytics\Custom_Distiller\best.pt")
+teacher_model=YOLO(r"C:\Users\AAAAA\Desktop\ultralytics\Custom_Distiller\best.pt")
 
-args = dict(data="coco8.yaml", epochs=3)
+args = dict(model=student_model,data="coco8.yaml", epochs=3)
 trainer = KDDetectionTrainer(cfg=DEFAULT_CFG,student=student_model, teacher=teacher_model,overrides=args)
 
 trainer.train()

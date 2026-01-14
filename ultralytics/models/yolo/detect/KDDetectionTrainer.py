@@ -124,14 +124,14 @@ class KDDetectionTrainer(DetectionTrainer):
         super().__init__(cfg=cfg, overrides=overrides, _callbacks=_callbacks)
         # 加载教师模型
         # self.teacher = YOLO('yolo11x.pt')  # 假设你有一个预训练的YOLOv11x模型
-        self.model=student
-        self.teacher=teacher
-        self.teacher.model.eval()  # 将教师模型设置为评估模式
-        for param in self.teacher.model.parameters():
+        self.model=student.model
+        self.teacher=teacher.model
+        self.teacher.eval()  # 将教师模型设置为评估模式
+        for param in self.teacher.parameters():
             param.requires_grad = False  # 教师模型不需要梯度
         self.model.loss = KDDetectionLoss(
             model=self.model,
-            teacher=self.teacher.model,
+            teacher=self.teacher,
             kd_weight=loss_weight
         )
 

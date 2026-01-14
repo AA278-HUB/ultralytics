@@ -329,11 +329,6 @@ class v8DetectionLoss:
         return loss * batch_size, loss.detach()  # loss(box, cls, dfl)
 
 
-import torch
-import torch.nn.functional as F
-from ultralytics.utils.loss import v8DetectionLoss
-
-
 class KDDetectionLoss(v8DetectionLoss):
 
     def __init__(
@@ -345,40 +340,33 @@ class KDDetectionLoss(v8DetectionLoss):
     ):
         super().__init__(model, tal_topk)
 
-        self.model = model
         self.teacher = teacher
         self.kd_weight = kd_weight
 
-        # 找 Detect
-        self.student_detect = self._get_detect(model.model)
-        self.teacher_detect = self._get_detect(teacher.model)
+        # Detect head
+        self.student_detect = model.model[-1]
+        self.teacher_detect = teacher.model[-1]
 
-        # 让 Detect 缓存 P3/P4/P5
+        # 开启特征缓存
         self.student_detect.kd_collect = True
         self.teacher_detect.kd_collect = True
 
         # 冻结 teacher
-        self.teacher.eval()
         for p in self.teacher.parameters():
             p.requires_grad = False
+        self.teacher.eval()
 
-    @staticmethod
-    def _get_detect(model):
-        for m in model.modules():
-            if getattr(m, "is_detect", False):
-                return m
-        raise RuntimeError("Detect module not found")
-
-    def __call__(self, batch, preds):
+    # ⚠️ 注意：签名必须和 v8DetectionLoss 完全一致
+    def  __call__(self, preds: Any, batch: dict[str, torch.Tensor]) -> tuple[torch.Tensor, torch.Tensor]:
         """
-        batch: dict
         preds: student forward output
+        batch: dict
         """
 
-        # 1️⃣ 原始 YOLO detection loss
+        # 1️⃣ 原始 YOLO loss（一字不改）
         det_loss, loss_items = super().__call__(preds, batch)
 
-        # 2️⃣ forward teacher（必须手动）
+        # 2️⃣ forward teacher（正确方式）
         with torch.no_grad():
             _ = self.teacher(batch["img"])
 
@@ -389,10 +377,10 @@ class KDDetectionLoss(v8DetectionLoss):
         if s_feats is None or t_feats is None:
             return det_loss, loss_items
 
-        # 4️⃣ Feature KD loss
+        # 4️⃣ Feature KD
         kd_loss = 0.0
         for fs, ft in zip(s_feats, t_feats):
-            kd_loss += F.mse_loss(fs, ft.detach())
+            kd_loss += F.mse_loss(fs, ft)
 
         total_loss = det_loss + self.kd_weight * kd_loss
 

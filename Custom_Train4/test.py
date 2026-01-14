@@ -17,7 +17,8 @@ model_yaml_paths = [
            # r"Custom_Model_cfg_4/yolo11_Pconv_Ghost_shufflev2.yaml",
            # r"Custom_Model_cfg_4/yolov8n_gold_yolo_neck_v3.yaml",
            # r"Custom_Model_cfg_4/yolo11_gold_Neck.yaml"
-            r"Custom_Model_cfg_4/yolo11_DCNv4.yaml"
+           #  r"Custom_Model_cfg_4/yolo11_DCNv4.yaml"
+            "Custom_Model_cfg_4/yolo11_FFCM.yaml"
                     ]
 
 data="coco8.yaml"
@@ -34,7 +35,7 @@ if __name__ == '__main__':
                               cos_lr=True,
                               close_mosaic=50,
                               save= True,
-                              device=0,
+                              device=-1,
                               workers=16,
                               name="test"+datetime.now().strftime("%Y%m%d_%H_%M"))
 

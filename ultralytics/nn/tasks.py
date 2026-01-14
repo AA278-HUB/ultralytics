@@ -110,7 +110,7 @@ from .Extramodule.gold_yolo_v3.model.gold_yolo import Low_FAM, Low_IFM, Split, S
 #     High_IFM, High_LAF
 from .modules.block import ShuffleV1Block, ShuffleV2Block, C3RepGhost2, C2faster, C3k2_PEMA, C3k2_StarNet, C3k2_DEMA, \
     C3k2_GEMA, C3k2_Sema, C2f_LiteRepMixer, C2f_PSC, C3k2_LiteRepMixer, GSConv, VoVGSCSPC, GSBottleneckC, GSBottleneck, \
-    GSConvns, VoVGSCSPC, VoVGSCSP, C2f_DCNv4
+    GSConvns, VoVGSCSPC, VoVGSCSP, C2f_FFC  # C2f_DCNv4
 
 
 # AMP=False,
@@ -1839,11 +1839,16 @@ def parse_model(d, ch, verbose=True):
         #     pass
         #
         elif m in {C3k2_RepViTBlock,C2f_RepViTBlock,C3k2_LiteRep,C3k2_PEMA,C3k2_StarNet,C3k2_DEMA,C3k2_GEMA,C3k2_Sema,
-                   C2f_LiteRepMixer,C2f_PSC,C3k2_LiteRepMixer,VoVGSCSPC,C2f_DCNv4}:
+                   C2f_LiteRepMixer,C2f_PSC,C3k2_LiteRepMixer,VoVGSCSPC}:  #,C2f_DCNv4
             c1, c2 = ch[f], args[0]
             if c2 != nc:  # if c2 not equal to number of classes (i.e. for Classify() output)
                 c2 = make_divisible(min(c2, max_channels) * width, 8)
             args = [c1, c2,1,*args[1:]]
+        elif m in {C2f_FFC}:
+            c1, c2 = ch[f], args[0]
+            if c2 != nc:  # if c2 not equal to number of classes (i.e. for Classify() output)
+                c2 = make_divisible(min(c2, max_channels) * width, 8)
+            args = [c1, c2,*args[1:]]
         elif m in {CBAM}:
             c1 = ch[f]
             args = [c1,*args[:]]
