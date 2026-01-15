@@ -32,6 +32,7 @@ if __name__ == '__main__':
             close_mosaic=20,  # 提前关闭 mosaic
             save=True,
             device=-1,
+            amp=False,
             name=f"{model_name}_{datetime.now().strftime('%Y%m%d_%H_%M')}"
         )
 
