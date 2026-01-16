@@ -3,6 +3,7 @@ from datetime import datetime
 import torch
 import torch.nn.functional as F
 from ultralytics import YOLO
+from ultralytics.nn import DetectionModel
 from ultralytics.utils import DEFAULT_CFG
 from ultralytics.models.yolo.detect import DetectionTrainer
 
@@ -40,43 +41,47 @@ if __name__ == '__main__':
     # 3. override loss
     # -------------------------
     kd_weight = 1.0
-    original_loss = student.model.loss
-
-    def kd_loss(self, batch, preds=None):
-        global s_feats, t_feats
-
-        # 确保 criterion 已初始化
-        if getattr(self, "criterion", None) is None:
-            self.criterion = self.init_criterion()
-
-        # 原 YOLO loss（这里会触发 student hook）
-        if preds is None:
-            preds = self.forward(batch["img"])
-        total_loss, loss_items = original_loss(batch, preds)
-
-        # teacher forward（只为抓特征）
-        with torch.no_grad():
-            _ = teacher.model(batch["img"])
-
-        # KD loss（无 adapter，直接 MSE）
-        kd_term = 0.0
-        for fs, ft in zip(s_feats, t_feats):
-            kd_term += F.mse_loss(fs, ft.detach())
-
-        total_loss = total_loss + kd_weight * kd_term
-
-        # 日志里加一项 KD
-        loss_items = torch.cat([
-            loss_items,
-            kd_term.detach().unsqueeze(0)
-        ])
-
-        s_feats, t_feats = None, None
-        return total_loss, loss_items
+    original_loss = student.loss
 
 
-# 正确绑定 self
-    student.loss = kd_loss.__get__(student.model, type(student.model))
+
+
+    class DetectionModelWithKD(DetectionModel):
+        def __init__(self, cfg="yolo11n.yaml", ch=3, nc=None, verbose=True):
+            super().__init__(cfg=cfg,ch=ch,nc=nc,verbose=verbose)
+
+        def loss(self, batch, preds=None):
+            global s_feats, t_feats
+
+            # 确保 criterion 已初始化
+            if getattr(self, "criterion", None) is None:
+                self.criterion = self.init_criterion()
+
+            # 原 YOLO loss（这里会触发 student hook）
+            if preds is None:
+                preds = self.forward(batch["img"])
+            total_loss, loss_items = original_loss(batch, preds)
+
+            # teacher forward（只为抓特征）
+            with torch.no_grad():
+                _ = teacher.model(batch["img"])
+
+            # KD loss（无 adapter，直接 MSE）
+            kd_term = 0.0
+            for fs, ft in zip(s_feats, t_feats):
+                kd_term += F.mse_loss(fs, ft.detach())
+
+            total_loss = total_loss + kd_weight * kd_term
+
+            # 日志里加一项 KD
+            loss_items = torch.cat([
+                loss_items,
+                kd_term.detach().unsqueeze(0)
+            ])
+
+            s_feats, t_feats = None, None
+            return total_loss, loss_items
+
     data = "Custom_dataset_cfg/vehicle_orientation_mini.yaml"
     model_name="Distill_Model"
     student.train(
