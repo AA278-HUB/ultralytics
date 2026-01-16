@@ -121,6 +121,8 @@ class BaseTrainer:
             _callbacks (list, optional): List of callback functions.
         """
         self.hub_session = overrides.pop("session", None)  # HUB
+        self.Distill=overrides.pop("Distill",False)
+        self.Student=overrides["model"]
         self.args = get_cfg(cfg, overrides)
         self.check_resume(overrides)
         self.device = select_device(self.args.device)
@@ -670,6 +672,7 @@ class BaseTrainer:
             cfg = weights.yaml
         elif isinstance(self.args.pretrained, (str, Path)):
             weights, _ = load_checkpoint(self.args.pretrained)
+
         self.model = self.get_model(cfg=cfg, weights=weights, verbose=RANK == -1)  # calls Model(cfg, weights)
         return ckpt
 

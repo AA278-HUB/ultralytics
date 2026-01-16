@@ -634,11 +634,11 @@ class DetectionModelWithKD(DetectionModel):
         self.s_feats, self.t_feats = None, None
 
         # 注册钩子函数来保存学生和教师模型的特征
-        self.student_feats_hook = self.model.model[-1].register_forward_pre_hook(self.save_student_feats)
+        self.student_feats_hook = self.model[-1].register_forward_pre_hook(self.save_student_feats)
         self.teacher_feats_hook = self.teacher.model.model[-1].register_forward_pre_hook(self.save_teacher_feats)
 
         # 保存原始损失函数
-        self.original_loss = self.loss
+        # self.original_loss = self.loss
 
     def save_student_feats(self, m, inp):
         """保存学生模型的特征"""
