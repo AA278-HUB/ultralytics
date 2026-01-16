@@ -2034,7 +2034,7 @@ def parse_model(d, ch, verbose=True):
 
         t1 = nn.Sequential(*layers)
         t2 =  sorted(list(set(save)))  # 使用 set 去重
-        print(f"层号:{m_.i},名称:{m},输入参数:{args}")
+        # print(f"层号:{m_.i},名称:{m},输入参数:{args}")
 
     return t1, t2
 
