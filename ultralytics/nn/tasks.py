@@ -9,6 +9,8 @@ from pathlib import Path
 
 import torch
 import torch.nn as nn
+from torch.cuda import device
+
 from .Extramodule import *
 from ultralytics.nn.autobackend import check_class_names
 from ultralytics.nn.modules import (
@@ -599,6 +601,102 @@ class DetectionModel(BaseModel):
         """Initialize the loss criterion for the DetectionModel."""
         return E2EDetectLoss(self) if getattr(self, "end2end", False) else v8DetectionLoss(self)
 
+
+
+class DetectionModelWithKD(DetectionModel):
+    """
+    YOLO detection model with Knowledge Distillation (KD).
+    """
+
+    def __init__(self, cfg="yolo11n.yaml", ch=3, nc=None, verbose=True, teacher=None,kd_weight=1):
+        """
+        Initialize the YOLO detection model with Knowledge Distillation (KD).
+
+        Args:
+            cfg (str | dict): Model configuration file path or dictionary.
+            ch (int): Number of input channels.
+            nc (int, optional): Number of classes.
+            verbose (bool): Whether to display model information.
+            teacher (YOLO, optional): Teacher model to be used for KD. If not provided, defaults to None.
+        """
+        # 初始化 YOLO 模型
+        super().__init__(cfg=cfg, ch=ch, nc=nc, verbose=verbose)
+
+
+        self.kd_weight=kd_weight
+        # 设置教师模型（如果提供）
+        self.teacher = teacher
+        self.teacher.model.eval()
+        for p in self.teacher.model.parameters():
+            p.requires_grad = False
+
+        # 特征缓存
+        self.s_feats, self.t_feats = None, None
+
+        # 注册钩子函数来保存学生和教师模型的特征
+        self.student_feats_hook = self.model.model[-1].register_forward_pre_hook(self.save_student_feats)
+        self.teacher_feats_hook = self.teacher.model.model[-1].register_forward_pre_hook(self.save_teacher_feats)
+
+        # 保存原始损失函数
+        self.original_loss = self.loss
+
+    def save_student_feats(self, m, inp):
+        """保存学生模型的特征"""
+        self.s_feats = inp[0]  # [P3, P4, P5]
+
+    def save_teacher_feats(self, m, inp):
+        """保存教师模型的特征"""
+        self.t_feats = inp[0]
+
+    def loss(self, batch, preds=None):
+        """
+        Compute loss with Knowledge Distillation (KD).
+
+        Args:
+            batch (dict): Batch to compute loss on.
+            preds (torch.Tensor | list[torch.Tensor], optional): Predictions.
+        """
+        # 确保 criterion 已初始化
+        if getattr(self, "criterion", None) is None:
+            self.criterion = self.init_criterion()
+
+        # 计算学生模型的标准损失
+        if preds is None:
+            preds = self.forward(batch["img"])
+        total_loss, loss_items = self.original_loss(batch, preds)  # 使用原始损失函数
+
+        # 教师模型前向传播（仅用于获取特征）
+        with torch.no_grad():
+            _ = self.teacher.model(batch["img"].to(device))  # 确保教师模型在 GPU 上
+
+        # KD 损失（无 adapter，直接 MSE）
+        kd_term = 0.0
+        for fs, ft in zip(self.s_feats, self.t_feats):
+            kd_term += F.mse_loss(fs, ft.detach())  # 计算学生和教师的 MSE 损失
+
+        # 将 KD 损失加到总损失中
+        total_loss = total_loss + self.kd_weight * kd_term
+
+        # 日志里加一项 KD
+        loss_items = torch.cat([loss_items, kd_term.detach().unsqueeze(0)])
+
+        # 清空特征缓存
+        self.s_feats, self.t_feats = None, None
+        return total_loss, loss_items
+    def original_loss(self, batch, preds=None):
+        """
+        Compute loss.
+
+        Args:
+            batch (dict): Batch to compute loss on.
+            preds (torch.Tensor | list[torch.Tensor], optional): Predictions.
+        """
+        if getattr(self, "criterion", None) is None:
+            self.criterion = self.init_criterion()
+
+        if preds is None:
+            preds = self.forward(batch["img"])
+        return self.criterion(preds, batch)
 
 class OBBModel(DetectionModel):
     """
