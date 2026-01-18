@@ -18,8 +18,10 @@ model_yaml_paths = [
            # r"Custom_Model_cfg_4/yolov8n_gold_yolo_neck_v3.yaml",
            # r"Custom_Model_cfg_4/yolo11_gold_Neck.yaml"
            #  r"Custom_Model_cfg_4/yolo11_DCNv4.yaml"
-            "Custom_Model_cfg_4/yolo11_FFCM.yaml"
-                    ]
+           #  "Custom_Model_cfg_4/yolo11_FFCM.yaml"
+           r"Custom_Model_cfg_4/yolo11_bifpn_3.yaml",
+
+]
 
 data="coco8.yaml"
 #data = "Custom_dataset_cfg/coco-vehicle.yaml"

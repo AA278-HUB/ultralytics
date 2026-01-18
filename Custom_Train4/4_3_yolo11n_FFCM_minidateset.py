@@ -11,7 +11,8 @@ model_yaml_paths = [
            # r"Custom_Model_cfg_4/yolo11_C3RepGhost.yaml",
            # r"Custom_Model_cfg_4/yolo11_DCNv4.yaml"
            #  "Custom_Model_cfg_4/yolo11_FFCM.yaml",
-            r"Custom_Model_cfg_4/yolo11_FFCM_2.yaml"
+           #  r"Custom_Model_cfg_4/yolo11_FFCM_2.yaml"
+              r"Custom_Model_cfg_4/yolo11_bifpn_3.yaml",
                     ]
 data = "Custom_dataset_cfg/vehicle_orientation_mini.yaml"
 
