@@ -249,9 +249,9 @@ class BaseModel(torch.nn.Module):
                     return torch.unbind(torch.cat(embeddings, 1), dim=0)
             # print(f"=================测试=======================")
             # print(x.shape)
-            print(f"层数:{m.i}")
-            if m.i in {16,19,22,23,24,25}:
-                print(x.shape)
+            # print(f"层数:{m.i}")
+            # if m.i in {16,19,22,23,24,25}:
+            #     print(x.shape)
         return x
 
     #
