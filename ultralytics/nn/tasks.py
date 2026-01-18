@@ -104,6 +104,7 @@ from .Extramodule.Attention.coordatt2 import CoordAtt2
 from .Extramodule.Attention.eca_module import ECA
 from .Extramodule.Attention.EMA_Attention import EMA_attention
 from .Extramodule.Block_C3kx.RepViT import C3k2_RepViTBlock, C3k2_LiteRep, C2f_RepViTBlock
+from .Extramodule.Neck.ASFF import ASFF
 from .Extramodule.Neck.BiFPN import BiFPN_Concat2, BiFPN_Concat3, BiFPN_Sum2, BiFPN_Sum3
 from .Extramodule.gold_yolo_v3.model.gold_yolo import Low_FAM, Low_IFM, Split, SimConv, Low_LAF, Inject, RepBlock, \
     High_FAM, High_IFM, High_LAF
@@ -248,7 +249,9 @@ class BaseModel(torch.nn.Module):
                     return torch.unbind(torch.cat(embeddings, 1), dim=0)
             # print(f"=================测试=======================")
             # print(x.shape)
-            # print(f"层数:{m.i}")
+            print(f"层数:{m.i}")
+            if m.i in {16,19,22,23,24,25}:
+                print(x.shape)
         return x
 
     #
@@ -1974,6 +1977,12 @@ def parse_model(d, ch, verbose=True):
         # =====新加的动态检测头=====
         elif m in {Detect_DyHead}:
             args.append([ch[x] for x in f])
+        elif m in {ASFF}:
+            c1= ch[f[2-args[0]]]
+            c2=c1
+            # print(args)
+            # print(c1)
+
         elif m in {Low_FAM, Low_IFM, Split, SimConv, Low_LAF, Inject, RepBlock, High_FAM, High_IFM, High_LAF}:
 
             # print(m)
