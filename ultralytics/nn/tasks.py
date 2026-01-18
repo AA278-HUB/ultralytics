@@ -114,6 +114,7 @@ from .Extramodule.gold_yolo_v3.model.gold_yolo import Low_FAM, Low_IFM, Split, S
 from .modules.block import ShuffleV1Block, ShuffleV2Block, C3RepGhost2, C2faster, C3k2_PEMA, C3k2_StarNet, C3k2_DEMA, \
     C3k2_GEMA, C3k2_Sema, C2f_LiteRepMixer, C2f_PSC, C3k2_LiteRepMixer, GSConv, VoVGSCSPC, GSBottleneckC, GSBottleneck, \
     GSConvns, VoVGSCSPC, VoVGSCSP, C2f_FFC  # C2f_DCNv4
+from .modules.mafyolo import RepHMS, AVG
 
 
 # AMP=False,
@@ -250,7 +251,7 @@ class BaseModel(torch.nn.Module):
             # print(f"=================测试=======================")
             # print(x.shape)
             # print(f"层数:{m.i}")
-            # if m.i in {16,19,22,23,24,25}:
+            # if m.i in {12,13,6}:
             #     print(x.shape)
         return x
 
@@ -1824,7 +1825,9 @@ def parse_model(d, ch, verbose=True):
             GSBottleneck,
             GSConvns,
             VoVGSCSPC,
-            VoVGSCSP
+            VoVGSCSP,
+            RepHMS,
+
             # ShuffleV1Block,
         }
     )
@@ -1869,7 +1872,7 @@ def parse_model(d, ch, verbose=True):
                     args[j] = locals()[a] if a in locals() else ast.literal_eval(a)
         n = n_ = max(round(n * depth), 1) if n > 1 else n  # depth gain
         # print(f"m是什么{m}")
-        if m is SimAM:
+        if m is VoVGSCSP:
             pass
         # if m in{C3Ghost} :
         #     print("调试")
@@ -2028,7 +2031,8 @@ def parse_model(d, ch, verbose=True):
             if m is HGBlock:
                 args.insert(4, n)  # number of repeats
                 n = 1
-
+        elif m is AVG:
+            c2 = ch[f]
         elif m is ResNetLayer:
             c2 = args[1] if args[3] else args[1] * 4
         elif m is torch.nn.BatchNorm2d:
