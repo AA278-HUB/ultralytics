@@ -1873,7 +1873,7 @@ def parse_model(d, ch, verbose=True):
                     args[j] = locals()[a] if a in locals() else ast.literal_eval(a)
         n = n_ = max(round(n * depth), 1) if n > 1 else n  # depth gain
         # print(f"m是什么{m}")
-        if m is VoVGSCSP:
+        if m is RepHMS:
             pass
         # if m in{C3Ghost} :
         #     print("调试")
