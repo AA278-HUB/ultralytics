@@ -64,6 +64,7 @@ __all__ = (
 from ..Extramodule.Attention.EMA_Attention import EMA
 
 from ..Extramodule.Attention.SqueezeExcite import SqueezeExcite
+from ..Extramodule.FDConv import FDConv
 
 
 class DFL(nn.Module):
@@ -3158,7 +3159,42 @@ class C2f_FFC(nn.Module):
         return self.cv2(torch.cat(y, 1))
 
 
+class FD_Bottleneck(nn.Module):
+    """Frequency Domain 版本的 Bottleneck，只替换 3x3 conv 为 FDConv"""
 
+    def __init__(self, c1, c2, shortcut=True, g=1, k=(3, 3), e=0.5):
+        super().__init__()
+        c_ = int(c2 * e)  # hidden channels
+
+        self.cv1 = Conv(c1, c_, 1, 1)  # 1x1 conv 保持原样
+        self.cv2 = FDConv(c_, c2, kernel_size=k[0], stride=1, padding=k[0] // 2, groups=g,
+                          # FDConv 的关键参数，根据你的需求调整
+                          kernel_num=4, reduction=0.0625, att_multi=2.0,
+                          use_ksm_local=True, param_reduction=1.0,  # 如果太重，减小 param_reduction
+                          # 其他 FDConv 参数按需填
+                          )
+        self.add = shortcut and c1 == c2
+
+    def forward(self, x):
+        return x + self.cv2(self.cv1(x)) if self.add else self.cv2(self.cv1(x))
+class FD_C3k(C3):
+    """Frequency Domain 版本的 C3k，使用 FD_Bottleneck 作为重复单元"""
+    def __init__(self, c1: int, c2: int, n: int = 1, shortcut: bool = True, g: int = 1, e: float = 0.5, k: int = 3):
+        super().__init__(c1, c2, n, shortcut, g, e)
+        c_ = int(c2 * e)  # hidden channels
+        self.m = nn.Sequential(
+            *(FD_Bottleneck(c_, c_, shortcut, g, k=(k, k), e=1.0) for _ in range(n))
+        )
+
+class FD_C3k2(C2f):
+    """Frequency Domain 版本的 C3k2，内部可配置用 FD_C3k 或 FD_Bottleneck"""
+    def __init__(
+        self, c1: int, c2: int, n: int = 1, c3k: bool = False, e: float = 0.5, g: int = 1, shortcut: bool = True
+    ):
+        super().__init__(c1, c2, n, shortcut, g, e)
+        self.m = nn.ModuleList(
+            FD_C3k(self.c, self.c, 2, shortcut, g) if c3k else FD_Bottleneck(self.c, self.c, shortcut, g) for _ in range(n)
+        )
 # class DCNv4Conv2d(nn.Module):
 #     """
 #     DCNv4 wrapper for NCHW feature maps
