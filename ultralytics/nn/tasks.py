@@ -104,6 +104,7 @@ from .Extramodule.Attention.coordatt2 import CoordAtt2
 from .Extramodule.Attention.eca_module import ECA
 from .Extramodule.Attention.EMA_Attention import EMA_attention
 from .Extramodule.Block_C3kx.RepViT import C3k2_RepViTBlock, C3k2_LiteRep, C2f_RepViTBlock
+from .Extramodule.Dysample import DySample
 from .Extramodule.Neck.ASFF import ASFF
 from .Extramodule.Neck.BiFPN import BiFPN_Concat2, BiFPN_Concat3, BiFPN_Sum2, BiFPN_Sum3
 from .Extramodule.gold_yolo_v3.model.gold_yolo import Low_FAM, Low_IFM, Split, SimConv, Low_LAF, Inject, RepBlock, \
@@ -113,7 +114,7 @@ from .Extramodule.gold_yolo_v3.model.gold_yolo import Low_FAM, Low_IFM, Split, S
 #     High_IFM, High_LAF
 from .modules.block import ShuffleV1Block, ShuffleV2Block, C3RepGhost2, C2faster, C3k2_PEMA, C3k2_StarNet, C3k2_DEMA, \
     C3k2_GEMA, C3k2_Sema, C2f_LiteRepMixer, C2f_PSC, C3k2_LiteRepMixer, GSConv, VoVGSCSPC, GSBottleneckC, GSBottleneck, \
-    GSConvns, VoVGSCSPC, VoVGSCSP, C2f_FFC  # C2f_DCNv4
+    GSConvns, VoVGSCSPC, VoVGSCSP, C2f_FFC, FD_C3k2  # C2f_DCNv4
 from .modules.mafyolo import RepHMS, AVG
 
 
@@ -1827,7 +1828,7 @@ def parse_model(d, ch, verbose=True):
             VoVGSCSPC,
             VoVGSCSP,
             RepHMS,
-
+            FD_C3k2,
             # ShuffleV1Block,
         }
     )
@@ -1942,6 +1943,10 @@ def parse_model(d, ch, verbose=True):
         # elif m in {RepConv}:
         #     pass
         #
+        elif m in {DySample}:
+            c1=ch[f]
+            c2=c1
+            args = [c1, *args[1:]]
         elif m in {C3k2_RepViTBlock,C2f_RepViTBlock,C3k2_LiteRep,C3k2_PEMA,C3k2_StarNet,C3k2_DEMA,C3k2_GEMA,C3k2_Sema,
                    C2f_LiteRepMixer,C2f_PSC,C3k2_LiteRepMixer,VoVGSCSPC}:  #,C2f_DCNv4
             c1, c2 = ch[f], args[0]
