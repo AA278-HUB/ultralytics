@@ -3195,6 +3195,11 @@ class FD_C3k2(C2f):
         self.m = nn.ModuleList(
             FD_C3k(self.c, self.c, 2, shortcut, g) if c3k else FD_Bottleneck(self.c, self.c, shortcut, g) for _ in range(n)
         )
+
+
+
+
+
 # class DCNv4Conv2d(nn.Module):
 #     """
 #     DCNv4 wrapper for NCHW feature maps

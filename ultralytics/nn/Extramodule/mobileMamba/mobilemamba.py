@@ -1,15 +1,14 @@
 import torch
 import itertools
 import torch.nn as nn
-from timm.models.vision_transformer import trunc_normal_
-from timm.models.layers import SqueezeExcite
-from model import MODEL
-from model.lib_mamba.vmambanew import SS2D
+from timm.layers import SqueezeExcite, trunc_normal_, DropPath
+from .vmambanew import SS2D
 import torch.nn.functional as F
 from functools import partial
 import pywt
 import pywt.data
-from timm.layers import DropPath
+
+__all__ = ['MobileMambaBlock', 'MobileMamba_T2', 'MobileMamba_T4', 'MobileMamba_S6', 'MobileMamba_B1', 'MobileMamba_B2', 'MobileMamba_B4']
 
 def create_wavelet_filter(wave, in_size, out_size, type=torch.float):
     w = pywt.Wavelet(wave)
@@ -346,17 +345,14 @@ class MobileMambaBlockWindow(torch.nn.Module):
 
 
 class MobileMambaBlock(torch.nn.Module):
-    def __init__(self, type,
-                 ed, global_ratio=0.25, local_ratio=0.25,
+    def __init__(self, ed, global_ratio=0.25, local_ratio=0.25,
                  kernels=5,  drop_path=0., has_skip=True, ssm_ratio=1, forward_type="v052d"):
         super().__init__()
 
         self.dw0 = Residual(Conv2d_BN(ed, ed, 3, 1, 1, groups=ed, bn_weight_init=0.))
         self.ffn0 = Residual(FFN(ed, int(ed * 2)))
 
-        if type == 's':
-            self.mixer = Residual(MobileMambaBlockWindow(ed, global_ratio=global_ratio, local_ratio=local_ratio,
-                                                       kernels=kernels, ssm_ratio=ssm_ratio,forward_type=forward_type))
+        self.mixer = Residual(MobileMambaBlockWindow(ed, global_ratio=global_ratio, local_ratio=local_ratio, kernels=kernels, ssm_ratio=ssm_ratio,forward_type=forward_type))
 
         self.dw1 = Residual(Conv2d_BN(ed, ed, 3, 1, 1, groups=ed, bn_weight_init=0.,))
         self.ffn1 = Residual(FFN(ed, int(ed * 2)))
@@ -369,8 +365,6 @@ class MobileMambaBlock(torch.nn.Module):
         x = self.ffn1(self.dw1(self.mixer(self.ffn0(self.dw0(x)))))
         x = (shortcut + self.drop_path(x)) if self.has_skip else x
         return x
-
-
 
 class MobileMamba(torch.nn.Module):
     def __init__(self, img_size=224,
@@ -394,7 +388,7 @@ class MobileMamba(torch.nn.Module):
                                                          ), torch.nn.ReLU(),
                                                Conv2d_BN(embed_dim[0] // 4, embed_dim[0] // 2, 3, 2, 1,
                                                          ), torch.nn.ReLU(),
-                                               Conv2d_BN(embed_dim[0] // 2, embed_dim[0], 3, 2, 1,
+                                               Conv2d_BN(embed_dim[0] // 2, embed_dim[0], 3, 1, 1,
                                                          ))
 
         self.blocks1 = []
@@ -407,7 +401,7 @@ class MobileMamba(torch.nn.Module):
                 zip(stages, embed_dim, depth, global_ratio, local_ratio, down_ops)):
             dpr = dprs[sum(depth[:i]):sum(depth[:i + 1])]
             for d in range(dpth):
-                eval('self.blocks' + str(i + 1)).append(MobileMambaBlock(stg, ed, gr, lr, kernels[i], dpr[d], ssm_ratio=ssm_ratio, forward_type=forward_type))
+                eval('self.blocks' + str(i + 1)).append(MobileMambaBlock(ed, gr, lr, kernels[i], dpr[d], ssm_ratio=ssm_ratio, forward_type=forward_type))
             if do[0] == 'subsample':
                 # Build MobileMamba downsample block
                 # ('Subsample' stride)
@@ -423,30 +417,14 @@ class MobileMamba(torch.nn.Module):
         self.blocks1 = torch.nn.Sequential(*self.blocks1)
         self.blocks2 = torch.nn.Sequential(*self.blocks2)
         self.blocks3 = torch.nn.Sequential(*self.blocks3)
-
-        # Classification head
-        self.head = BN_Linear(embed_dim[-1], num_classes) if num_classes > 0 else torch.nn.Identity()
-        self.distillation = distillation
-        if distillation:
-            self.head_dist = BN_Linear(embed_dim[-1], num_classes) if num_classes > 0 else torch.nn.Identity()
-
-    @torch.jit.ignore
-    def no_weight_decay(self):
-        return {x for x in self.state_dict().keys() if 'attention_biases' in x}
+        self.channel = [i.size(1) for i in self.forward(torch.randn(1, 3, 640, 640))]
 
     def forward(self, x):
-        x = self.patch_embed(x)
-        x = self.blocks1(x)
-        x = self.blocks2(x)
-        x = self.blocks3(x)
-        x = torch.nn.functional.adaptive_avg_pool2d(x, 1).flatten(1)
-        if self.distillation:
-            x = self.head(x), self.head_dist(x)
-            if not self.training:
-                x = (x[0] + x[1]) / 2
-        else:
-            x = self.head(x)
-        return x
+        x1 = self.patch_embed(x)
+        x2 = self.blocks1(x1)
+        x3 = self.blocks2(x2)
+        x4 = self.blocks3(x3)
+        return [x1, x2, x3, x4]
 
 def replace_batchnorm(net):
     for child_name, child in net.named_children():
@@ -520,98 +498,38 @@ CFG_MobileMamba_B4 = {
         'ssm_ratio': 2,
     }
 
-
-@MODEL.register_module
 def MobileMamba_T2(num_classes=1000, pretrained=False, distillation=False, fuse=False, pretrained_cfg=None, model_cfg=CFG_MobileMamba_T2):
     model = MobileMamba(num_classes=num_classes, distillation=distillation, **model_cfg)
     if fuse:
         replace_batchnorm(model)
     return model
-@MODEL.register_module
+
 def MobileMamba_T4(num_classes=1000, pretrained=False, distillation=False, fuse=False, pretrained_cfg=None, model_cfg=CFG_MobileMamba_T4):
     model = MobileMamba(num_classes=num_classes, distillation=distillation, **model_cfg)
     if fuse:
         replace_batchnorm(model)
     return model
-@MODEL.register_module
+
 def MobileMamba_S6(num_classes=1000, pretrained=False, distillation=False, fuse=False, pretrained_cfg=None, model_cfg=CFG_MobileMamba_S6):
     model = MobileMamba(num_classes=num_classes, distillation=distillation, **model_cfg)
     if fuse:
         replace_batchnorm(model)
     return model
-@MODEL.register_module
+
 def MobileMamba_B1(num_classes=1000, pretrained=False, distillation=False, fuse=False, pretrained_cfg=None, model_cfg=CFG_MobileMamba_B1):
     model = MobileMamba(num_classes=num_classes, distillation=distillation, **model_cfg)
     if fuse:
         replace_batchnorm(model)
     return model
-@MODEL.register_module
+
 def MobileMamba_B2(num_classes=1000, pretrained=False, distillation=False, fuse=False, pretrained_cfg=None, model_cfg=CFG_MobileMamba_B2):
     model = MobileMamba(num_classes=num_classes, distillation=distillation, **model_cfg)
     if fuse:
         replace_batchnorm(model)
     return model
-@MODEL.register_module
+
 def MobileMamba_B4(num_classes=1000, pretrained=False, distillation=False, fuse=False, pretrained_cfg=None, model_cfg=CFG_MobileMamba_B4):
     model = MobileMamba(num_classes=num_classes, distillation=distillation, **model_cfg)
     if fuse:
         replace_batchnorm(model)
     return model
-
-
-if __name__ == "__main__":
-    from fvcore.nn import FlopCountAnalysis, flop_count_table, parameter_count
-    from util.util import FLOPs, Throughput, get_val_dataloader
-    import time
-    import argparse
-
-    def get_timepc():
-        if torch.cuda.is_available():
-            torch.cuda.synchronize()
-        return time.perf_counter()
-
-
-    model_dict = {
-        "MobileMamba_T2": MobileMamba_T2,
-        "MobileMamba_T4": MobileMamba_T4,
-        "MobileMamba_S6": MobileMamba_S6,
-        "MobileMamba_B1": MobileMamba_B1,
-        "MobileMamba_B2": MobileMamba_B2,
-        "MobileMamba_B4": MobileMamba_B4,
-    }
-
-    parser = argparse.ArgumentParser()
-    parser.add_argument('-b', '--batchsize', type=int, default=256)
-    parser.add_argument('-i', '--imagesize', type=int, default=224)
-    parser.add_argument('-m', '--modelname', default="MobileMamba_S6")
-    cfg = parser.parse_args()
-    bs = cfg.batchsize
-    img_size = cfg.imagesize
-    model_name = cfg.modelname
-    print('batch_size is:', bs, 'img_size is:', img_size, 'model_name is:', model_dict[model_name])
-    gpu_id = 0
-    speed = True
-    latency = True
-    with torch.no_grad():
-        x = torch.randn(bs, 3, img_size, img_size)
-        net = model_dict[model_name]()
-        replace_batchnorm(net)
-        net.eval()
-        pre_cnt, cnt = 2, 5
-        if gpu_id > -1:
-            torch.cuda.set_device(gpu_id)
-            x = x.cuda()
-            net.cuda()
-            pre_cnt, cnt = 50, 20
-        FLOPs.fvcore_flop_count(net, torch.randn(1, 3, img_size, img_size).cuda(), show_arch=False)
-
-        #GPU
-        for _ in range(pre_cnt):
-            net(x)
-        t_s = get_timepc()
-        for _ in range(cnt):
-            net(x)
-        t_e = get_timepc()
-        speed = f'{bs * cnt / (t_e - t_s):>7.3f}'
-        print(f'[Batchsize: {bs}]\t [GPU-Speed: {speed}]\t')
-

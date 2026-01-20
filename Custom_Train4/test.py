@@ -27,7 +27,8 @@ model_yaml_paths = [
            #   r"Custom_Model_cfg_4/yolo11_Slim_Neck.yaml"
            # r"Custom_Model_cfg_5/yolo11_FD.yaml"
            #  r"Custom_Model_cfg_5/yolo11_ASFF_2_Dysample.yaml",
-            r"Custom_Model_cfg_5/yolo11_RepViTblock.yaml"
+           #  r"Custom_Model_cfg_5/yolo11_RepViTblock.yaml"
+            r"Custom_Model_cfg_5/yolo11_Mamba.yaml"
 ]
 
 data="coco8.yaml"
