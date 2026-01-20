@@ -1,3 +1,4 @@
 pip install PyWavelets
+pip install timm
 pip install torch torchvision torchaudio
 pip install fvcore
