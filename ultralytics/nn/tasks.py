@@ -116,7 +116,7 @@ from .modules.C3k2_MobileMamba import C3k2_MobileMamba
 #     High_IFM, High_LAF
 from .modules.block import ShuffleV1Block, ShuffleV2Block, C3RepGhost2, C2faster, C3k2_PEMA, C3k2_StarNet, C3k2_DEMA, \
     C3k2_GEMA, C3k2_Sema, C2f_LiteRepMixer, C2f_PSC, C3k2_LiteRepMixer, GSConv, VoVGSCSPC, GSBottleneckC, GSBottleneck, \
-    GSConvns, VoVGSCSPC, VoVGSCSP, C2f_FFC, FD_C3k2  # C2f_DCNv4
+    GSConvns, VoVGSCSPC, VoVGSCSP, C2f_FFC, FD_C3k2, C3k2_MogaBlock  # C2f_DCNv4
 from .modules.mafyolo import RepHMS, AVG
 
 
@@ -1832,6 +1832,7 @@ def parse_model(d, ch, verbose=True):
             RepHMS,
             FD_C3k2,
             C3k2_MobileMamba,
+            C3k2_MogaBlock,
             # C3k2Mamba,
             # ShuffleV1Block,
         }
