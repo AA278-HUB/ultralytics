@@ -109,7 +109,7 @@ from .Extramodule.Neck.ASFF import ASFF
 from .Extramodule.Neck.BiFPN import BiFPN_Concat2, BiFPN_Concat3, BiFPN_Sum2, BiFPN_Sum3
 from .Extramodule.gold_yolo_v3.model.gold_yolo import Low_FAM, Low_IFM, Split, SimConv, Low_LAF, Inject, RepBlock, \
     High_FAM, High_IFM, High_LAF
-from .modules.C3k2_MobileMamba import C3k2_MobileMamba
+from .modules.C3k2_MobileMamba import C3k2_MobileMamba, C3k2_MambaVision
 # from .modules.C3k2_MobileMamba import C3k2Mamba
 # from .Extramodule.Neck.Gold import RepGDNeck
 # from .Extramodule.gold_yolo_v3.model import Low_FAM, Low_IFM, Split, SimConv, Low_LAF, Inject, RepBlock, High_FAM, \
@@ -1833,6 +1833,7 @@ def parse_model(d, ch, verbose=True):
             FD_C3k2,
             C3k2_MobileMamba,
             C3k2_MogaBlock,
+            C3k2_MambaVision,
             # C3k2Mamba,
             # ShuffleV1Block,
         }
