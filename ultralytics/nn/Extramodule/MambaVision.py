@@ -6,7 +6,7 @@ from timm.layers import DropPath, Mlp
 from einops import rearrange, repeat
 
 try:
-    from mamba_ssm.ops.selective_scan_interface import selective_scan_fn
+    from ultralytics.nn.Extramodule.mamba.mamba_ssm.ops.selective_scan_interface import selective_scan_fn
 except:
     pass
 
