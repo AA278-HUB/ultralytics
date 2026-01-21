@@ -116,7 +116,7 @@ from .modules.C3k2_MobileMamba import C3k2_MobileMamba, C3k2_MambaVision
 #     High_IFM, High_LAF
 from .modules.block import ShuffleV1Block, ShuffleV2Block, C3RepGhost2, C2faster, C3k2_PEMA, C3k2_StarNet, C3k2_DEMA, \
     C3k2_GEMA, C3k2_Sema, C2f_LiteRepMixer, C2f_PSC, C3k2_LiteRepMixer, GSConv, VoVGSCSPC, GSBottleneckC, GSBottleneck, \
-    GSConvns, VoVGSCSPC, VoVGSCSP, C2f_FFC, FD_C3k2, C3k2_MogaBlock  # C2f_DCNv4
+    GSConvns, VoVGSCSPC, VoVGSCSP, C2f_FFC, FD_C3k2, C3k2_MogaBlock, C3k2_UniRepLKNetBlock  # C2f_DCNv4
 from .modules.mafyolo import RepHMS, AVG
 
 
@@ -253,7 +253,17 @@ class BaseModel(torch.nn.Module):
                     return torch.unbind(torch.cat(embeddings, 1), dim=0)
             # print(f"=================测试=======================")
             # print(x.shape)
-            # print(f"层数:{m.i}")
+            if type(x)  is list :
+                pass
+                # str_temp=""
+                # for xi in x:
+                #     str_temp += f"层数:{m.i} shape:{xi.shape}#"
+                # print(str_temp)
+            else:
+                try:
+                    print(f"类型:{m.type},层数:{m.i},输出shape:{x.shape}")
+                except Exception :
+                      pass
             # if m.i in {12,13,6}:
             #     print(x.shape)
         return x
@@ -1834,6 +1844,7 @@ def parse_model(d, ch, verbose=True):
             C3k2_MobileMamba,
             C3k2_MogaBlock,
             C3k2_MambaVision,
+            C3k2_UniRepLKNetBlock,
             # C3k2Mamba,
             # ShuffleV1Block,
         }

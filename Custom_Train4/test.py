@@ -28,7 +28,10 @@ model_yaml_paths = [
            # r"Custom_Model_cfg_5/yolo11_FD.yaml"
            #  r"Custom_Model_cfg_5/yolo11_ASFF_2_Dysample.yaml",
            #  r"Custom_Model_cfg_5/yolo11_RepViTblock.yaml"
-           #  r"Custom_Model_cfg_5/yolo11-C3k2-MogaBlock.yaml"
+           #  r"Custom_Model_cfg_5/yolo11-C3k2-MogaBlock.yaml",
+           #  r"Custom_Model_cfg_6/yolo11_Ghost_MAFPN.yaml"
+           #  r"Custom_Model_cfg_6/yolo11_Ghost_C3k2_MAFPN.yaml"
+            r'Custom_Model_cfg_6/yolo11-C3k2-UniRepNetBlock.yaml',
 
 ]
 

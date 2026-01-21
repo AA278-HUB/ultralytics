@@ -121,7 +121,10 @@ class BaseTrainer:
             _callbacks (list, optional): List of callback functions.
         """
         self.hub_session = overrides.pop("session", None)  # HUB
+
+        #========如果是存在蒸馏的模型参数============
         self.Distill=overrides.pop("Distill",False)
+
         self.Student=overrides["model"]
         self.args = get_cfg(cfg, overrides)
         self.check_resume(overrides)
