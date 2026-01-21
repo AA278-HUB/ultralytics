@@ -46,3 +46,23 @@ def __dir__():
 
 if __name__ == "__main__":
     print(__version__)
+import torch.nn as nn
+
+if self.Distillation is not None:
+
+    distill_weight = ((1 - math.cos(i * math.pi / len(self.train_loader))) / 2) * (0.1 - 1) + 1
+
+    with torch.no_grad():
+
+        pred = self.Distillation(batch['img'])
+
+    self.d_loss = distillation_loss.get_loss()
+
+    self.d_loss *= distill_weight
+
+    if i == 0:
+        print(self.d_loss, '-----------------')
+
+        print(self.loss, '-----------------')
+
+self.loss += self.d_loss

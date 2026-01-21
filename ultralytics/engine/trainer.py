@@ -24,6 +24,7 @@ from torch import nn, optim
 from ultralytics import __version__
 from ultralytics.cfg import get_cfg, get_save_dir
 from ultralytics.data.utils import check_cls_dataset, check_det_dataset
+from ultralytics.engine.distill_loss import DistillationLoss
 from ultralytics.nn.tasks import load_checkpoint
 from ultralytics.utils import (
     DEFAULT_CFG,
@@ -58,6 +59,7 @@ from ultralytics.utils.torch_utils import (
     unset_deterministic,
     unwrap_model,
 )
+
 
 
 class BaseTrainer:
@@ -124,7 +126,8 @@ class BaseTrainer:
 
         #========如果是存在蒸馏的模型参数============
         self.Distill=overrides.pop("Distill",False)
-
+        self.Teacher=overrides.pop("Teacher",None)
+        self.distill_loss=overrides.pop("distill_loss",None)
         self.Student=overrides["model"]
         self.args = get_cfg(cfg, overrides)
         self.check_resume(overrides)
@@ -265,9 +268,12 @@ class BaseTrainer:
     def _setup_train(self):
         """Build dataloaders and optimizer on correct rank process."""
         ckpt = self.setup_model()
-        self.model = self.model.to(self.device)
-        self.set_model_attributes()
 
+        self.model = self.model.to(self.device)
+        #=============把教师模型也加上去=============
+        if self.Distill:
+            self.Teacher.to(self.device)
+        self.set_model_attributes()
         # Compile model
         self.model = attempt_compile(self.model, device=self.device, mode=self.args.compile)
 
@@ -306,9 +312,14 @@ class BaseTrainer:
         self.scaler = (
             torch.amp.GradScaler("cuda", enabled=self.amp) if TORCH_2_4 else torch.cuda.amp.GradScaler(enabled=self.amp)
         )
+        #=========多卡训练=======
         if self.world_size > 1:
             self.model = nn.parallel.DistributedDataParallel(self.model, device_ids=[RANK], find_unused_parameters=True)
-
+            # 新增=======================================
+            if self.Distill:
+                self.Teacher = nn.parallel.DistributedDataParallel(self.Teacher, device_ids=[RANK])
+                self.Teacher.eval()
+            # 新增=======================================
         # Check imgsz
         gs = max(int(self.model.stride.max() if hasattr(self.model, "stride") else 32), 32)  # grid size (max stride)
         self.args.imgsz = check_imgsz(self.args.imgsz, stride=gs, floor=gs, max_dim=1)
@@ -379,6 +390,8 @@ class BaseTrainer:
         if self.args.close_mosaic:
             base_idx = (self.epochs - self.args.close_mosaic) * nb
             self.plot_idx.extend([base_idx, base_idx + 1, base_idx + 2])
+        if self.Distill:
+             distillation_loss = DistillationLoss(self.model, self.Distillation, distiller=self.loss_type)
         epoch = self.start_epoch
         self.optimizer.zero_grad()  # zero any resumed gradients to ensure stability on train start
         while True:
@@ -401,6 +414,8 @@ class BaseTrainer:
                 LOGGER.info(self.progress_string())
                 pbar = TQDM(enumerate(self.train_loader), total=nb)
             self.tloss = None
+            if self.Distill:
+                 distillation_loss.register_hooks()
             for i, batch in pbar:
                 self.run_callbacks("on_train_batch_start")
                 # Warmup
@@ -429,7 +444,16 @@ class BaseTrainer:
                     if RANK != -1:
                         self.loss *= self.world_size
                     self.tloss = self.loss_items if self.tloss is None else (self.tloss * i + self.loss_items) / (i + 1)
-
+                    if self.Distill:
+                        distill_weight = ((1 - math.cos(i * math.pi / len(self.train_loader))) / 2) * (0.1 - 1) + 1
+                        with torch.no_grad():
+                             pred = self.Teacher(batch['img'])
+                        self.d_loss = distillation_loss.get_loss()
+                        self.d_loss *= distill_weight
+                        if i == 0:
+                             print(f"------------蒸馏损失:{self.d_loss}----------")
+                             print(f"------------训练损失:{self.loss}----------")
+                        self.loss += self.d_loss
                 # Backward
                 self.scaler.scale(self.loss).backward()
                 if ni - last_opt_step >= self.accumulate:
@@ -464,7 +488,8 @@ class BaseTrainer:
                         self.plot_training_samples(batch, ni)
 
                 self.run_callbacks("on_train_batch_end")
-
+            if self.Distill:
+                distillation_loss.remove_hooks()
             self.lr = {f"lr/pg{ir}": x["lr"] for ir, x in enumerate(self.optimizer.param_groups)}  # for loggers
 
             self.run_callbacks("on_train_epoch_end")
