@@ -161,11 +161,11 @@ class DetectionTrainer(BaseTrainer):
         Returns:
             (DetectionModel): YOLO detection model.
         """
-        if self.Distill:
-            model = DetectionModelWithKD(cfg, nc=self.data["nc"], ch=self.data["channels"], verbose=verbose and RANK == -1,teacher=self.Student)
-        else:
-            model = DetectionModel(cfg, nc=self.data["nc"], ch=self.data["channels"], verbose=verbose and RANK == -1)
-
+        # if self.Distill:
+        #     model = DetectionModelWithKD(cfg, nc=self.data["nc"], ch=self.data["channels"], verbose=verbose and RANK == -1,teacher=self.Student)
+        # else:
+        #     model = DetectionModel(cfg, nc=self.data["nc"], ch=self.data["channels"], verbose=verbose and RANK == -1)
+        model = DetectionModel(cfg, nc=self.data["nc"], ch=self.data["channels"], verbose=verbose and RANK == -1)
         if weights:
             model.load(weights)
         return model

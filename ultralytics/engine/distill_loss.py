@@ -159,7 +159,7 @@ class DistillationLoss:
     假设已有一个 FeatureLoss 类，能够接受通道列表并处理多层特征图列表。
     """
 
-    def __init__(self, model_teacher, model_student, distiller="CWDLoss"):
+    def __init__(self, model_teacher, model_student, distiller="cwd"):
         """
         初始化蒸馏损失。
 
