@@ -24,7 +24,7 @@ from torch import nn, optim
 from ultralytics import __version__
 from ultralytics.cfg import get_cfg, get_save_dir
 from ultralytics.data.utils import check_cls_dataset, check_det_dataset
-from ultralytics.engine.distill_loss import DistillationLoss
+from ultralytics.engine.distill_loss import DistillationLoss, DetectInputDistillationLoss
 from ultralytics.nn.tasks import load_checkpoint
 from ultralytics.utils import (
     DEFAULT_CFG,
@@ -391,7 +391,7 @@ class BaseTrainer:
             base_idx = (self.epochs - self.args.close_mosaic) * nb
             self.plot_idx.extend([base_idx, base_idx + 1, base_idx + 2])
         if self.Distill:
-             distillation_loss = DistillationLoss(self.model, self.Teacher, distiller=self.distill_loss)
+             distillation_loss = DetectInputDistillationLoss(self.model, self.Teacher, distiller=self.distill_loss)
         epoch = self.start_epoch
         self.optimizer.zero_grad()  # zero any resumed gradients to ensure stability on train start
         while True:
