@@ -465,7 +465,7 @@ class BaseTrainer:
                         # 大多数蒸馏论文/实践用的是：早期小权重（避免不稳定），后期逐渐增大
                         # 这里用 cosine warm-up：从 min_weight 缓慢升到 max_weight
                         min_weight = 1.0  # 早期最小权重（可调 0.5~2.0）
-                        max_weight = 30.0  # 后期最大权重（先从20~40试，根据你的日志调）
+                        max_weight = self.DistillWeight  # 后期最大权重（先从20~40试，根据你的日志调）
 
                         # cosine warm-up 公式（从 min → max）
                         distill_weight = min_weight + (max_weight - min_weight) * 0.5 * (

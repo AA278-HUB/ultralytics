@@ -5,7 +5,7 @@ from ultralytics.models.yolo.detect import DetectionTrainer
 
 if __name__ == '__main__':
     # 教师模型（只加载一次，后面复用）
-    # teacher = YOLO(r"C:\Users\Hunger\Desktop\ultralytics\Custom_Distiller\best_m.pt"
+    # teacher = YOLO(r"C:\Users\Hunger\Desktop\ultralytics\Custom_Distiller\best_m.pt")
     teacher = YOLO(r"/sysv/vehicle_orientation_mini/ultralytics/Custom_Distiller/best_m.pt")
     student_path="yolo11n.yaml"
     # teacher.model.eval()           # 可以在这里冻结，也可以放在 trainer 里处理
