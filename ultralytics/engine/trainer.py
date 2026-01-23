@@ -392,7 +392,7 @@ class BaseTrainer:
             base_idx = (self.epochs - self.args.close_mosaic) * nb
             self.plot_idx.extend([base_idx, base_idx + 1, base_idx + 2])
         if self.Distill:
-             distillation_loss = DetectInputDistillationLoss(self.model, self.Teacher, distiller=self.distill_loss)
+             distillation_loss = DetectInputDistillationLoss( self.Teacher, self.model,distiller=self.distill_loss)
         epoch = self.start_epoch
         self.optimizer.zero_grad()  # zero any resumed gradients to ensure stability on train start
         while True:
