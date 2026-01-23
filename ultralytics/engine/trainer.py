@@ -446,12 +446,13 @@ class BaseTrainer:
                     self.tloss = self.loss_items if self.tloss is None else (self.tloss * i + self.loss_items) / (i + 1)
                     if self.Distill:
                         distill_weight = ((1 - math.cos(i * math.pi / len(self.train_loader))) / 2) * (0.1 - 1) + 1
+                        distill_weight *=30
                         with torch.no_grad():
                              pred = self.Teacher(batch['img'])
                         self.d_loss = distillation_loss.get_loss()
                         self.d_loss *= distill_weight
                         if i == 0:
-                             print(f"------------蒸馏损失:{self.d_loss}----------")
+                             print(f"------------蒸馏损失:{self.d_loss}----------损失权重:{distill_weight}")
                              print(f"------------训练损失:{self.loss}----------")
                         self.loss += self.d_loss
                 # Backward
