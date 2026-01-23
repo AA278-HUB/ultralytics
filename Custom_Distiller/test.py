@@ -7,7 +7,7 @@ if __name__ == '__main__':
     # 教师模型（只加载一次，后面复用）
     # teacher = YOLO(r"C:\Users\Hunger\Desktop\ultralytics\Custom_Distiller\best_m.pt"
     teacher = YOLO(r"/sysv/vehicle_orientation_mini/ultralytics/Custom_Distiller/best_m.pt")
-
+    student_path="yolo11n.yaml"
     # teacher.model.eval()           # 可以在这里冻结，也可以放在 trainer 里处理
     # for p in teacher.model.parameters():
     #     p.requires_grad = False
@@ -44,7 +44,7 @@ if __name__ == '__main__':
         name = f"yolo11n_distill_dw{dw:.1f}_{datetime.now().strftime('%Y%m%d_%H%M')}"
 
         try:
-            student = YOLO(r"DistillModel/yolo11n.yaml")  # 每次新建 student，避免权重污染
+            student = YOLO(student_path)  # 每次新建 student，避免权重污染
 
             student.train(
                 **common_args,
