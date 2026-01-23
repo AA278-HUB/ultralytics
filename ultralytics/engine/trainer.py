@@ -126,6 +126,7 @@ class BaseTrainer:
 
         #========如果是存在蒸馏的模型参数============
         self.Distill=overrides.pop("Distill",False)
+        self.DistillWeight=overrides.pop("DistillWeight",False)
         self.Teacher=overrides.pop("Teacher",None)
         self.distill_loss=overrides.pop("distill_loss",None)
         self.Student=overrides["model"]
@@ -444,16 +445,55 @@ class BaseTrainer:
                     if RANK != -1:
                         self.loss *= self.world_size
                     self.tloss = self.loss_items if self.tloss is None else (self.tloss * i + self.loss_items) / (i + 1)
+                    # if self.Distill:
+                    #     distill_weight = ((1 - math.cos(i * math.pi / len(self.train_loader))) / 2) * (0.1 - 1) + 1
+                    #     distill_weight *=30
+                    #     with torch.no_grad():
+                    #          pred = self.Teacher(batch['img'])
+                    #     self.d_loss = distillation_loss.get_loss()
+                    #     self.d_loss *= distill_weight
+                    #     if i == 0:
+                    #          print(f"------------蒸馏损失:{self.d_loss}----------损失权重:{distill_weight}")
+                    #          print(f"------------训练损失:{self.loss}----------")
+                    #     self.loss += self.d_loss
                     if self.Distill:
-                        distill_weight = ((1 - math.cos(i * math.pi / len(self.train_loader))) / 2) * (0.1 - 1) + 1
-                        distill_weight *=30
+                        # 进度：0.0（epoch开始） → 接近1.0（epoch结束）
+                        # 用 i / len(train_loader) 来表示当前 epoch 的进度（batch-level）
+                        progress = i / (len(self.train_loader) - 1) if len(self.train_loader) > 1 else 0.0  # 避免除0
+
+                        # ------------------- 权重调度建议 -------------------
+                        # 大多数蒸馏论文/实践用的是：早期小权重（避免不稳定），后期逐渐增大
+                        # 这里用 cosine warm-up：从 min_weight 缓慢升到 max_weight
+                        min_weight = 1.0  # 早期最小权重（可调 0.5~2.0）
+                        max_weight = 30.0  # 后期最大权重（先从20~40试，根据你的日志调）
+
+                        # cosine warm-up 公式（从 min → max）
+                        distill_weight = min_weight + (max_weight - min_weight) * 0.5 * (
+                                    1 - math.cos(math.pi * progress))
+
+                        # 备选：简单线性 warm-up（也很稳）
+                        # distill_weight = min_weight + (max_weight - min_weight) * progress
+
+                        # ------------------- 计算蒸馏损失 -------------------
                         with torch.no_grad():
-                             pred = self.Teacher(batch['img'])
-                        self.d_loss = distillation_loss.get_loss()
-                        self.d_loss *= distill_weight
-                        if i == 0:
-                             print(f"------------蒸馏损失:{self.d_loss}----------损失权重:{distill_weight}")
-                             print(f"------------训练损失:{self.loss}----------")
+                            teacher_pred = self.Teacher(batch['img'])  # 建议改名 teacher_pred 或 teacher_out，更清晰
+
+                        # 假设 distillation_loss 已经通过 register_hooks 拿到了 student_feats 和 teacher_feats
+                        # 如果你的 distillation_loss.get_loss() 不需要参数，确认它内部已经能访问到特征
+                        self.d_loss = distillation_loss.get_loss()  # ← 这里假设已经正确实现
+
+                        # 乘权重
+                        self.d_loss = self.d_loss * distill_weight
+
+                        # ------------------- 打印（改进：每个 epoch 只打印一次，避免刷屏） -------------------
+                        if i == 0:  # epoch 的第一个 batch
+                            print(f"Epoch {self.epoch} | Batch {i} | "
+                                  f"蒸馏损失: {self.d_loss.item():.4f} | "
+                                  f"权重: {distill_weight:.2f} | "
+                                  f"任务损失: {self.loss.item():.4f} | "
+                                  f"总损失: {(self.loss + self.d_loss).item():.4f}")
+
+                        # 最后加到总损失
                         self.loss += self.d_loss
                 # Backward
                 self.scaler.scale(self.loss).backward()
