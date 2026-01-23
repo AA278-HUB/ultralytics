@@ -356,12 +356,12 @@ class DetectInputDistillationLoss:
         self.distiller = distiller
 
         # 直接取Detect模块（model[-1]）
-        self.teacher_module = model_teacher.model[-1]
-        self.student_module = model_student.model[-1]
+        self.teacher_detect = model_teacher.model[-1]
+        self.student_detect = model_student.model[-1]
 
         # 从Detect模块的.ch属性自动获取输入通道数（YOLOv8/v11的Detect都有self.ch = (ch0, ch1, ch2)）
-        channels_t = list(self.teacher_module.ch)
-        channels_s = list(self.student_module.ch)
+        channels_t = self._get_detect_input_channels(self.teacher_detect)
+        channels_s = self._get_detect_input_channels(self.student_detect)
 
         # 创建特征蒸馏损失函数（固定3层）
         self.D_loss_fn = FeatureLoss(
@@ -399,9 +399,9 @@ class DetectInputDistillationLoss:
             return hook
 
         # 为教师和学生Detect注册pre_hook
-        self.hooks.append(self.teacher_module.register_forward_pre_hook(
+        self.hooks.append(self.teacher_detect.register_forward_pre_hook(
             make_pre_hook(self.teacher_features)))
-        self.hooks.append(self.student_module.register_forward_pre_hook(
+        self.hooks.append(self.student_detect.register_forward_pre_hook(
             make_pre_hook(self.student_features)))
 
     def get_loss(self):
@@ -433,4 +433,16 @@ class DetectInputDistillationLoss:
         for hook in self.hooks:
             hook.remove()
         self.hooks.clear()
+    def _get_detect_input_channels(self, detect_module):
+        """从Detect.cv2推断输入通道数（兼容YOLOv11等无.ch的版本）"""
+        # Detect.cv2 是 ModuleList，长度为3，每个元素是Sequential，第一个模块是Conv（处理输入通道）
+        # 示例：detect_module.cv2[0][0].conv.in_channels → P3输入通道
+        #        detect_module.cv2[1][0].conv.in_channels → P4输入通道
+        #        detect_module.cv2[2][0].conv.in_channels → P5输入通道
+        channels = []
+        for branch in detect_module.cv2:
+            first_conv = branch[0].conv  # 第一个Conv模块（Conv2d）
+            channels.append(first_conv.in_channels)
+        return channels
+
 
