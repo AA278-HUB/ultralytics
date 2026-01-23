@@ -38,5 +38,5 @@ if __name__ == '__main__':
         # --------------------- 知识蒸馏专属参数 ---------------------
         Distill=True,                          # 开启蒸馏模式（你的自定义开关）
         Teacher=teacher.model,                 # 传入教师模型（已冻结）
-        distill_loss="cwd"                     # 蒸馏损失类型（cwd / mgd 等）
+        distill_loss="mgd"                     # 蒸馏损失类型（cwd / mgd 等）
     )
