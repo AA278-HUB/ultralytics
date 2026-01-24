@@ -23,9 +23,11 @@ model_yaml_paths = [
               # r"Custom_Model_cfg_5/yolo11-MAFPN.yaml",
             #  "Custom_Model_cfg_6/yolo11_MAFPN_RepVit_2.yaml",
             # "Custom_Model_cfg_6/yolo11_MAFPN_Dysample.yaml"
-    r"Custom_Model_cfg_6/yolo11_RepHMS_ASFF2.yaml",
+    # r"Custom_Model_cfg_6/yolo11_RepHMS_ASFF2.yaml",
+      "Custom_Model_cfg_7/yolo11_MAFPN_dyhead.yaml",
+    r"Custom_Model_cfg_7/yolo11_MAFPN_modify.yaml",
 
-                    ]
+]
 data = "Custom_dataset_cfg/vehicle_orientation_mini.yaml"
 
 if __name__ == '__main__':

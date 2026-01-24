@@ -11,6 +11,7 @@ import torch
 import torch.nn as nn
 from torch.cuda import device
 
+from .BIFPN_SumN import BiFPN_SumN
 from .Extramodule import *
 from ultralytics.nn.autobackend import check_class_names
 from ultralytics.nn.modules import (
@@ -2061,9 +2062,9 @@ def parse_model(d, ch, verbose=True):
         elif m is torch.nn.BatchNorm2d:
             args = [ch[f]]
         # elif m is Concat:
-        elif m in {Concat, BiFPN_Concat2, BiFPN_Concat3,BiFPN_Sum2,BiFPN_Sum3}:
+        elif m in {Concat, BiFPN_Concat2, BiFPN_Concat3,BiFPN_Sum2,BiFPN_Sum3,BiFPN_SumN}:
             c2 = sum(ch[x] for x in f)
-            if m in {BiFPN_Sum2, BiFPN_Sum3}:
+            if m in {BiFPN_Sum2, BiFPN_Sum3,BiFPN_SumN}:
             # Sum 操作的输出通道等于其中任意一个输入的通道（假设已经对齐）
                 c2 = ch[f[0]]
         elif m in frozenset(
