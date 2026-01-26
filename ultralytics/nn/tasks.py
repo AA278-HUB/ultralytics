@@ -255,17 +255,17 @@ class BaseModel(torch.nn.Module):
                     return torch.unbind(torch.cat(embeddings, 1), dim=0)
             # print(f"=================测试=======================")
             # print(x.shape)
-            if type(x)  is list :
-                pass
-                # str_temp=""
-                # for xi in x:
-                #     str_temp += f"层数:{m.i} shape:{xi.shape}#"
-                # print(str_temp)
-            else:
-                try:
-                    print(f"类型:{m.type},层数:{m.i},输出shape:{x.shape}")
-                except Exception :
-                      pass
+            # if type(x)  is list :
+            #     pass
+            #     # str_temp=""
+            #     # for xi in x:
+            #     #     str_temp += f"层数:{m.i} shape:{xi.shape}#"
+            #     # print(str_temp)
+            # else:
+            #     try:
+            #         print(f"类型:{m.type},层数:{m.i},输出shape:{x.shape}")
+            #     except Exception :
+            #           pass
             # if m.i in {12,13,6}:
             #     print(x.shape)
         return x
