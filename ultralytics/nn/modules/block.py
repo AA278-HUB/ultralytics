@@ -3,10 +3,13 @@
 
 from __future__ import annotations
 
+from typing import Optional
+
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
 from einops import rearrange
+from mmcv.cnn import ConvModule
 from timm.layers import DropPath
 from timm.models.fastvit import ReparamLargeKernelConv
 from torch.nn import init
@@ -21,7 +24,7 @@ from .UniRepLKNet import fuse_bn, get_conv2d, merge_dilated_into_large_kernel, g
     NHWCtoNCHW
 
 from .conv import Conv, DWConv, GhostConv, LightConv, RepConv, autopad, RepGhostModule
-from .transformer import TransformerBlock
+from .transformer import TransformerBlock, LocalWindowAttention
 
 __all__ = (
     "DFL",
@@ -73,6 +76,7 @@ from ..Extramodule.Attention.EMA_Attention import EMA
 
 from ..Extramodule.Attention.SqueezeExcite import SqueezeExcite
 from ..Extramodule.FDConv import FDConv
+from ..Extramodule.MambaOut import GatedCNNBlock_BCHW
 
 
 class DFL(nn.Module):
@@ -4090,6 +4094,260 @@ class C3k2_iRMB(C3k2):
         super().__init__(c1, c2, n, c3k, e, g, shortcut)
         self.m = nn.ModuleList(
             C3k_iRMB(self.c, self.c, 2, shortcut, g) if c3k else iRMB(self.c, self.c) for _ in range(n))
+
+
+
+######################################## CVPR2025 MobileMamba end ########################################
+
+######################################## CVPR2025 MambaOut start ########################################
+
+class C3k_MambaOut(C3k):
+    def __init__(self, c1, c2, n=1, shortcut=False, g=1, e=0.5, k=3):
+        super().__init__(c1, c2, n, shortcut, g, e, k)
+        c_ = int(c2 * e)  # hidden channels
+        self.m = nn.Sequential(*(GatedCNNBlock_BCHW(c_) for _ in range(n)))
+
+class C3k2_MambaOut(C3k2):
+    def __init__(self, c1, c2, n=1, c3k=False, e=0.5, g=1, shortcut=True):
+        super().__init__(c1, c2, n, c3k, e, g, shortcut)
+        self.m = nn.ModuleList(C3k_MambaOut(self.c, self.c, n, shortcut, g) if c3k else GatedCNNBlock_BCHW(self.c) for _ in range(n))
+
+
+######################################## C2f-OdConv end ########################################
+
+######################################## C2f-Faster-EMA begin ########################################
+class MyEMA(nn.Module):
+    def __init__(self, channels, factor=8):
+        super(MyEMA, self).__init__()
+        self.groups = factor
+        assert channels // self.groups > 0
+        self.softmax = nn.Softmax(-1)
+        self.agp = nn.AdaptiveAvgPool2d((1, 1))
+        self.pool_h = nn.AdaptiveAvgPool2d((None, 1))
+        self.pool_w = nn.AdaptiveAvgPool2d((1, None))
+        self.gn = nn.GroupNorm(channels // self.groups, channels // self.groups)
+        self.conv1x1 = nn.Conv2d(channels // self.groups, channels // self.groups, kernel_size=1, stride=1, padding=0)
+        self.conv3x3 = nn.Conv2d(channels // self.groups, channels // self.groups, kernel_size=3, stride=1, padding=1)
+
+    def forward(self, x):
+        b, c, h, w = x.size()
+        group_x = x.reshape(b * self.groups, -1, h, w)  # b*g,c//g,h,w
+        x_h = self.pool_h(group_x)
+        x_w = self.pool_w(group_x).permute(0, 1, 3, 2)
+        hw = self.conv1x1(torch.cat([x_h, x_w], dim=2))
+        x_h, x_w = torch.split(hw, [h, w], dim=2)
+        x1 = self.gn(group_x * x_h.sigmoid() * x_w.permute(0, 1, 3, 2).sigmoid())
+        x2 = self.conv3x3(group_x)
+        x11 = self.softmax(self.agp(x1).reshape(b * self.groups, -1, 1).permute(0, 2, 1))
+        x12 = x2.reshape(b * self.groups, c // self.groups, -1)  # b*g, c//g, hw
+        x21 = self.softmax(self.agp(x2).reshape(b * self.groups, -1, 1).permute(0, 2, 1))
+        x22 = x1.reshape(b * self.groups, c // self.groups, -1)  # b*g, c//g, hw
+        weights = (torch.matmul(x11, x12) + torch.matmul(x21, x22)).reshape(b * self.groups, 1, h, w)
+        return (group_x * weights.sigmoid()).reshape(b, c, h, w)
+class Partial_conv3(nn.Module):
+    def __init__(self, dim, n_div=4, forward='split_cat'):
+        super().__init__()
+        self.dim_conv3 = dim // n_div
+        self.dim_untouched = dim - self.dim_conv3
+        self.partial_conv3 = nn.Conv2d(self.dim_conv3, self.dim_conv3, 3, 1, 1, bias=False)
+
+        if forward == 'slicing':
+            self.forward = self.forward_slicing
+        elif forward == 'split_cat':
+            self.forward = self.forward_split_cat
+        else:
+            raise NotImplementedError
+
+    def forward_slicing(self, x):
+        # only for inference
+        x = x.clone()   # !!! Keep the original input intact for the residual connection later
+        x[:, :self.dim_conv3, :, :] = self.partial_conv3(x[:, :self.dim_conv3, :, :])
+        return x
+
+    def forward_split_cat(self, x):
+        # for training/inference
+        x1, x2 = torch.split(x, [self.dim_conv3, self.dim_untouched], dim=1)
+        x1 = self.partial_conv3(x1)
+        x = torch.cat((x1, x2), 1)
+        return x
+
+class Faster_Block_EMA(nn.Module):
+    def __init__(self,
+                 inc,
+                 dim,
+                 n_div=4,
+                 mlp_ratio=2,
+                 drop_path=0.1,
+                 layer_scale_init_value=0.0,
+                 pconv_fw_type='split_cat'
+                 ):
+        super().__init__()
+        self.dim = dim
+        self.mlp_ratio = mlp_ratio
+        self.drop_path = DropPath(drop_path) if drop_path > 0. else nn.Identity()
+        self.n_div = n_div
+
+        mlp_hidden_dim = int(dim * mlp_ratio)
+
+        mlp_layer = [
+            Conv(dim, mlp_hidden_dim, 1),
+            nn.Conv2d(mlp_hidden_dim, dim, 1, bias=False)
+        ]
+
+        self.mlp = nn.Sequential(*mlp_layer)
+
+        self.spatial_mixing = Partial_conv3(
+            dim,
+            n_div,
+            pconv_fw_type
+        )
+        self.attention = MyEMA(dim)
+
+        self.adjust_channel = None
+        if inc != dim:
+            self.adjust_channel = Conv(inc, dim, 1)
+
+        if layer_scale_init_value > 0:
+            self.layer_scale = nn.Parameter(layer_scale_init_value * torch.ones((dim)), requires_grad=True)
+            self.forward = self.forward_layer_scale
+        else:
+            self.forward = self.forward
+
+    def forward(self, x):
+        if self.adjust_channel is not None:
+            x = self.adjust_channel(x)
+        shortcut = x
+        x = self.spatial_mixing(x)
+        x = shortcut + self.attention(self.drop_path(self.mlp(x)))
+        return x
+
+    def forward_layer_scale(self, x):
+        shortcut = x
+        x = self.spatial_mixing(x)
+        x = shortcut + self.drop_path(self.layer_scale.unsqueeze(-1).unsqueeze(-1) * self.mlp(x))
+        return x
+
+
+class C3k_Faster_EMA(C3k):
+    def __init__(self, c1, c2, n=1, shortcut=False, g=1, e=0.5, k=3):
+        super().__init__(c1, c2, n, shortcut, g, e, k)
+        c_ = int(c2 * e)  # hidden channels
+        self.m = nn.Sequential(*(Faster_Block_EMA(c_, c_) for _ in range(n)))
+
+
+class C3k2_Faster_EMA(C3k2):
+    def __init__(self, c1, c2, n=1, c3k=False, e=0.5, g=1, shortcut=True):
+        super().__init__(c1, c2, n, c3k, e, g, shortcut)
+        self.m = nn.ModuleList(
+            C3k_Faster_EMA(self.c, self.c, 2, shortcut, g) if c3k else Faster_Block_EMA(self.c, self.c) for _ in
+            range(n))
+
+######################################## C2f-Faster-EMA end ########################################
+
+
+######################################## profound semantic fusion module end ########################################
+from mmengine.model import BaseModule
+class CAA(BaseModule):
+    """Context Anchor Attention"""
+    def __init__(
+            self,
+            channels: int,
+            h_kernel_size: int = 11,
+            v_kernel_size: int = 11,
+            norm_cfg: Optional[dict] = dict(type='BN', momentum=0.03, eps=0.001),
+            act_cfg: Optional[dict] = dict(type='SiLU'),
+            init_cfg: Optional[dict] = None,
+    ):
+        super().__init__(init_cfg)
+        self.avg_pool = nn.AvgPool2d(7, 1, 3)
+        self.conv1 = ConvModule(channels, channels, 1, 1, 0,
+                                norm_cfg=norm_cfg, act_cfg=act_cfg)
+        self.h_conv = ConvModule(channels, channels, (1, h_kernel_size), 1,
+                                 (0, h_kernel_size // 2), groups=channels,
+                                 norm_cfg=None, act_cfg=None)
+        self.v_conv = ConvModule(channels, channels, (v_kernel_size, 1), 1,
+                                 (v_kernel_size // 2, 0), groups=channels,
+                                 norm_cfg=None, act_cfg=None)
+        self.conv2 = ConvModule(channels, channels, 1, 1, 0,
+                                norm_cfg=norm_cfg, act_cfg=act_cfg)
+        self.act = nn.Sigmoid()
+
+    def forward(self, x):
+        attn_factor = self.act(self.conv2(self.v_conv(self.h_conv(self.conv1(self.avg_pool(x))))))
+        return attn_factor
+
+class Star_Block(nn.Module):
+    def __init__(self, dim, mlp_ratio=3, drop_path=0.):
+        super().__init__()
+        self.dwconv = Conv(dim, dim, 7, g=dim, act=False)
+        self.f1 = nn.Conv2d(dim, mlp_ratio * dim, 1)
+        self.f2 = nn.Conv2d(dim, mlp_ratio * dim, 1)
+        self.g = Conv(mlp_ratio * dim, dim, 1, act=False)
+        self.dwconv2 = nn.Conv2d(dim, dim, 7, 1, (7 - 1) // 2, groups=dim)
+        self.act = nn.ReLU6()
+        self.drop_path = DropPath(drop_path) if drop_path > 0. else nn.Identity()
+
+    def forward(self, x):
+        input = x
+        x = self.dwconv(x)
+        x1, x2 = self.f1(x), self.f2(x)
+        x = self.act(x1) * x2
+        x = self.dwconv2(self.g(x))
+        x = input + self.drop_path(x)
+        return x
+
+
+class Star_Block_CAA(Star_Block):
+    def __init__(self, dim, mlp_ratio=3, drop_path=0):
+        super().__init__(dim, mlp_ratio, drop_path)
+
+        self.attention = CAA(mlp_ratio * dim)
+
+    def forward(self, x):
+        input = x
+        x = self.dwconv(x)
+        x1, x2 = self.f1(x), self.f2(x)
+        x = self.act(x1) * x2
+        x = self.dwconv2(self.g(self.attention(x)))
+        x = input + self.drop_path(x)
+        return x
+
+
+class C3k_Star(C3k):
+    def __init__(self, c1, c2, n=1, shortcut=False, g=1, e=0.5, k=3):
+        super().__init__(c1, c2, n, shortcut, g, e, k)
+        c_ = int(c2 * e)  # hidden channels
+        self.m = nn.Sequential(*(Star_Block(c_) for _ in range(n)))
+
+
+class C3k2_Star(C3k2):
+    def __init__(self, c1, c2, n=1, c3k=False, e=0.5, g=1, shortcut=True):
+        super().__init__(c1, c2, n, c3k, e, g, shortcut)
+        self.m = nn.ModuleList(
+            C3k_Star(self.c, self.c, 2, shortcut, g) if c3k else Star_Block(self.c) for _ in range(n))
+
+
+class C3k_Star_CAA(C3k):
+    def __init__(self, c1, c2, n=1, shortcut=False, g=1, e=0.5, k=3):
+        super().__init__(c1, c2, n, shortcut, g, e, k)
+        c_ = int(c2 * e)  # hidden channels
+        self.m = nn.Sequential(*(Star_Block_CAA(c_) for _ in range(n)))
+
+
+class C3k2_Star_CAA(C3k2):
+    def __init__(self, c1, c2, n=1, c3k=False, e=0.5, g=1, shortcut=True):
+        super().__init__(c1, c2, n, c3k, e, g, shortcut)
+        self.m = nn.ModuleList(
+            C3k_Star_CAA(self.c, self.c, 2, shortcut, g) if c3k else Star_Block_CAA(self.c) for _ in range(n))
+
+######################################## StartNet end ########################################
+
+######################################## KAN begin ########################################
+
+######################################## C2f-DDB begin ########################################
+######################################## CVPR2025 MambaOut end ########################################
+
+######################################## CVPR2025 DynamicTanh start ########################################
 # class DCNv4Conv2d(nn.Module):
 #     """
 #     DCNv4 wrapper for NCHW feature maps
