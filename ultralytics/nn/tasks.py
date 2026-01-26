@@ -1983,6 +1983,7 @@ def parse_model(d, ch, verbose=True):
             # print(args)
         elif m in {CoordAtt}:
             c1 = ch[f]
+            c2=c1
             temp=args[0]
             args = [c1,c1,temp]
         elif m in {CoordAtt2}:
