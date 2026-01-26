@@ -27,7 +27,9 @@ model_yaml_paths = [
     #               "Custom_Model_cfg_7/yolo11_MAFPN_dyhead.yaml",
     #             r"Custom_Model_cfg_7/yolo11_MAFPN_modify.yaml",
     #             "Custom_Model_cfg_7/yolo11_MAFPN_modify_C3k2.yaml",
-                r"Custom_Model_cfg_7/yolo11_MAFPN_modifyX_C3k2.yaml"
+    #             r"Custom_Model_cfg_7/yolo11_MAFPN_modifyX_C3k2.yaml"
+    r"Custom_Model_cfg_7/yolo11_Ghost_Rep_Ghost_shufflev2_MAFPN.yaml",
+    r"Custom_Model_cfg_7/yolo11_Ghost_Rep_Ghost_shufflev2_CA_MAFPN.yaml",
 
             ]
 data = "Custom_dataset_cfg/vehicle_orientation_mini.yaml"
