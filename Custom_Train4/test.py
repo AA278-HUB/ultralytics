@@ -36,7 +36,8 @@ model_yaml_paths = [
            #  "Custom_Model_cfg_5/yolo11-RepHMS.yaml"
            #  "Custom_Model_cfg_6/yolo11_MAFPN_RepVit_2.yaml",
            #  "Custom_Model_cfg_6/yolo11_MAFPN_Dysample.yaml"
-            r"Custom_Model_cfg_7/yolo11_MAFPN_modify.yaml"
+           #  r"Custom_Model_cfg_7/yolo11_MAFPN_modify.yaml"
+            r"Custom_Model_cfg_7/yolo11_MAFPN_modifyX_C3k2.yaml"
 
 ]
 

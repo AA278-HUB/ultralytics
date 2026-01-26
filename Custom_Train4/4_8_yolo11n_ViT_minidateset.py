@@ -26,7 +26,8 @@ model_yaml_paths = [
     # r"Custom_Model_cfg_6/yolo11_RepHMS_ASFF2.yaml",
     #               "Custom_Model_cfg_7/yolo11_MAFPN_dyhead.yaml",
     #             r"Custom_Model_cfg_7/yolo11_MAFPN_modify.yaml",
-                "Custom_Model_cfg_7/yolo11_MAFPN_modify_C3k2.yaml",
+    #             "Custom_Model_cfg_7/yolo11_MAFPN_modify_C3k2.yaml",
+                r"Custom_Model_cfg_7/yolo11_MAFPN_modifyX_C3k2.yaml"
 
             ]
 data = "Custom_dataset_cfg/vehicle_orientation_mini.yaml"
@@ -41,7 +42,7 @@ if __name__ == '__main__':
         model.train(
             data=data,
             epochs=200,
-            batch=32,
+            batch=64,
             imgsz=640,  # 保持不变
             cos_lr=True,
             lr0=0.01,  # ↑ 初始学习率

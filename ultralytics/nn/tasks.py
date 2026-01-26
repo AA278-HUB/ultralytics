@@ -11,7 +11,7 @@ import torch
 import torch.nn as nn
 from torch.cuda import device
 
-from .BIFPN_SumN import BiFPN_SumN
+from .BIFPN_SumN import BiFPN_SumN, BiFPN_SumX
 from .Extramodule import *
 from ultralytics.nn.autobackend import check_class_names
 from ultralytics.nn.modules import (
@@ -255,17 +255,17 @@ class BaseModel(torch.nn.Module):
                     return torch.unbind(torch.cat(embeddings, 1), dim=0)
             # print(f"=================测试=======================")
             # print(x.shape)
-            # if type(x)  is list :
-            #     pass
-            #     # str_temp=""
-            #     # for xi in x:
-            #     #     str_temp += f"层数:{m.i} shape:{xi.shape}#"
-            #     # print(str_temp)
-            # else:
-            #     try:
-            #         print(f"类型:{m.type},层数:{m.i},输出shape:{x.shape}")
-            #     except Exception :
-            #           pass
+            if type(x)  is list :
+                pass
+                # str_temp=""
+                # for xi in x:
+                #     str_temp += f"层数:{m.i} shape:{xi.shape}#"
+                # print(str_temp)
+            else:
+                try:
+                    print(f"类型:{m.type},层数:{m.i},输出shape:{x.shape}")
+                except Exception :
+                      pass
             # if m.i in {12,13,6}:
             #     print(x.shape)
         return x
@@ -2067,6 +2067,9 @@ def parse_model(d, ch, verbose=True):
             if m in {BiFPN_Sum2, BiFPN_Sum3,BiFPN_SumN}:
             # Sum 操作的输出通道等于其中任意一个输入的通道（假设已经对齐）
                 c2 = ch[f[0]]
+        elif m in {BiFPN_SumX}:
+            c2 = ch[f[0]]
+            args = [*args, c2]
         elif m in frozenset(
             {Detect, WorldDetect, YOLOEDetect, Segment, YOLOESegment, Pose, OBB, ImagePoolingAttn, v10Detect}
         ):
