@@ -57,7 +57,7 @@ if __name__ == '__main__':
             lrf=0.1,  # ↑ 最终学习率比例
             close_mosaic=20,  # 提前关闭 mosaic
             save=True,
-            device=-1,
+            device=0,
             amp=False,
             name=f"{model_name}_{datetime.now().strftime('%Y%m%d_%H_%M')}"
         )
