@@ -48,19 +48,36 @@ if __name__ == '__main__':
         print(f"\n==== Training model: {model_name} ====\n")
         model = YOLO(model_yaml_path)
         model.train(resume=True)
-
-        # model.train(
-        #     data=data,
-        #     epochs=200,
-        #     batch=32,
-        #     imgsz=640,  # 保持不变
-        #     cos_lr=True,
-        #     lr0=0.01,  # ↑ 初始学习率
-        #     lrf=0.1,  # ↑ 最终学习率比例
-        #     close_mosaic=20,  # 提前关闭 mosaic
-        #     save=True,
-        #     device=0,
-        #     amp=False,
-        #     name=f"{model_name}_{datetime.now().strftime('%Y%m%d_%H_%M')}"
-        # )
+#
+# <<<<<<< HEAD
+#         # model.train(
+#         #     data=data,
+#         #     epochs=200,
+#         #     batch=32,
+#         #     imgsz=640,  # 保持不变
+#         #     cos_lr=True,
+#         #     lr0=0.01,  # ↑ 初始学习率
+#         #     lrf=0.1,  # ↑ 最终学习率比例
+#         #     close_mosaic=20,  # 提前关闭 mosaic
+#         #     save=True,
+#         #     device=0,
+#         #     amp=False,
+#         #     name=f"{model_name}_{datetime.now().strftime('%Y%m%d_%H_%M')}"
+#         # )
+# =======
+#         model.train(
+#             data=data,
+#             epochs=200,
+#             batch=32,
+#             imgsz=640,  # 保持不变
+#             cos_lr=True,
+#             lr0=0.01,  # ↑ 初始学习率
+#             lrf=0.1,  # ↑ 最终学习率比例
+#             close_mosaic=20,  # 提前关闭 mosaic
+#             save=True,
+#             device=[0,1,2,3],
+#             amp=False,
+#             name=f"{model_name}_{datetime.now().strftime('%Y%m%d_%H_%M')}"
+#         )
+# >>>>>>> fe705cf0be66db3253a39dab4347b0f99ce842c5
 
