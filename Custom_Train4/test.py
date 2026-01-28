@@ -9,7 +9,7 @@ model_yaml_paths = [
            # r"Custom_Model_cfg_4/yolo11n.yaml",
            # r"Custom_Model_cfg_4/yolo11_bifpn.yaml",
            # r"Custom_Model_cfg_4/yolo11_bifpn_2.yaml",
-           # r"Custom_Model_cfg_4/yolo11_C3RepGhost.yaml",
+           r"Custom_Model_cfg_4/yolo11_C3RepGhost.yaml",
            # r"Custom_Model_cfg_4/yolo11_Star_Ghost_shufflev2.yaml",
            # r"Custom_Model_cfg_4/yolo11_Dwconv_Ghost_shufflev2.yaml",
            # r"Custom_Model_cfg_4/yolo11_RepViTBlock_Ghost_shufflev2.yaml",
@@ -42,8 +42,9 @@ model_yaml_paths = [
     # r"Custom_Model_cfg_7/yolo11_Ghost_Rep_Ghost_shufflev2_CA_MAFPN.yaml",
     # r"Custom_Model_cfg_7/yolo11-C3k2-iRMB.yaml",
     # r"Custom_Model_cfg_7/yolo11-C3k2-MambaOut.yaml"
-    r"Custom_Model_cfg_7/yolo11-C3k2-Faster-EMA.yaml",
-    r"Custom_Model_cfg_7/yolo11-C3k2-Star-CAA.yaml",
+    # r"Custom_Model_cfg_7/yolo11-C3k2-Faster-EMA.yaml",
+    # r"Custom_Model_cfg_7/yolo11-C3k2-Star-CAA.yaml",
+    # "Custom_Model_cfg_7/yolo11_RepStar.yaml",
 
     # ""
 

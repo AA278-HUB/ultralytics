@@ -35,8 +35,8 @@ model_yaml_paths = [
     # r"Custom_Model_cfg_7/yolo11-C3k2-Faster-EMA.yaml",
     # r"Custom_Model_cfg_7/yolo11-C3k2-Star-CAA.yaml",
     # "Custom_Model_cfg_7/yolo11x.yaml"
-    r"/sysv/vehicle_orientation_mini/ultralytics/runs/detect/yolo11x_20260128_13_26/weights/last.pt"
-
+    # r"/sysv/vehicle_orientation_mini/ultralytics/runs/detect/yolo11x_20260128_13_26/weights/last.pt"
+     "Custom_Model_cfg_7/yolo11_RepStar.yaml"
 
             ]
 data = "Custom_dataset_cfg/vehicle_orientation_mini.yaml"
@@ -47,7 +47,7 @@ if __name__ == '__main__':
         model_name = os.path.splitext(os.path.basename(model_yaml_path))[0]
         print(f"\n==== Training model: {model_name} ====\n")
         model = YOLO(model_yaml_path)
-        model.train(resume=True)
+        # model.train(resume=True)
 #
 # <<<<<<< HEAD
 #         model.train(
@@ -65,19 +65,19 @@ if __name__ == '__main__':
 #             name=f"{model_name}_{datetime.now().strftime('%Y%m%d_%H_%M')}"
 #         )
 # =======
-#         model.train(
-#             data=data,
-#             epochs=200,
-#             batch=32,
-#             imgsz=640,  # 保持不变
-#             cos_lr=True,
-#             lr0=0.01,  # ↑ 初始学习率
-#             lrf=0.1,  # ↑ 最终学习率比例
-#             close_mosaic=20,  # 提前关闭 mosaic
-#             save=True,
-#             device=[0,1,2,3],
-#             amp=False,
-#             name=f"{model_name}_{datetime.now().strftime('%Y%m%d_%H_%M')}"
-#         )
+        model.train(
+            data=data,
+            epochs=200,
+            batch=32,
+            imgsz=640,  # 保持不变
+            cos_lr=True,
+            lr0=0.01,  # ↑ 初始学习率
+            lrf=0.1,  # ↑ 最终学习率比例
+            close_mosaic=20,  # 提前关闭 mosaic
+            save=True,
+            device=[0,1,2,3],
+            # amp=False,
+            name=f"{model_name}_{datetime.now().strftime('%Y%m%d_%H_%M')}"
+        )
 # >>>>>>> fe705cf0be66db3253a39dab4347b0f99ce842c5
 

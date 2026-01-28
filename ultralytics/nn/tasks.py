@@ -110,6 +110,7 @@ from .Extramodule.Neck.ASFF import ASFF
 from .Extramodule.Neck.BiFPN import BiFPN_Concat2, BiFPN_Concat3, BiFPN_Sum2, BiFPN_Sum3
 from .Extramodule.gold_yolo_v3.model.gold_yolo import Low_FAM, Low_IFM, Split, SimConv, Low_LAF, Inject, RepBlock, \
     High_FAM, High_IFM, High_LAF
+from .RepStar import C3k2_RepStar, RepDW, RepStarBlock
 # from .modules.C3k2_MobileMamba import C3k2_MobileMamba, C3k2_MambaVision
 # from .modules.C3k2_MobileMamba import C3k2Mamba
 # from .Extramodule.Neck.Gold import RepGDNeck
@@ -360,10 +361,23 @@ class BaseModel(torch.nn.Module):
                 if isinstance(m, RepConv):
                     m.fuse_convs()
                     m.forward = m.forward_fuse  # update forward
+                if isinstance(m,RepDW):
+                    m.fuse()
+                    # print("融合")
+                    # m.forward=m.
+                if isinstance(m,RepStarBlock):
+                    m.switch_to_deploy()
+                    # print("融合")
+                if isinstance(m, C3k2_RepStar):
+                    # m.switch_to_deploy()
+                    # print("打印")
+                     m.switch_to_deploy()
                 if isinstance(m, RepGhostBottleneck):
                     # m.fuse_convs()
+                    # print("融合")
                     m.forward = m.forward_fuse  # update forward
                 if isinstance(m, RepGhostModule):
+                    # print("融合")
                     m.fuse_convs()
                     m.forward = m.forward_fuse  # update forward
                 if isinstance(m, RepVGGDW):
@@ -1853,6 +1867,7 @@ def parse_model(d, ch, verbose=True):
             C3k2_Faster_EMA,
             C3k2_Star,
             C3k2_Star_CAA,
+            C3k2_RepStar,
             # C3k2Mamba,
             # ShuffleV1Block,
         }
