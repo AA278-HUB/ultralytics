@@ -119,7 +119,7 @@ from .RepStar import C3k2_RepStar, RepDW, RepStarBlock
 from .modules.block import ShuffleV1Block, ShuffleV2Block, C3RepGhost2, C2faster, C3k2_PEMA, C3k2_StarNet, C3k2_DEMA, \
     C3k2_GEMA, C3k2_Sema, C2f_LiteRepMixer, C2f_PSC, C3k2_LiteRepMixer, GSConv, VoVGSCSPC, GSBottleneckC, GSBottleneck, \
     GSConvns, VoVGSCSPC, VoVGSCSP, C2f_FFC, FD_C3k2, C3k2_MogaBlock, C3k2_UniRepLKNetBlock, C3k2_iRMB, \
-    C3k2_MambaOut, C3k2_Faster_EMA, C3k2_Star, C3k2_Star_CAA  # C2f_DCNv4
+    C3k2_MambaOut, C3k2_Faster_EMA, C3k2_Star, C3k2_Star_CAA, C3k2_LSBlock  # C2f_DCNv4
 from .modules.mafyolo import RepHMS, AVG
 
 
@@ -1868,6 +1868,7 @@ def parse_model(d, ch, verbose=True):
             C3k2_Star,
             C3k2_Star_CAA,
             C3k2_RepStar,
+            C3k2_LSBlock,
             # C3k2Mamba,
             # ShuffleV1Block,
         }
