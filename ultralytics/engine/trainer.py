@@ -354,6 +354,8 @@ class BaseTrainer:
         self.accumulate = max(round(self.args.nbs / self.batch_size), 1)  # accumulate loss before optimizing
         weight_decay = self.args.weight_decay * self.batch_size * self.accumulate / self.args.nbs  # scale weight_decay
         iterations = math.ceil(len(self.train_loader.dataset) / max(self.batch_size, self.args.nbs)) * self.epochs
+        if self.Distill:
+            self.distillation_loss = DetectInputDistillationLoss(self.Teacher, self.model, distiller=self.distill_loss)
         self.optimizer = self.build_optimizer(
             model=self.model,
             name=self.args.optimizer,
@@ -362,6 +364,19 @@ class BaseTrainer:
             decay=weight_decay,
             iterations=iterations,
         )
+        # ================== Distillation params ==================
+        if self.Distill:
+            distill_params = list(self.distill_loss.D_loss_fn.parameters())
+
+            # 防御式检查：防止空参数
+            if len(distill_params):
+                self.optimizer.add_param_group({
+                    "params": distill_params,
+                    "lr": self.args.lr0 * 0.1,  # 🔥 MGD/CWD 强烈建议更小
+                    "weight_decay": 0.0,  # 🔥 蒸馏层一般不 decay
+                })
+        # =========================================================
+
         # Scheduler
         self._setup_scheduler()
         self.stopper, self.stop = EarlyStopping(patience=self.args.patience), False
@@ -391,8 +406,7 @@ class BaseTrainer:
         if self.args.close_mosaic:
             base_idx = (self.epochs - self.args.close_mosaic) * nb
             self.plot_idx.extend([base_idx, base_idx + 1, base_idx + 2])
-        if self.Distill:
-             distillation_loss = DetectInputDistillationLoss( self.Teacher, self.model,distiller=self.distill_loss)
+
         epoch = self.start_epoch
         self.optimizer.zero_grad()  # zero any resumed gradients to ensure stability on train start
         while True:
@@ -416,7 +430,7 @@ class BaseTrainer:
                 pbar = TQDM(enumerate(self.train_loader), total=nb)
             self.tloss = None
             if self.Distill:
-                 distillation_loss.register_hooks()
+                self.distillation_loss.register_hooks()
             for i, batch in pbar:
                 self.run_callbacks("on_train_batch_start")
                 # Warmup
@@ -480,7 +494,7 @@ class BaseTrainer:
 
                         # 假设 distillation_loss 已经通过 register_hooks 拿到了 student_feats 和 teacher_feats
                         # 如果你的 distillation_loss.get_loss() 不需要参数，确认它内部已经能访问到特征
-                        self.d_loss = distillation_loss.get_loss()  # ← 这里假设已经正确实现
+                        self.d_loss = self.distillation_loss.get_loss()  # ← 这里假设已经正确实现
 
                         # 乘权重
                         self.d_loss = self.d_loss * distill_weight
@@ -530,7 +544,7 @@ class BaseTrainer:
 
                 self.run_callbacks("on_train_batch_end")
             if self.Distill:
-                distillation_loss.remove_hooks()
+                self.distillation_loss.remove_hooks()
             self.lr = {f"lr/pg{ir}": x["lr"] for ir, x in enumerate(self.optimizer.param_groups)}  # for loggers
 
             self.run_callbacks("on_train_epoch_end")
