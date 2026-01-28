@@ -24,6 +24,7 @@ from .UniRepLKNet import fuse_bn, get_conv2d, merge_dilated_into_large_kernel, g
     NHWCtoNCHW
 
 from .conv import Conv, DWConv, GhostConv, LightConv, RepConv, autopad, RepGhostModule
+from .lsnet import LSBlock
 from .transformer import TransformerBlock, LocalWindowAttention
 
 __all__ = (
@@ -4340,6 +4341,23 @@ class C3k2_Star_CAA(C3k2):
         self.m = nn.ModuleList(
             C3k_Star_CAA(self.c, self.c, 2, shortcut, g) if c3k else Star_Block_CAA(self.c) for _ in range(n))
 
+
+######################################## CVPR2025-Mona end ########################################
+
+######################################## CVPR2025-LSNet start ########################################
+
+class C3k_LSBlock(C3k):
+    def __init__(self, c1, c2, n=1, shortcut=False, g=1, e=0.5, k=3):
+        super().__init__(c1, c2, n, shortcut, g, e, k)
+        c_ = int(c2 * e)  # hidden channels
+        self.m = nn.Sequential(*(LSBlock(c_) for _ in range(n)))
+
+
+class C3k2_LSBlock(C3k2):
+    def __init__(self, c1, c2, n=1, c3k=False, e=0.5, g=1, shortcut=True):
+        super().__init__(c1, c2, n, c3k, e, g, shortcut)
+        self.m = nn.ModuleList(
+            C3k_LSBlock(self.c, self.c, n, shortcut, g) if c3k else LSBlock(self.c) for _ in range(n))
 ######################################## StartNet end ########################################
 
 ######################################## KAN begin ########################################
