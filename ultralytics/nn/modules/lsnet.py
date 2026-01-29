@@ -14,7 +14,7 @@ try:
 except:
     pass
 
-__all__ = ['lsnet_t', 'lsnet_s', 'lsnet_b', 'SKA']
+# __all__ = ['lsnet_t', 'lsnet_s', 'lsnet_b', 'SKA']
 
 try:
     def _grid(numel: int, bs: int) -> tuple:
@@ -429,7 +429,7 @@ class LSConv(nn.Module):
         return self.bn(self.ska(x, self.lkp(x))) + x
 
 
-class Block(torch.nn.Module):
+class LSBlock(torch.nn.Module):
     def __init__(self,
                  ed, kd=16, nh=8,
                  ar=4,
@@ -453,95 +453,95 @@ class Block(torch.nn.Module):
         return self.ffn(self.se(self.mixer(x)))
 
 
-class LSNet(torch.nn.Module):
-    def __init__(self, img_size=224,
-                 patch_size=8,
-                 in_chans=3,
-                 embed_dim=[64, 128, 192, 256],
-                 key_dim=[16, 16, 16, 16],
-                 depth=[1, 2, 3, 4],
-                 num_heads=[4, 4, 4, 4]):
-        super().__init__()
-
-        resolution = img_size
-        self.patch_embed = torch.nn.Sequential(Conv2d_BN(in_chans, embed_dim[0] // 4, 3, 2, 1), torch.nn.ReLU(),
-                                               Conv2d_BN(embed_dim[0] // 4, embed_dim[0] // 2, 3, 2, 1),
-                                               torch.nn.ReLU(),
-                                               Conv2d_BN(embed_dim[0] // 2, embed_dim[0], 3, 1, 1)
-                                               )
-
-        resolution = img_size // patch_size
-        attn_ratio = [embed_dim[i] / (key_dim[i] * num_heads[i]) for i in range(len(embed_dim))]
-        self.blocks1 = nn.Sequential()
-        self.blocks2 = nn.Sequential()
-        self.blocks3 = nn.Sequential()
-        self.blocks4 = nn.Sequential()
-        blocks = [self.blocks1, self.blocks2, self.blocks3, self.blocks4]
-
-        for i, (ed, kd, dpth, nh, ar) in enumerate(
-                zip(embed_dim, key_dim, depth, num_heads, attn_ratio)):
-            for d in range(dpth):
-                blocks[i].append(Block(ed, kd, nh, ar, resolution, stage=i, depth=d))
-
-            if i != len(depth) - 1:
-                blk = blocks[i + 1]
-                resolution_ = (resolution - 1) // 2 + 1
-                blk.append(Conv2d_BN(embed_dim[i], embed_dim[i], ks=3, stride=2, pad=1, groups=embed_dim[i]))
-                blk.append(Conv2d_BN(embed_dim[i], embed_dim[i + 1], ks=1, stride=1, pad=0))
-                resolution = resolution_
-
-        self.cuda()
-        self.channel = [i.size(1) for i in self.forward(torch.randn(1, 3, 640, 640).cuda())]
-
-    def forward(self, x):
-        outputs = []
-        x = self.patch_embed(x)
-        outputs.append(x)
-        x = self.blocks1(x)
-        # outputs.append(x)
-        x = self.blocks2(x)
-        outputs.append(x)
-        x = self.blocks3(x)
-        outputs.append(x)
-        x = self.blocks4(x)
-        outputs.append(x)
-        return outputs
-
-
-def lsnet_t(**kwargs):
-    model = LSNet(img_size=640,
-                  patch_size=4,
-                  embed_dim=[64, 128, 256, 384],
-                  depth=[0, 2, 8, 10],
-                  num_heads=[3, 3, 3, 4],
-                  )
-    return model
-
-
-def lsnet_s(**kwargs):
-    model = LSNet(img_size=640,
-                  patch_size=4,
-                  embed_dim=[96, 192, 320, 448],
-                  depth=[1, 2, 8, 10],
-                  num_heads=[3, 3, 3, 4],
-                  )
-    return model
-
-
-def lsnet_b(**kwargs):
-    model = LSNet(img_size=640,
-                  patch_size=4,
-                  embed_dim=[128, 256, 384, 512],
-                  depth=[4, 6, 8, 10],
-                  num_heads=[3, 3, 3, 4],
-                  )
-    return model
-
-
-if __name__ == '__main__':
-    model = lsnet_t().cuda()
-    inputs = torch.randn((1, 3, 640, 640)).cuda()
-    for i in tqdm.tqdm(range(100)):
-        outputs = model(inputs)
-    for i in outputs:
-        print(i.size())
+# class LSNet(torch.nn.Module):
+#     def __init__(self, img_size=224,
+#                  patch_size=8,
+#                  in_chans=3,
+#                  embed_dim=[64, 128, 192, 256],
+#                  key_dim=[16, 16, 16, 16],
+#                  depth=[1, 2, 3, 4],
+#                  num_heads=[4, 4, 4, 4]):
+#         super().__init__()
+#
+#         resolution = img_size
+#         self.patch_embed = torch.nn.Sequential(Conv2d_BN(in_chans, embed_dim[0] // 4, 3, 2, 1), torch.nn.ReLU(),
+#                                                Conv2d_BN(embed_dim[0] // 4, embed_dim[0] // 2, 3, 2, 1),
+#                                                torch.nn.ReLU(),
+#                                                Conv2d_BN(embed_dim[0] // 2, embed_dim[0], 3, 1, 1)
+#                                                )
+#
+#         resolution = img_size // patch_size
+#         attn_ratio = [embed_dim[i] / (key_dim[i] * num_heads[i]) for i in range(len(embed_dim))]
+#         self.blocks1 = nn.Sequential()
+#         self.blocks2 = nn.Sequential()
+#         self.blocks3 = nn.Sequential()
+#         self.blocks4 = nn.Sequential()
+#         blocks = [self.blocks1, self.blocks2, self.blocks3, self.blocks4]
+#
+#         for i, (ed, kd, dpth, nh, ar) in enumerate(
+#                 zip(embed_dim, key_dim, depth, num_heads, attn_ratio)):
+#             for d in range(dpth):
+#                 blocks[i].append(Block(ed, kd, nh, ar, resolution, stage=i, depth=d))
+#
+#             if i != len(depth) - 1:
+#                 blk = blocks[i + 1]
+#                 resolution_ = (resolution - 1) // 2 + 1
+#                 blk.append(Conv2d_BN(embed_dim[i], embed_dim[i], ks=3, stride=2, pad=1, groups=embed_dim[i]))
+#                 blk.append(Conv2d_BN(embed_dim[i], embed_dim[i + 1], ks=1, stride=1, pad=0))
+#                 resolution = resolution_
+#
+#         self.cuda()
+#         self.channel = [i.size(1) for i in self.forward(torch.randn(1, 3, 640, 640).cuda())]
+#
+#     def forward(self, x):
+#         outputs = []
+#         x = self.patch_embed(x)
+#         outputs.append(x)
+#         x = self.blocks1(x)
+#         # outputs.append(x)
+#         x = self.blocks2(x)
+#         outputs.append(x)
+#         x = self.blocks3(x)
+#         outputs.append(x)
+#         x = self.blocks4(x)
+#         outputs.append(x)
+#         return outputs
+#
+#
+# def lsnet_t(**kwargs):
+#     model = LSNet(img_size=640,
+#                   patch_size=4,
+#                   embed_dim=[64, 128, 256, 384],
+#                   depth=[0, 2, 8, 10],
+#                   num_heads=[3, 3, 3, 4],
+#                   )
+#     return model
+#
+#
+# def lsnet_s(**kwargs):
+#     model = LSNet(img_size=640,
+#                   patch_size=4,
+#                   embed_dim=[96, 192, 320, 448],
+#                   depth=[1, 2, 8, 10],
+#                   num_heads=[3, 3, 3, 4],
+#                   )
+#     return model
+#
+#
+# def lsnet_b(**kwargs):
+#     model = LSNet(img_size=640,
+#                   patch_size=4,
+#                   embed_dim=[128, 256, 384, 512],
+#                   depth=[4, 6, 8, 10],
+#                   num_heads=[3, 3, 3, 4],
+#                   )
+#     return model
+#
+#
+# if __name__ == '__main__':
+#     model = lsnet_t().cuda()
+#     inputs = torch.randn((1, 3, 640, 640)).cuda()
+#     for i in tqdm.tqdm(range(100)):
+#         outputs = model(inputs)
+#     for i in outputs:
+#         print(i.size())
