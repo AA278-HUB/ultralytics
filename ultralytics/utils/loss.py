@@ -12,6 +12,7 @@ from ultralytics.utils.metrics import OKS_SIGMA
 from ultralytics.utils.ops import crop_mask, xywh2xyxy, xyxy2xywh
 from ultralytics.utils.tal import RotatedTaskAlignedAssigner, TaskAlignedAssigner, dist2bbox, dist2rbox, make_anchors
 from ultralytics.utils.torch_utils import autocast
+from .Mymetrics import WiseIouLoss, wasserstein_loss
 
 from .metrics import bbox_iou, probiou
 from .tal import bbox2dist
@@ -115,45 +116,38 @@ class BboxLoss(nn.Module):
         super().__init__()
         self.dfl_loss = DFLoss(reg_max) if reg_max > 1 else None
 
-    def forward(
-        self,
-        pred_dist: torch.Tensor,
-        pred_bboxes: torch.Tensor,
-        anchor_points: torch.Tensor,
-        target_bboxes: torch.Tensor,
-        target_scores: torch.Tensor,
-        target_scores_sum: torch.Tensor,
-        fg_mask: torch.Tensor,
-    ) -> tuple[torch.Tensor, torch.Tensor]:
-        """Compute IoU and DFL losses for bounding boxes."""
+        # NWD
+        self.nwd_loss = False
+        self.iou_ratio = 0.5  # total_iou_loss = self.iou_ratio * iou_loss + (1 - self.iou_ratio) * nwd_loss
+
+        # WiseIOU
+        self.use_wiseiou = True
+        if self.use_wiseiou:
+            self.wiou_loss = WiseIouLoss(ltype='WIoU', monotonous=False, inner_iou=False, focaler_iou=False)
+
+    def forward(self, pred_dist, pred_bboxes, anchor_points, target_bboxes, target_scores, target_scores_sum, fg_mask,
+                mpdiou_hw=None):
+        """IoU loss."""
         weight = target_scores.sum(-1)[fg_mask].unsqueeze(-1)
+        if self.use_wiseiou:
+            wiou = self.wiou_loss(pred_bboxes[fg_mask], target_bboxes[fg_mask], ret_iou=False, ratio=0.7, d=0.0,
+                                  u=0.95).unsqueeze(-1)
+            # wiou = self.wiou_loss(pred_bboxes[fg_mask], target_bboxes[fg_mask], ret_iou=False, ratio=0.7, d=0.0, u=0.95, **{'scale':0.0}).unsqueeze(-1) # Wise-ShapeIoU,Wise-Inner-ShapeIoU,Wise-Focaler-ShapeIoU
+            # wiou = self.wiou_loss(pred_bboxes[fg_mask], target_bboxes[fg_mask], ret_iou=False, ratio=0.7, d=0.0, u=0.95, **{'mpdiou_hw':mpdiou_hw[fg_mask]}).unsqueeze(-1) # Wise-MPDIoU,Wise-Inner-MPDIoU,Wise-Focaler-MPDIoU
+            loss_iou = (wiou * weight).sum() / target_scores_sum
+        else:
+            iou = bbox_iou(pred_bboxes[fg_mask], target_bboxes[fg_mask], xywh=False, CIoU=True)
+            # iou = bbox_inner_iou(pred_bboxes[fg_mask], target_bboxes[fg_mask], xywh=False, CIoU=True, ratio=0.7)
+            # iou = bbox_mpdiou(pred_bboxes[fg_mask], target_bboxes[fg_mask], xywh=False, mpdiou_hw=mpdiou_hw[fg_mask])
+            # iou = bbox_inner_mpdiou(pred_bboxes[fg_mask], target_bboxes[fg_mask], xywh=False, mpdiou_hw=mpdiou_hw[fg_mask], ratio=0.7)
+            # iou = bbox_focaler_iou(pred_bboxes[fg_mask], target_bboxes[fg_mask], xywh=False, CIoU=True, d=0.0, u=0.95)
+            # iou = bbox_focaler_mpdiou(pred_bboxes[fg_mask], target_bboxes[fg_mask], xywh=False, mpdiou_hw=mpdiou_hw[fg_mask], d=0.0, u=0.95)
+            loss_iou = ((1.0 - iou) * weight).sum() / target_scores_sum
 
-        num_points = anchor_points.shape[0]
-        h = w = int(num_points ** 0.5)
-        hw = h * h + w * w
-        iou = bbox_iou(pred_bboxes[fg_mask], target_bboxes[fg_mask], xywh=False, CIoU=True)
-        # iou = bbox_iou(
-        #     pred_bboxes[fg_mask],
-        #     target_bboxes[fg_mask],
-        #     xywh=False,
-        #     ShapeIoU=True
-        # )
-        # iou = bbox_iou(
-        #     pred_bboxes[fg_mask],
-        #     target_bboxes[fg_mask],
-        #     xywh=False,
-        #     MPDIoU=True,
-        #     hw=hw
-        # )
-
-        # iou = bbox_iou(
-        #     pred_bboxes[fg_mask],
-        #     target_bboxes[fg_mask],
-        #     xywh=False,
-        #     EIoU=True
-        # )
-
-        loss_iou = ((1.0 - iou) * weight).sum() / target_scores_sum
+        if self.nwd_loss:
+            nwd = wasserstein_loss(pred_bboxes[fg_mask], target_bboxes[fg_mask])
+            nwd_loss = ((1.0 - nwd) * weight).sum() / target_scores_sum
+            loss_iou = self.iou_ratio * loss_iou + (1 - self.iou_ratio) * nwd_loss
 
         # DFL loss
         if self.dfl_loss:
@@ -164,6 +158,55 @@ class BboxLoss(nn.Module):
             loss_dfl = torch.tensor(0.0).to(pred_dist.device)
 
         return loss_iou, loss_dfl
+    # def forward(
+    #     self,
+    #     pred_dist: torch.Tensor,
+    #     pred_bboxes: torch.Tensor,
+    #     anchor_points: torch.Tensor,
+    #     target_bboxes: torch.Tensor,
+    #     target_scores: torch.Tensor,
+    #     target_scores_sum: torch.Tensor,
+    #     fg_mask: torch.Tensor,
+    # ) -> tuple[torch.Tensor, torch.Tensor]:
+    #     """Compute IoU and DFL losses for bounding boxes."""
+    #     weight = target_scores.sum(-1)[fg_mask].unsqueeze(-1)
+    #
+    #     num_points = anchor_points.shape[0]
+    #     h = w = int(num_points ** 0.5)
+    #     hw = h * h + w * w
+    #     iou = bbox_iou(pred_bboxes[fg_mask], target_bboxes[fg_mask], xywh=False, CIoU=True)
+    #     # iou = bbox_iou(
+    #     #     pred_bboxes[fg_mask],
+    #     #     target_bboxes[fg_mask],
+    #     #     xywh=False,
+    #     #     ShapeIoU=True
+    #     # )
+    #     # iou = bbox_iou(
+    #     #     pred_bboxes[fg_mask],
+    #     #     target_bboxes[fg_mask],
+    #     #     xywh=False,
+    #     #     MPDIoU=True,
+    #     #     hw=hw
+    #     # )
+    #
+    #     # iou = bbox_iou(
+    #     #     pred_bboxes[fg_mask],
+    #     #     target_bboxes[fg_mask],
+    #     #     xywh=False,
+    #     #     EIoU=True
+    #     # )
+    #
+    #     loss_iou = ((1.0 - iou) * weight).sum() / target_scores_sum
+    #
+    #     # DFL loss
+    #     if self.dfl_loss:
+    #         target_ltrb = bbox2dist(anchor_points, target_bboxes, self.dfl_loss.reg_max - 1)
+    #         loss_dfl = self.dfl_loss(pred_dist[fg_mask].view(-1, self.dfl_loss.reg_max), target_ltrb[fg_mask]) * weight
+    #         loss_dfl = loss_dfl.sum() / target_scores_sum
+    #     else:
+    #         loss_dfl = torch.tensor(0.0).to(pred_dist.device)
+    #
+    #     return loss_iou, loss_dfl
 
 
 class RotatedBboxLoss(BboxLoss):
