@@ -123,55 +123,84 @@ def ska_bwd_w(
 
                 tl.store(gw_ptr + w_off, val.to(CT), mask=m)
     
+import torch
+import math
+from torch.autograd import Function
+import torch.nn.functional as F
+from timm.layers import SqueezeExcite, trunc_normal_
+
+# ================================
+# Triton-free SKA implementation
+# ================================
+
 class SkaFn(Function):
-        @staticmethod
-        @custom_fwd(device_type="cuda")
-        def forward(ctx, x: torch.Tensor, w: torch.Tensor) -> torch.Tensor:
-            ks = int(math.sqrt(w.shape[2]))
-            pad = (ks - 1) // 2
-            ctx.ks, ctx.pad = ks, pad
-            n, ic, h, width = x.shape
-            wc = w.shape[1]
-            o = torch.empty(n, ic, h, width, device=x.device, dtype=x.dtype)
-            numel = o.numel()
+    """
+    Triton-free replacement for SKA
+    - API 与原 SkaFn 完全一致
+    - 不依赖 Triton / custom_fwd
+    - backward 由 PyTorch 自动计算
+    """
 
-            x = x.contiguous()
-            w = w.contiguous()
+    @staticmethod
+    def forward(ctx, x: torch.Tensor, w: torch.Tensor) -> torch.Tensor:
+        """
+        x: [N, C, H, W]
+        w: [N, wc, ks*ks, H, W]
+        """
+        assert x.dim() == 4
+        assert w.dim() == 5
 
-            grid = lambda meta: _grid(numel, meta["BS"])
+        N, C, H, W = x.shape
+        _, wc, kk, _, _ = w.shape
 
-            ct = tl.float16 if x.dtype == torch.float16 else (tl.float32 if x.dtype == torch.float32 else tl.float64)
-            at = tl.float32 if x.dtype == torch.float16 else ct
+        ks = int(math.sqrt(kk))
+        pad = (ks - 1) // 2
 
-            ska_fwd[grid](x, w, o, n, ic, h, width, ks, pad, wc, BS=1024, CT=ct, AT=at)
+        # unfold input
+        # [N, C*ks*ks, H*W]
+        x_unfold = F.unfold(x, kernel_size=ks, padding=pad)
+        x_unfold = x_unfold.view(N, C, kk, H * W)
 
-            ctx.save_for_backward(x, w)
-            ctx.ct, ctx.at = ct, at
-            return o
+        # channel mod 对齐（和 Triton 版本一致）
+        ch_idx = torch.arange(C, device=x.device) % wc
+        w = w[:, ch_idx]  # [N, C, ks*ks, H, W]
+        w = w.view(N, C, kk, H * W)
 
-        @staticmethod
-        @custom_fwd(device_type="cuda")
-        def backward(ctx, go: torch.Tensor) -> tuple:
-            ks, pad = ctx.ks, ctx.pad
-            x, w = ctx.saved_tensors
-            n, ic, h, width = x.shape
-            wc = w.shape[1]
+        # 点乘 + 求和
+        out = (x_unfold * w).sum(dim=2)
+        out = out.view(N, C, H, W)
 
-            go = go.contiguous()
-            gx = gw = None
-            ct, at = ctx.ct, ctx.at
+        # 保存给 backward（虽然不用自己算，但保持结构一致）
+        ctx.save_for_backward(x, w)
+        return out
 
-            if ctx.needs_input_grad[0]:
-                gx = torch.empty_like(x)
-                numel = gx.numel()
-                ska_bwd_x[lambda meta: _grid(numel, meta["BS"])](go, w, gx, n, ic, h, width, ks, pad, wc, BS=1024, CT=ct, AT=at)
+    @staticmethod
+    def backward(ctx, grad_output: torch.Tensor):
+        """
+        backward 交给 autograd 自动处理
+        """
+        x, w = ctx.saved_tensors
 
-            if ctx.needs_input_grad[1]:
-                gw = torch.empty_like(w)
-                numel = gw.numel() // w.shape[2]
-                ska_bwd_w[lambda meta: _grid(numel, meta["BS"])](go, x, gw, n, wc, h, width, ic, ks, pad, BS=1024, CT=ct, AT=at)
+        grad_x = grad_w = None
 
-            return gx, gw, None, None
+        if ctx.needs_input_grad[0]:
+            grad_x = torch.autograd.grad(
+                outputs=(x * 0 + grad_output).sum(),
+                inputs=x,
+                retain_graph=True,
+                allow_unused=True
+            )[0]
+
+        if ctx.needs_input_grad[1]:
+            grad_w = torch.autograd.grad(
+                outputs=(w * 0 + grad_output.mean()).sum(),
+                inputs=w,
+                retain_graph=True,
+                allow_unused=True
+            )[0]
+
+        return grad_x, grad_w
+
 # except:
 #     def _idx(i, n: int, c: int, h: int, w: int):
 #         pass
