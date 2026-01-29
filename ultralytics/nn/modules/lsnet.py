@@ -14,12 +14,12 @@ except:
 
 # __all__ = ['lsnet_t', 'lsnet_s', 'lsnet_b', 'SKA']
 
-try:
-    def _grid(numel: int, bs: int) -> tuple:
+# try:
+def _grid(numel: int, bs: int) -> tuple:
         return (triton.cdiv(numel, bs),)
 
-    @triton.jit
-    def _idx(i, n: int, c: int, h: int, w: int):
+@triton.jit
+def _idx(i, n: int, c: int, h: int, w: int):
         ni = i // (c * h * w)
         ci = (i // (h * w)) % c
         hi = (i // w) % h
@@ -27,8 +27,8 @@ try:
         m = i < (n * c * h * w)
         return ni, ci, hi, wi, m
 
-    @triton.jit
-    def ska_fwd(
+@triton.jit
+def ska_fwd(
         x_ptr, w_ptr, o_ptr,
         n, ic, h, w, ks, pad, wc,
         BS: tl.constexpr,
@@ -57,8 +57,8 @@ try:
 
         tl.store(o_ptr + offs, val.to(CT), mask=m)
 
-    @triton.jit
-    def ska_bwd_x(
+@triton.jit
+def ska_bwd_x(
         go_ptr, w_ptr, gi_ptr,
         n, ic, h, w, ks, pad, wc,
         BS: tl.constexpr,
@@ -87,8 +87,8 @@ try:
 
         tl.store(gi_ptr + offs, val.to(CT), mask=m)
 
-    @triton.jit
-    def ska_bwd_w(
+@triton.jit
+def ska_bwd_w(
         go_ptr, x_ptr, gw_ptr,
         n, wc, h, w, ic, ks, pad,
         BS: tl.constexpr,
@@ -123,7 +123,7 @@ try:
 
                 tl.store(gw_ptr + w_off, val.to(CT), mask=m)
     
-    class SkaFn(Function):
+class SkaFn(Function):
         @staticmethod
         @custom_fwd
         def forward(ctx, x: torch.Tensor, w: torch.Tensor) -> torch.Tensor:
@@ -172,37 +172,37 @@ try:
                 ska_bwd_w[lambda meta: _grid(numel, meta["BS"])](go, x, gw, n, wc, h, width, ic, ks, pad, BS=1024, CT=ct, AT=at)
 
             return gx, gw, None, None
-except:
-    def _idx(i, n: int, c: int, h: int, w: int):
-        pass
-
-    def ska_fwd(
-        x_ptr, w_ptr, o_ptr,
-        n, ic, h, w, ks, pad, wc,
-        BS,
-        CT, AT
-    ):
-        pass
-
-    def ska_bwd_x(
-        go_ptr, w_ptr, gi_ptr,
-        n, ic, h, w, ks, pad, wc,
-        BS,
-        CT, AT
-    ):
-        pass
-
-    def ska_bwd_w(
-        go_ptr, x_ptr, gw_ptr,
-        n, wc, h, w, ic, ks, pad,
-        BS,
-        CT, AT
-    ):
-        pass
-
-class SKA(torch.nn.Module):
-        def forward(self, x: torch.Tensor, w: torch.Tensor) -> torch.Tensor:
-            return SkaFn.apply(x, w) # type: ignore
+# except:
+#     def _idx(i, n: int, c: int, h: int, w: int):
+#         pass
+#
+#     def ska_fwd(
+#         x_ptr, w_ptr, o_ptr,
+#         n, ic, h, w, ks, pad, wc,
+#         BS,
+#         CT, AT
+#     ):
+#         pass
+#
+#     def ska_bwd_x(
+#         go_ptr, w_ptr, gi_ptr,
+#         n, ic, h, w, ks, pad, wc,
+#         BS,
+#         CT, AT
+#     ):
+#         pass
+#
+#     def ska_bwd_w(
+#         go_ptr, x_ptr, gw_ptr,
+#         n, wc, h, w, ic, ks, pad,
+#         BS,
+#         CT, AT
+#     ):
+#         pass
+#
+# class SKA(torch.nn.Module):
+#         def forward(self, x: torch.Tensor, w: torch.Tensor) -> torch.Tensor:
+#             return SkaFn.apply(x, w) # type: ignore
 
 class SKA(torch.nn.Module):
     def forward(self, x: torch.Tensor, w: torch.Tensor) -> torch.Tensor:
