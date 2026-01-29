@@ -36,7 +36,8 @@ model_yaml_paths = [
     # r"Custom_Model_cfg_7/yolo11-C3k2-Star-CAA.yaml",
     # "Custom_Model_cfg_7/yolo11x.yaml"
     # r"/sysv/vehicle_orientation_mini/ultralytics/runs/detect/yolo11x_20260128_13_26/weights/last.pt"
-     "Custom_Model_cfg_7/yolo11_RepStar.yaml"
+    #  "Custom_Model_cfg_7/yolo11_RepStar.yaml"
+    "Custom_Model_cfg_7/yolo11-C3k2-LSBlock.yaml",
 
             ]
 data = "Custom_dataset_cfg/vehicle_orientation_mini.yaml"
