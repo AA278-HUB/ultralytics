@@ -125,7 +125,7 @@ def ska_bwd_w(
     
 class SkaFn(Function):
         @staticmethod
-        @custom_fwd
+        @custom_fwd(device_type="cuda")
         def forward(ctx, x: torch.Tensor, w: torch.Tensor) -> torch.Tensor:
             ks = int(math.sqrt(w.shape[2]))
             pad = (ks - 1) // 2
@@ -150,7 +150,7 @@ class SkaFn(Function):
             return o
 
         @staticmethod
-        @custom_bwd
+        @custom_fwd(device_type="cuda")
         def backward(ctx, go: torch.Tensor) -> tuple:
             ks, pad = ctx.ks, ctx.pad
             x, w = ctx.saved_tensors
