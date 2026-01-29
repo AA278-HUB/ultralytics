@@ -137,8 +137,8 @@ class SkaFn(Function):
     """
     Triton-free replacement for SKA
     - API 与原 SkaFn 完全一致
-    - 不依赖 Triton / custom_fwd
-    - backward 由 PyTorch 自动计算
+    - 不依赖 Triton
+    - backward 完全交给 PyTorch autograd
     """
 
     @staticmethod
@@ -157,11 +157,10 @@ class SkaFn(Function):
         pad = (ks - 1) // 2
 
         # unfold input
-        # [N, C*ks*ks, H*W]
         x_unfold = F.unfold(x, kernel_size=ks, padding=pad)
         x_unfold = x_unfold.view(N, C, kk, H * W)
 
-        # channel mod 对齐（和 Triton 版本一致）
+        # channel mod 对齐（与 Triton 版本一致）
         ch_idx = torch.arange(C, device=x.device) % wc
         w = w[:, ch_idx]  # [N, C, ks*ks, H, W]
         w = w.view(N, C, kk, H * W)
@@ -170,36 +169,17 @@ class SkaFn(Function):
         out = (x_unfold * w).sum(dim=2)
         out = out.view(N, C, H, W)
 
-        # 保存给 backward（虽然不用自己算，但保持结构一致）
-        ctx.save_for_backward(x, w)
         return out
 
     @staticmethod
-    def backward(ctx, grad_output: torch.Tensor):
-        """
-        backward 交给 autograd 自动处理
-        """
-        x, w = ctx.saved_tensors
+    def backward(ctx, *grad_outputs):
+        # ❗❗❗ 关键：什么都不做
+        # autograd 会基于 forward 的算子图自动求导
+        raise RuntimeError(
+            "SkaFn.backward() should never be called. "
+            "Remove custom backward and rely on autograd."
+        )
 
-        grad_x = grad_w = None
-
-        if ctx.needs_input_grad[0]:
-            grad_x = torch.autograd.grad(
-                outputs=(x * 0 + grad_output).sum(),
-                inputs=x,
-                retain_graph=True,
-                allow_unused=True
-            )[0]
-
-        if ctx.needs_input_grad[1]:
-            grad_w = torch.autograd.grad(
-                outputs=(w * 0 + grad_output.mean()).sum(),
-                inputs=w,
-                retain_graph=True,
-                allow_unused=True
-            )[0]
-
-        return grad_x, grad_w
 
 # except:
 #     def _idx(i, n: int, c: int, h: int, w: int):
