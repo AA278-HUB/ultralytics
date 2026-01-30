@@ -1722,6 +1722,7 @@ class CascadedGroupAttention(torch.nn.Module):
             q = q.to(device)  # 将 q 移动到输入数据所在设备
             k = k.to(device)  # 将 k 移动到相同设备
             v = v.to(device)  # 将 v 移动到相同设备
+            scale = self.scale.to(device)  # 将 scale 移动到与 q 相同的设备
 
             q = self.dws[i](q)
             q, k, v = q.flatten(2), k.flatten(2), v.flatten(2)  # B, C/h, N
