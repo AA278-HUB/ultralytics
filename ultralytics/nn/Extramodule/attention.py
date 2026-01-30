@@ -1722,14 +1722,18 @@ class CascadedGroupAttention(torch.nn.Module):
             q = q.to(device)  # 将 q 移动到输入数据所在设备
             k = k.to(device)  # 将 k 移动到相同设备
             v = v.to(device)  # 将 v 移动到相同设备
-            scale = self.scale.to(device)  # 将 scale 移动到与 q 相同的设备
+            # scale = self.scale.to(device)  # 将 scale 移动到与 q 相同的设备
+
+            # 打印 q, k, v 的设备
+            print(f"Device of q: {q.device}, k: {k.device}, v: {v.device}")
 
             q = self.dws[i](q)
             q, k, v = q.flatten(2), k.flatten(2), v.flatten(2)  # B, C/h, N
 
+
             # 注意力计算
             attn = (
-                    (q.transpose(-2, -1) @ k) * scale  # 计算 q 和 k 的相似度
+                    (q.transpose(-2, -1) @ k) * self.scale  # 计算 q 和 k 的相似度
                     + (trainingab[i] if self.training else self.ab[i])  # 使用训练或评估的偏差
             )
             attn = attn.softmax(dim=-1)  # Softmax 操作：标准化权重
