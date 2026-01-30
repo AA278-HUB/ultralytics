@@ -1729,7 +1729,7 @@ class CascadedGroupAttention(torch.nn.Module):
 
             # 注意力计算
             attn = (
-                    (q.transpose(-2, -1) @ k) * self.scale  # 计算 q 和 k 的相似度
+                    (q.transpose(-2, -1) @ k) * scale  # 计算 q 和 k 的相似度
                     + (trainingab[i] if self.training else self.ab[i])  # 使用训练或评估的偏差
             )
             attn = attn.softmax(dim=-1)  # Softmax 操作：标准化权重
