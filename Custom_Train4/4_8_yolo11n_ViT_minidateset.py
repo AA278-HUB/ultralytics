@@ -50,24 +50,24 @@ model_yaml_paths = [
 
 
 "Custom_Model_cfg_7/yolo11-C2PSA-Mona.yaml",  # 这个模型可能较有潜力
-# "Custom_Model_cfg_7/yolo11-C2PSA-SEFFN.yaml",  # SEFFN 是一种新的结构，可能有一定提升
-# "Custom_Model_cfg_7/yolo11-C2PSA-SEFN.yaml",  # 也许是针对某些情况优化的模型
+"Custom_Model_cfg_7/yolo11-C2PSA-SEFFN.yaml",  # SEFFN 是一种新的结构，可能有一定提升
+"Custom_Model_cfg_7/yolo11-C2PSA-SEFN.yaml",  # 也许是针对某些情况优化的模型
 
 # "Custom_Model_cfg_7/yolo11-C2Pola-DYT.yaml",  # 暂时不行
 # "Custom_Model_cfg_7/yolo11-C2Pola.yaml",       # 暂时不行
 
 
-# "Custom_Model_cfg_7/yolo11-C2TSSA-DYT-Mona-EDFFN.yaml",  # 相对复杂的 TSSA 模型，加入 EDFFN 后的性能可能较强
-# "Custom_Model_cfg_7/yolo11-C2TSSA-DYT-Mona-SEFFN.yaml",  # SEFFN 加入后，也许能有更好的效果
-# "Custom_Model_cfg_7/yolo11-C2TSSA-DYT-Mona-SEFN.yaml",   # SEFN 可能对某些任务有改善
-# "Custom_Model_cfg_7/yolo11-C2TSSA-DYT-Mona.yaml",        # DYT-Mona 可能会表现较好
-# "Custom_Model_cfg_7/yolo11-C2TSSA-DYT.yaml",             # 相对复杂的模型，但可能需要调优
-# "Custom_Model_cfg_7/yolo11-C2TSSA.yaml",                 # TSSA 的基础版本，效果不错
+"Custom_Model_cfg_7/yolo11-C2TSSA-DYT-Mona-EDFFN.yaml",  # 相对复杂的 TSSA 模型，加入 EDFFN 后的性能可能较强
+"Custom_Model_cfg_7/yolo11-C2TSSA-DYT-Mona-SEFFN.yaml",  # SEFFN 加入后，也许能有更好的效果
+"Custom_Model_cfg_7/yolo11-C2TSSA-DYT-Mona-SEFN.yaml",   # SEFN 可能对某些任务有改善
+"Custom_Model_cfg_7/yolo11-C2TSSA-DYT-Mona.yaml",        # DYT-Mona 可能会表现较好
+"Custom_Model_cfg_7/yolo11-C2TSSA-DYT.yaml",             # 相对复杂的模型，但可能需要调优
+"Custom_Model_cfg_7/yolo11-C2TSSA.yaml",                 # TSSA 的基础版本，效果不错
 
 # "Custom_Model_cfg_7/yolo11-C2ASSA.yaml",               # 暂时不行
 
-# "Custom_Model_cfg_7/yolo11-C2BRA.yaml",                 # 比较基础的结构，可能表现一般
-# "Custom_Model_cfg_7/yolo11-C2DA.yaml",                  # 基本架构，但缺乏高效优化
+"Custom_Model_cfg_7/yolo11-C2BRA.yaml",                 # 比较基础的结构，可能表现一般
+"Custom_Model_cfg_7/yolo11-C2DA.yaml",                  # 基本架构，但缺乏高效优化
 # "Custom_Model_cfg_7/yolo11-C2DPB.yaml",                 # 暂时不行
 
 
