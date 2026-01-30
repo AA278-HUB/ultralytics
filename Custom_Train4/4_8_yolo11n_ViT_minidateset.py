@@ -41,7 +41,7 @@ model_yaml_paths = [
     # "Custom_Model_cfg_7/yolo11-C3k2-LSBlock.yaml",
 
 # 可用模型，按照可能的效果排序
-"Custom_Model_cfg_7/yolo11-C2CGA.yaml",                 # 可能是比较基础的架构
+# "Custom_Model_cfg_7/yolo11-C2CGA.yaml",                 # 可能是比较基础的架构
 "Custom_Model_cfg_7/yolo11-C2PSA-CGLU.yaml",  # 更复杂的网络可能具有较高的性能
 "Custom_Model_cfg_7/yolo11-C2PSA-DYT.yaml",  # 相对较新的结构，应该有效
 "Custom_Model_cfg_7/yolo11-C2PSA-EDFFN.yaml",  # EDFFN 可能会有不错的表现
@@ -49,7 +49,7 @@ model_yaml_paths = [
 
 
 
-# "Custom_Model_cfg_7/yolo11-C2PSA-Mona.yaml",  # 这个模型可能较有潜力
+"Custom_Model_cfg_7/yolo11-C2PSA-Mona.yaml",  # 这个模型可能较有潜力
 # "Custom_Model_cfg_7/yolo11-C2PSA-SEFFN.yaml",  # SEFFN 是一种新的结构，可能有一定提升
 # "Custom_Model_cfg_7/yolo11-C2PSA-SEFN.yaml",  # 也许是针对某些情况优化的模型
 

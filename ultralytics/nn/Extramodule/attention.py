@@ -1730,7 +1730,6 @@ class CascadedGroupAttention(torch.nn.Module):
             q = self.dws[i](q)
             q, k, v = q.flatten(2), k.flatten(2), v.flatten(2)  # B, C/h, N
 
-
             # 注意力计算
             attn = (
                     (q.transpose(-2, -1) @ k) * self.scale  # 计算 q 和 k 的相似度
