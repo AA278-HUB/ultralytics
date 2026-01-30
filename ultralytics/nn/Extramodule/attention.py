@@ -1674,33 +1674,64 @@ class CascadedGroupAttention(torch.nn.Module):
         else:
             self.ab = self.attention_biases[:, self.attention_bias_idxs]
 
-    def forward(self, x):  # x (B,C,H,W)
+    # def forward(self, x):  # x (B,C,H,W)
+    #     B, C, H, W = x.shape
+    #     trainingab = self.attention_biases[:, self.attention_bias_idxs]
+    #     feats_in = x.chunk(len(self.qkvs), dim=1)
+    #     feats_out = []
+    #     feat = feats_in[0]
+    #     for i, qkv in enumerate(self.qkvs):
+    #         if i > 0: # add the previous output to the input
+    #             feat = feat + feats_in[i]
+    #         feat = qkv(feat)
+    #         q, k, v = feat.view(B, -1, H, W).split([self.key_dim, self.key_dim, self.d], dim=1) # B, C/h, H, W
+    #
+    #         # 以下修改：确保 q 和 k 在同一设备上
+    #         # device = q.device  # 获取 q 张量的设备
+    #         # k = k.to(device)  # 将 k 张量移动到与 q 相同的设备
+    #
+    #         q = self.dws[i](q)
+    #         q, k, v = q.flatten(2), k.flatten(2), v.flatten(2) # B, C/h, N
+    #         attn = (
+    #             (q.transpose(-2, -1) @ k) * self.scale
+    #             +
+    #             (trainingab[i] if self.training else self.ab[i])
+    #         )
+    #         attn = attn.softmax(dim=-1) # BNN
+    #         feat = (v @ attn.transpose(-2, -1)).view(B, self.d, H, W) # BCHW
+    #         feats_out.append(feat)
+    #     x = self.proj(torch.cat(feats_out, 1))
+    #     return x
+    def forward(self, x):  # x (B, C, H, W)
         B, C, H, W = x.shape
         trainingab = self.attention_biases[:, self.attention_bias_idxs]
         feats_in = x.chunk(len(self.qkvs), dim=1)
         feats_out = []
         feat = feats_in[0]
+
         for i, qkv in enumerate(self.qkvs):
-            if i > 0: # add the previous output to the input
+            if i > 0:  # 如果不是第一个qkv，则将前一个输出加入当前输入
                 feat = feat + feats_in[i]
             feat = qkv(feat)
-            q, k, v = feat.view(B, -1, H, W).split([self.key_dim, self.key_dim, self.d], dim=1) # B, C/h, H, W
+            q, k, v = feat.view(B, -1, H, W).split([self.key_dim, self.key_dim, self.d], dim=1)  # B, C/h, H, W
 
-            # 以下修改：确保 q 和 k 在同一设备上
+            # 确保 q 和 k 在同一设备上
             device = q.device  # 获取 q 张量的设备
             k = k.to(device)  # 将 k 张量移动到与 q 相同的设备
 
             q = self.dws[i](q)
-            q, k, v = q.flatten(2), k.flatten(2), v.flatten(2) # B, C/h, N
+            q, k, v = q.flatten(2), k.flatten(2), v.flatten(2)  # B, C/h, N
+
+            # 注意力计算
             attn = (
-                (q.transpose(-2, -1) @ k) * self.scale
-                +
-                (trainingab[i] if self.training else self.ab[i])
+                    (q.transpose(-2, -1) @ k) * self.scale  # 计算 q 和 k 的相似度
+                    + (trainingab[i] if self.training else self.ab[i])  # 使用训练或评估的偏差
             )
-            attn = attn.softmax(dim=-1) # BNN
-            feat = (v @ attn.transpose(-2, -1)).view(B, self.d, H, W) # BCHW
+            attn = attn.softmax(dim=-1)  # Softmax 操作：标准化权重
+            feat = (v @ attn.transpose(-2, -1)).view(B, self.d, H, W)  # 根据权重对 v 进行加权求和
             feats_out.append(feat)
-        x = self.proj(torch.cat(feats_out, 1))
+
+        x = self.proj(torch.cat(feats_out, 1))  # 将输出拼接并通过最后的投影层
         return x
 
 
