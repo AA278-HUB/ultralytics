@@ -1709,15 +1709,19 @@ class CascadedGroupAttention(torch.nn.Module):
         feats_out = []
         feat = feats_in[0]
 
+        # 获取当前设备（cuda 或 cpu）
+        device = x.device  # 获取输入数据 x 的设备
+
         for i, qkv in enumerate(self.qkvs):
             if i > 0:  # 如果不是第一个qkv，则将前一个输出加入当前输入
                 feat = feat + feats_in[i]
             feat = qkv(feat)
             q, k, v = feat.view(B, -1, H, W).split([self.key_dim, self.key_dim, self.d], dim=1)  # B, C/h, H, W
 
-            # 确保 q 和 k 在同一设备上
-            device = q.device  # 获取 q 张量的设备
-            k = k.to(device)  # 将 k 张量移动到与 q 相同的设备
+            # 确保 q, k, v 都在同一设备上
+            q = q.to(device)  # 将 q 移动到输入数据所在设备
+            k = k.to(device)  # 将 k 移动到相同设备
+            v = v.to(device)  # 将 v 移动到相同设备
 
             q = self.dws[i](q)
             q, k, v = q.flatten(2), k.flatten(2), v.flatten(2)  # B, C/h, N
