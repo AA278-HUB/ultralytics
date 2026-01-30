@@ -13,12 +13,31 @@ from einops import rearrange
 from torch import Tensor
 from typing import Tuple, Optional, List
 from ..modules.conv import Conv, autopad
-from ..backbone.TransNext import AggregatedAttention, get_relative_position_cpb
+# from import AggregatedAttention, get_relative_position_cpb
+
+
+# try:
+#     from  ultralytics.nn.Extramodule .TransNeXt.swattention_extension
+#     from  ultralytics.nn.Extramodule.TransNeXt.TransNext_cuda import *
+# except ImportError as e:
+#     from  ultralytics.nn.Extramodule.TransNeXt.TransNext_native import  *
+#     pass
+# from  .TransNeXt import AggregatedAttention, get_relative_position_cpb
+
+try:
+    import swattention
+    # 尝试从 TransNext_cuda 导入
+    from ultralytics.nn.Extramodule.TransNeXt.TransNext_cuda import AggregatedAttention, get_relative_position_cpb
+except ImportError as e:
+    # 如果导入失败，尝试从 TransNext_native 导入
+    from ultralytics.nn.Extramodule.TransNeXt.TransNext_native import AggregatedAttention, get_relative_position_cpb
+    print("Failed to import from TransNext_cuda. Using native version.")
+
 from timm.models.layers import trunc_normal_
 
 __all__ = ['EMA', 'SimAM', 'SpatialGroupEnhance', 'BiLevelRoutingAttention', 'BiLevelRoutingAttention_nchw', 'TripletAttention', 
            'CoordAtt', 'BAMBlock', 'EfficientAttention', 'LSKBlock', 'SEAttention', 'CPCA', 'MPCA', 'deformable_LKA',
-           'EffectiveSEModule', 'LSKA', 'SegNext_Attention', 'DAttention', 'FocusedLinearAttention', 'MLCA', 'TransNeXt_AggregatedAttention',
+           'EffectiveSEModule', 'LSKA', 'SegNext_Attention', 'DAttention', 'FocusedLinearAttention', 'MLCA', #'TransNeXt_AggregatedAttention',
            'LocalWindowAttention', 'ELA', 'CAA', 'AFGCAttention', 'DualDomainSelectionMechanism', 'EfficientChannelAttention', 'AttentionTSSA']
 
 class EMA(nn.Module):
@@ -1527,30 +1546,30 @@ class MLCA(nn.Module):
         x=x * att_all
         return x
 
-class TransNeXt_AggregatedAttention(nn.Module):
-    def __init__(self, dim, input_resolution, sr_ratio=8, num_heads=8, window_size=3, qkv_bias=True,
-                 attn_drop=0., proj_drop=0.) -> None:
-        super().__init__()
-        
-        if type(input_resolution) == int:
-            input_resolution = (input_resolution, input_resolution)
-        relative_pos_index, relative_coords_table = get_relative_position_cpb(
-                query_size=input_resolution,
-                key_size=(20, 20),
-                pretrain_size=input_resolution)
-        
-        self.register_buffer(f"relative_pos_index", relative_pos_index, persistent=False)
-        self.register_buffer(f"relative_coords_table", relative_coords_table, persistent=False)
-        self.attention = AggregatedAttention(dim, input_resolution, num_heads, window_size, qkv_bias, attn_drop, proj_drop, sr_ratio)
-    
-    def forward(self, x):
-        B, _, H, W = x.size()
-        x = x.flatten(2).transpose(1, 2)
-        relative_pos_index = getattr(self, f"relative_pos_index")
-        relative_coords_table = getattr(self, f"relative_coords_table")
-        x = self.attention(x, H, W, relative_pos_index.to(x.device), relative_coords_table.to(x.device))
-        x = x.reshape(B, H, W, -1).permute(0, 3, 1, 2).contiguous()
-        return x
+# class TransNeXt_AggregatedAttention(nn.Module):
+#     def __init__(self, dim, input_resolution, sr_ratio=8, num_heads=8, window_size=3, qkv_bias=True,
+#                  attn_drop=0., proj_drop=0.) -> None:
+#         super().__init__()
+#
+#         if type(input_resolution) == int:
+#             input_resolution = (input_resolution, input_resolution)
+#         relative_pos_index, relative_coords_table = get_relative_position_cpb(
+#                 query_size=input_resolution,
+#                 key_size=(20, 20),
+#                 pretrain_size=input_resolution)
+#
+#         self.register_buffer(f"relative_pos_index", relative_pos_index, persistent=False)
+#         self.register_buffer(f"relative_coords_table", relative_coords_table, persistent=False)
+#         self.attention = AggregatedAttention(dim, input_resolution, num_heads, window_size, qkv_bias, attn_drop, proj_drop, sr_ratio)
+#
+#     def forward(self, x):
+#         B, _, H, W = x.size()
+#         x = x.flatten(2).transpose(1, 2)
+#         relative_pos_index = getattr(self, f"relative_pos_index")
+#         relative_coords_table = getattr(self, f"relative_coords_table")
+#         x = self.attention(x, H, W, relative_pos_index.to(x.device), relative_coords_table.to(x.device))
+#         x = x.reshape(B, H, W, -1).permute(0, 3, 1, 2).contiguous()
+#         return x
 
 class LayerNorm(nn.Module):
     """ LayerNorm that supports two data formats: channels_last (default) or channels_first. 

@@ -3,53 +3,71 @@ from datetime import datetime
 from ultralytics import YOLO
 
 
-
-# 模型配置文件
 model_yaml_paths = [
-           # r"Custom_Model_cfg_4/yolo11n.yaml",
-           # r"Custom_Model_cfg_4/yolo11_bifpn.yaml",
-           # r"Custom_Model_cfg_4/yolo11_bifpn_2.yaml",
-           # r"Custom_Model_cfg_4/yolo11_C3RepGhost.yaml",
-           # r"Custom_Model_cfg_4/yolo11_Star_Ghost_shufflev2.yaml",
-           # r"Custom_Model_cfg_4/yolo11_Dwconv_Ghost_shufflev2.yaml",
-           # r"Custom_Model_cfg_4/yolo11_RepViTBlock_Ghost_shufflev2.yaml",
-           # r"Custom_Model_cfg_4/yolo11_C3k2sema.yaml",
-           # r"Custom_Model_cfg_4/yolo11_Pconv_Ghost_shufflev2.yaml",
-           # r"Custom_Model_cfg_4/yolov8n_gold_yolo_neck_v3.yaml",
-           # r"Custom_Model_cfg_4/yolo11_gold_Neck.yaml"
-           #  r"Custom_Model_cfg_4/yolo11_DCNv4.yaml"
-           #  "Custom_Model_cfg_4/yolo11_FFCM.yaml"
-           # r"Custom_Model_cfg_4/yolo11_bifpn_3.yaml",
-           #  r"Custom_Model_cfg_4/yolo11_ASFF.yaml"
-           #   "Custom_Model_cfg_4/yolo11_ASFF_2.yaml"
-           #  "Custom_Model_cfg_4/yolov12n-MAFPN.yaml"
-           # r"Custom_Model_cfg_4/yolo11_MAFPN.yaml"
-           #   r"Custom_Model_cfg_4/yolo11_Slim_Neck.yaml"
-           # r"Custom_Model_cfg_5/yolo11_FD.yaml"
-           #  r"Custom_Model_cfg_5/yolo11_ASFF_2_Dysample.yaml",
-           #  r"Custom_Model_cfg_5/yolo11_RepViTblock.yaml"
-           #  r"Custom_Model_cfg_5/yolo11-C3k2-MogaBlock.yaml",
-           #  r"Custom_Model_cfg_6/yolo11_Ghost_MAFPN.yaml"
-           #  r"Custom_Model_cfg_6/yolo11_Ghost_C3k2_MAFPN.yaml"
-           #  r'Custom_Model_cfg_6/yolo11-C3k2-UniRepNetBlock.yaml',
-           #  r"Custom_Model_cfg_6/yolo11_RepHMS_ASFF2.yaml",
-           #  "Custom_Model_cfg_5/yolo11-RepHMS.yaml"
-           #  "Custom_Model_cfg_6/yolo11_MAFPN_RepVit_2.yaml",
-           #  "Custom_Model_cfg_6/yolo11_MAFPN_Dysample.yaml"
-           #  r"Custom_Model_cfg_7/yolo11_MAFPN_modify.yaml"
-           #  r"Custom_Model_cfg_7/yolo11_MAFPN_modifyX_C3k2.yaml",
-           #  r"Custom_Model_cfg_7/yolo11_Ghost_Rep_Ghost_shufflev2_MAFPN.yaml",
-    # r"Custom_Model_cfg_7/yolo11_Ghost_Rep_Ghost_shufflev2_CA_MAFPN.yaml",
-    # r"Custom_Model_cfg_7/yolo11-C3k2-iRMB.yaml",
-    # r"Custom_Model_cfg_7/yolo11-C3k2-MambaOut.yaml"
-    # r"Custom_Model_cfg_7/yolo11-C3k2-Faster-EMA.yaml",
-    # r"Custom_Model_cfg_7/yolo11-C3k2-Star-CAA.yaml",
+    # "Custom_Model_cfg_4/yolo11n.yaml",
+    # "Custom_Model_cfg_4/yolo11_bifpn.yaml",
+    # "Custom_Model_cfg_4/yolo11_bifpn_2.yaml",
+    # "Custom_Model_cfg_4/yolo11_C3RepGhost.yaml",
+    # "Custom_Model_cfg_4/yolo11_Star_Ghost_shufflev2.yaml",
+    # "Custom_Model_cfg_4/yolo11_Dwconv_Ghost_shufflev2.yaml",
+    # "Custom_Model_cfg_4/yolo11_RepViTBlock_Ghost_shufflev2.yaml",
+    # "Custom_Model_cfg_4/yolo11_C3k2sema.yaml",
+    # "Custom_Model_cfg_4/yolo11_Pconv_Ghost_shufflev2.yaml",
+    # "Custom_Model_cfg_4/yolov8n_gold_yolo_neck_v3.yaml",
+    # "Custom_Model_cfg_4/yolo11_gold_Neck.yaml",
+    # "Custom_Model_cfg_4/yolo11_DCNv4.yaml",
+    # "Custom_Model_cfg_4/yolo11_FFCM.yaml",
+    # "Custom_Model_cfg_4/yolo11_bifpn_3.yaml",
+    # "Custom_Model_cfg_4/yolo11_ASFF.yaml",
+    # "Custom_Model_cfg_4/yolo11_ASFF_2.yaml",
+    # "Custom_Model_cfg_4/yolov12n-MAFPN.yaml",
+    # "Custom_Model_cfg_4/yolo11_MAFPN.yaml",
+    # "Custom_Model_cfg_4/yolo11_Slim_Neck.yaml",
+    # "Custom_Model_cfg_5/yolo11_FD.yaml",
+    # "Custom_Model_cfg_5/yolo11_ASFF_2_Dysample.yaml",
+    # "Custom_Model_cfg_5/yolo11_RepViTblock.yaml",
+    # "Custom_Model_cfg_5/yolo11-C3k2-MogaBlock.yaml",
+    # "Custom_Model_cfg_6/yolo11_Ghost_MAFPN.yaml",
+    # "Custom_Model_cfg_6/yolo11_Ghost_C3k2_MAFPN.yaml",
+    # "Custom_Model_cfg_6/yolo11-C3k2-UniRepNetBlock.yaml",
+    # "Custom_Model_cfg_6/yolo11_RepHMS_ASFF2.yaml",
+    # "Custom_Model_cfg_5/yolo11-RepHMS.yaml",
+    # "Custom_Model_cfg_6/yolo11-MAFPN_RepVit_2.yaml",
+    # "Custom_Model_cfg_6/yolo11-MAFPN_Dysample.yaml",
+    # "Custom_Model_cfg_7/yolo11_MAFPN_modify.yaml",
+    # "Custom_Model_cfg_7/yolo11_MAFPN_modifyX_C3k2.yaml",
+    # "Custom_Model_cfg_7/yolo11_Ghost_Rep_Ghost_shufflev2_MAFPN.yaml",
+    # "Custom_Model_cfg_7/yolo11_Ghost_Rep_Ghost_shufflev2_CA_MAFPN.yaml",
+    # "Custom_Model_cfg_7/yolo11-C3k2-iRMB.yaml",
+    # "Custom_Model_cfg_7/yolo11-C3k2-MambaOut.yaml",
+    # "Custom_Model_cfg_7/yolo11-C3k2-Faster-EMA.yaml",
+    # "Custom_Model_cfg_7/yolo11-C3k2-Star-CAA.yaml",
     # "Custom_Model_cfg_7/yolo11_RepStar.yaml",
-    "Custom_Model_cfg_7/yolo11-C3k2-LSBlock.yaml",
+    # "Custom_Model_cfg_7/yolo11-C3k2-LSBlock.yaml",
 
-    # ""
-
+    # 新文件添加了前缀 "Custom_Model_cfg_7/"
+    # "Custom_Model_cfg_7/yolo11-C2ASSA.yaml", #暂时不行
+    # "Custom_Model_cfg_7/yolo11-C2BRA.yaml",
+    # "Custom_Model_cfg_7/yolo11-C2CGA.yaml",
+    # "Custom_Model_cfg_7/yolo11-C2DA.yaml",
+    # "Custom_Model_cfg_7/yolo11-C2DPB.yaml",      #暂时不行
+    # "Custom_Model_cfg_7/yolo11-C2Pola-DYT.yaml", #暂时不行
+    # "Custom_Model_cfg_7/yolo11-C2Pola.yaml",       #暂时不行
+    # "Custom_Model_cfg_7/yolo11-C2PSA-CGLU.yaml",
+    # "Custom_Model_cfg_7/yolo11-C2PSA-DYT.yaml",
+    # "Custom_Model_cfg_7/yolo11-C2PSA-EDFFN.yaml",
+    # "Custom_Model_cfg_7/yolo11-C2PSA-FMFFN.yaml", #暂时不行
+    # "Custom_Model_cfg_7/yolo11-C2PSA-Mona.yaml",
+    # "Custom_Model_cfg_7/yolo11-C2PSA-SEFFN.yaml",
+    # "Custom_Model_cfg_7/yolo11-C2PSA-SEFN.yaml", #暂时不行
+    # "Custom_Model_cfg_7/yolo11-C2TSSA-DYT-Mona-EDFFN.yaml",
+    # "Custom_Model_cfg_7/yolo11-C2TSSA-DYT-Mona-SEFFN.yaml",
+    # "Custom_Model_cfg_7/yolo11-C2TSSA-DYT-Mona-SEFN.yaml",#暂时不行
+    # "Custom_Model_cfg_7/yolo11-C2TSSA-DYT-Mona.yaml",
+    # "Custom_Model_cfg_7/yolo11-C2TSSA-DYT.yaml",
+    # "Custom_Model_cfg_7/yolo11-C2TSSA.yaml"
 ]
+
 
 data="coco8.yaml"
 #data = "Custom_dataset_cfg/coco-vehicle.yaml"

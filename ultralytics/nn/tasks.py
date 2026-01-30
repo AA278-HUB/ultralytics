@@ -110,6 +110,9 @@ from .Extramodule.Neck.ASFF import ASFF
 from .Extramodule.Neck.BiFPN import BiFPN_Concat2, BiFPN_Concat3, BiFPN_Sum2, BiFPN_Sum3
 from .Extramodule.gold_yolo_v3.model.gold_yolo import Low_FAM, Low_IFM, Split, SimConv, Low_LAF, Inject, RepBlock, \
     High_FAM, High_IFM, High_LAF
+from .Extramodule.transformer import C2BRA, C2CGA, C2DA, C2DPB, C2Pola, C2TSSA, C2TSSA_DYT_Mona_EDFFN, C2ASSA, \
+    C2PSA_DYT, C2TSSA_DYT, C2Pola_DYT, C2PSA_FMFFN, C2PSA_CGLU, C2PSA_SEFN, C2PSA_Mona, C2PSA_SEFFN, C2TSSA_DYT_Mona, \
+    C2TSSA_DYT_Mona_SEFN, C2TSSA_DYT_Mona_SEFFN, C2PSA_EDFFN
 from .RepStar import C3k2_RepStar, RepDW, RepStarBlock
 # from .modules.C3k2_MobileMamba import C3k2_MobileMamba, C3k2_MambaVision
 # from .modules.C3k2_MobileMamba import C3k2Mamba
@@ -122,6 +125,7 @@ from .modules.block import ShuffleV1Block, ShuffleV2Block, C3RepGhost2, C2faster
     C3k2_MambaOut, C3k2_Faster_EMA, C3k2_Star, C3k2_Star_CAA, C3k2_LSBlock  # C2f_DCNv4
 from .modules.mafyolo import RepHMS, AVG
 
+# A2C2F_CLASS = (A2C2f, A2C2f_CGLU, A2C2f_KAN, A2C2f_DFFN, A2C2f_FRFN, A2C2f_DYT, A2C2f_CGLU_DYT, A2C2f_DFFN_DYT, A2C2f_FMFFN, A2C2f_FMFFN_DYT, A2C2f_SEFN, A2C2f_Mona, A2C2f_DFFN_DYT_Mona, A2C2f_SEFFN, A2C2f_EDFFN)
 
 # AMP=False,
 
@@ -1895,6 +1899,11 @@ def parse_model(d, ch, verbose=True):
             A2C2f,
         }
     )
+
+    C2PSA_CLASS = {
+    C2BRA, C2CGA, C2DA, C2DPB, C2Pola, C2TSSA, C2ASSA, C2PSA_DYT, C2TSSA_DYT, C2Pola_DYT, C2PSA_FMFFN, C2PSA_CGLU,
+    C2PSA_SEFN, C2PSA_Mona, C2PSA_SEFFN, C2TSSA_DYT_Mona, C2TSSA_DYT_Mona_SEFN, C2TSSA_DYT_Mona_SEFFN, C2PSA_EDFFN,
+    C2TSSA_DYT_Mona_EDFFN}
     # =======添加======
     backbone = False
     Neck =False
@@ -1918,7 +1927,7 @@ def parse_model(d, ch, verbose=True):
             pass
         # if m in{C3Ghost} :
         #     print("调试")
-        if m in base_modules:
+        if m in base_modules or  m in C2PSA_CLASS:
             c1, c2 = ch[f], args[0]
             if c2 != nc:  # if c2 not equal to number of classes (i.e. for Classify() output)
                 c2 = make_divisible(min(c2, max_channels) * width, 8)
@@ -1942,6 +1951,9 @@ def parse_model(d, ch, verbose=True):
                 legacy = False
             if m is C3RepGhost:
                 pass
+            if m in C2PSA_CLASS:
+                args.insert(2, n)  # number of repeats
+                n = 1
         # =======主干======
         elif m in {MobileNetV4ConvLarge, MobileNetV4ConvSmall, MobileNetV4ConvMedium, MobileNetV4ConvSmall}:
                 m = m(*args)
