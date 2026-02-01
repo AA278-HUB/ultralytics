@@ -42,9 +42,9 @@ model_yaml_paths = [
 
 # 可用模型，按照可能的效果排序
 # "Custom_Model_cfg_7/yolo11-C2CGA.yaml",                 # 可能是比较基础的架构
-"Custom_Model_cfg_7/yolo11-C2PSA-CGLU.yaml",  # 更复杂的网络可能具有较高的性能
-"Custom_Model_cfg_7/yolo11-C2PSA-DYT.yaml",  # 相对较新的结构，应该有效
-"Custom_Model_cfg_7/yolo11-C2PSA-EDFFN.yaml",  # EDFFN 可能会有不错的表现
+# "Custom_Model_cfg_7/yolo11-C2PSA-CGLU.yaml",  # 更复杂的网络可能具有较高的性能
+# "Custom_Model_cfg_7/yolo11-C2PSA-DYT.yaml",  # 相对较新的结构，应该有效
+# "Custom_Model_cfg_7/yolo11-C2PSA-EDFFN.yaml",  # EDFFN 可能会有不错的表现
 "Custom_Model_cfg_7/yolo11-C2PSA-FMFFN.yaml",  # FMFFN 模型也比较常见，性能较强
 
 
@@ -101,7 +101,7 @@ if __name__ == '__main__':
         model.train(
             data=data,
             epochs=200,
-            batch=128,
+            batch=64,
             imgsz=640,  # 保持不变
             cos_lr=True,
             lr0=0.01,  # ↑ 初始学习率
