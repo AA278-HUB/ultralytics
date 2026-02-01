@@ -45,7 +45,7 @@ model_yaml_paths = [
 # "Custom_Model_cfg_7/yolo11-C2PSA-CGLU.yaml",  # 更复杂的网络可能具有较高的性能
 # "Custom_Model_cfg_7/yolo11-C2PSA-DYT.yaml",  # 相对较新的结构，应该有效
 # "Custom_Model_cfg_7/yolo11-C2PSA-EDFFN.yaml",  # EDFFN 可能会有不错的表现
-"Custom_Model_cfg_7/yolo11-C2PSA-FMFFN.yaml",  # FMFFN 模型也比较常见，性能较强
+# "Custom_Model_cfg_7/yolo11-C2PSA-FMFFN.yaml",  # FMFFN 模型也比较常见，性能较强
 
 
 
