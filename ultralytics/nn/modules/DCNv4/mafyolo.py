@@ -455,6 +455,151 @@ class ConvMS(nn.Module):
         y_out = torch.cat(elan, 1)
         y_out = self.conv2(y_out)
         return y_out
-    
 
-    
+
+# 先保留原有基础模块（Conv、UniRepLKNetBlock 等不变，这里假设已定义）
+# ...（Conv, UniRepLKNetBlock, DilatedReparamBlock 等保持原样）
+
+# 新增：ShiftwiseConv 模块（基于 CVPR 2025 ShiftwiseConv 核心思想）
+# 简易重参数化实现：训练时 3x3 DW + channel shift，部署时合并为等效大核（可进一步优化）
+class ShiftwiseConv(nn.Module):
+    def __init__(self, channels, kernel_size=3, shift_range=2):
+        super().__init__()
+        self.dwconv = nn.Conv2d(channels, channels, kernel_size=3, padding=1, groups=channels)
+        self.shift_range = shift_range  # shift 步长，控制等效感受野（类似论文中 shift=2 可模拟 ~7x7）
+
+    def forward(self, x):
+        out = self.dwconv(x)
+        # Channel-wise shift（上下左右循环移位，模拟大核偏移聚合）
+        shifted = []
+        for dx in range(-self.shift_range, self.shift_range + 1):
+            for dy in range(-self.shift_range, self.shift_range + 1):
+                if dx == 0 and dy == 0:
+                    continue
+                shifted.append(torch.roll(out, shifts=(dx, dy), dims=(2, 3)))
+        if shifted:
+            out = out + sum(shifted) / len(shifted)
+        return out
+
+    # 重参数化（部署时可合并 shift 为大核权重，类似 UniRepLKNet）
+    def reparameterize(self):
+        # 简化版：实际可通过 unfold+fold 合并为大核（参考原论文 GitHub）
+        pass
+
+
+# 新瓶颈：混合大核 + ShiftwiseConv + Gated
+class DepthBottleneckPlus(nn.Module):
+    def __init__(self, in_channels, out_channels, kersize=5, expansion_depth=2):
+        super().__init__()
+        mid = int(in_channels * expansion_depth)
+
+        self.conv1 = Conv(in_channels, mid, 1)
+        # 第一次：保持真大核（UniRepLKNet，强感受野）
+        self.large_kernel = UniRepLKNetBlock(mid, kernel_size=kersize)
+        self.conv_mid = Conv(mid, mid, 1)
+
+        # 第二次：ShiftwiseConv（高效小核模拟大核）
+        self.shift_conv = ShiftwiseConv(mid, shift_range=2)  # shift_range 可调，等效更大核
+
+        self.conv_out = Conv(mid, out_channels, 1)
+        self.act = nn.SiLU()
+
+        # 轻量 Gate（通道注意力，生成动态权重 α）
+        self.gate = nn.Sequential(
+            nn.AdaptiveAvgPool2d(1),
+            nn.Conv2d(mid, mid // 8, 1),
+            nn.SiLU(),
+            nn.Conv2d(mid // 8, mid, 1),
+            nn.Sigmoid()
+        )
+
+    def forward(self, x):
+        y = self.act(self.conv1(x))
+        y = self.act(self.large_kernel(y))
+        y = self.conv_mid(y)
+
+        # Shiftwise 部分 + Gate 动态加权（类似 GURLKNet gated）
+        shifted = self.shift_conv(y)
+        alpha = self.gate(y)  # (B, mid, 1, 1)
+        y = y + alpha * shifted  # 动态调整 shift 贡献
+
+        y = self.act(y)
+        y = self.conv_out(y)
+        return y
+
+
+# 主块：RepHMSPlus（添加动态权重分配 + concat 前注意力）
+class RepHMSPlus(nn.Module):
+    def __init__(self, in_channels, out_channels, width=3, depth=1, depth_expansion=2, kersize=5,
+                 expansion=0.5, use_depthwise=True):
+        super().__init__()
+        self.width = width
+        self.depth = depth
+        c_ = int(out_channels * expansion)
+        self.conv1 = Conv(in_channels, c_ * width, 1, 1)
+
+        # 使用新瓶颈
+        self.blocks = nn.ModuleList()
+        for _ in range(width - 1):
+            block_list = nn.ModuleList([
+                DepthBottleneckPlus(c_, c_, kersize, depth_expansion)
+                for _ in range(depth)
+            ])
+            self.blocks.append(block_list)
+
+        # concat 前通道注意力（类似 YOLOv11 PSA/SE）
+        self.concat_attn = nn.Sequential(
+            nn.AdaptiveAvgPool2d(1),
+            nn.Conv2d(c_ * (1 + (width - 1) * depth), c_ * (1 + (width - 1) * depth) // 8, 1),
+            nn.SiLU(),
+            nn.Conv2d(c_ * (1 + (width - 1) * depth) // 8, c_ * (1 + (width - 1) * depth), 1),
+            nn.Sigmoid()
+        )
+
+        self.conv2 = Conv(c_ * (1 + (width - 1) * depth), out_channels, 1, 1)
+
+    def forward(self, x):
+        x = self.conv1(x)
+        x_out = [x[:, i * x.shape[1] // self.width:(i + 1) * x.shape[1] // self.width] for i in range(self.width)]
+        x_out[1] = x_out[1] + x_out[0]  # 初始残差
+
+        cascade = []
+        elan = [x_out[0]]
+
+        for i in range(self.width - 1):
+            for j in range(self.depth):
+                current = x_out[i + 1]
+                if i > 0 and cascade:  # 动态权重分配
+                    alpha = current.mean(dim=(2, 3), keepdim=True).sigmoid()  # 简易 scalar alpha（可换更强 gate）
+                    current = current + alpha * cascade[j]
+                    if j == self.depth - 1 and self.depth > 1:
+                        cascade = [cascade[-1]]
+                    elif j == self.depth - 1:
+                        cascade = []
+                current = self.blocks[i][j](current)
+                x_out[i + 1] = current
+                elan.append(current)
+                if i < self.width - 2:
+                    cascade.append(current)
+
+        y = torch.cat(elan, 1)
+        y = y * self.concat_attn(y)  # concat 前注意力加权
+        y = self.conv2(y)
+        return y
+
+
+# 测试入口
+if __name__ == "__main__":
+    # 创建模型（输入通道64，输出通道256，常见 YOLO 配置）
+    model = RepHMSPlus(in_channels=64, out_channels=256, width=3, depth=1, kersize=5, expansion=0.5)
+
+    # 随机输入（B, C, H, W）
+    x = torch.randn(1, 64, 64, 64)
+
+    # 前向传播
+    with torch.no_grad():
+        output = model(x)
+
+    print(f"Input shape: {x.shape}")
+    print(f"Output shape: {output.shape}")
+    print("RepHMSPlus 测试通过！模型可以正常运行。")

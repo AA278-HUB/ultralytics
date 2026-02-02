@@ -66,6 +66,9 @@ model_yaml_paths = [
     # "Custom_Model_cfg_7/yolo11-C2TSSA-DYT-Mona.yaml",
     # "Custom_Model_cfg_7/yolo11-C2TSSA-DYT.yaml",
     # "Custom_Model_cfg_7/yolo11-C2TSSA.yaml"
+    # "Custom_Model_cfg_8/yolo11-RepHMS_plus.yaml",
+    "Custom_Model_cfg_8/yolo11_MAFPN_plus.yaml",
+    "Custom_Model_cfg_4/yolo11_MAFPN.yaml",
 ]
 
 

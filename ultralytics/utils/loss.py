@@ -121,7 +121,7 @@ class BboxLoss(nn.Module):
         self.iou_ratio = 0.5  # total_iou_loss = self.iou_ratio * iou_loss + (1 - self.iou_ratio) * nwd_loss
 
         # WiseIOU
-        self.use_wiseiou = True
+        self.use_wiseiou = False
         if self.use_wiseiou:
             self.wiou_loss = WiseIouLoss(ltype='WIoU', monotonous=False, inner_iou=False, focaler_iou=False)
 

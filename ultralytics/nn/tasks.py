@@ -114,6 +114,7 @@ from .Extramodule.transformer import C2BRA, C2CGA, C2DA, C2DPB, C2Pola, C2TSSA, 
     C2PSA_DYT, C2TSSA_DYT, C2Pola_DYT, C2PSA_FMFFN, C2PSA_CGLU, C2PSA_SEFN, C2PSA_Mona, C2PSA_SEFFN, C2TSSA_DYT_Mona, \
     C2TSSA_DYT_Mona_SEFN, C2TSSA_DYT_Mona_SEFFN, C2PSA_EDFFN
 from .RepStar import C3k2_RepStar, RepDW, RepStarBlock
+from .modules.DCNv4.mafyolo import RepHMSPlus
 # from .modules.C3k2_MobileMamba import C3k2_MobileMamba, C3k2_MambaVision
 # from .modules.C3k2_MobileMamba import C3k2Mamba
 # from .Extramodule.Neck.Gold import RepGDNeck
@@ -1861,6 +1862,7 @@ def parse_model(d, ch, verbose=True):
             VoVGSCSPC,
             VoVGSCSP,
             RepHMS,
+            RepHMSPlus,
             FD_C3k2,
             # C3k2_MobileMamba,
             # C3k2_MambaVision,
