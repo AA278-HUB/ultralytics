@@ -60,17 +60,17 @@ model_yaml_paths = [
 # "Custom_Model_cfg_7/yolo11-C2TSSA-DYT-Mona-EDFFN.yaml",  # 相对复杂的 TSSA 模型，加入 EDFFN 后的性能可能较强
 # "Custom_Model_cfg_7/yolo11-C2TSSA-DYT-Mona-SEFFN.yaml",  # SEFFN 加入后，也许能有更好的效果
 # "Custom_Model_cfg_7/yolo11-C2TSSA-DYT-Mona-SEFN.yaml",   # SEFN 可能对某些任务有改善 # 暂时不行
-"Custom_Model_cfg_7/yolo11-C2TSSA-DYT-Mona.yaml",        # DYT-Mona 可能会表现较好
-"Custom_Model_cfg_7/yolo11-C2TSSA-DYT.yaml",             # 相对复杂的模型，但可能需要调优
-"Custom_Model_cfg_7/yolo11-C2TSSA.yaml",                 # TSSA 的基础版本，效果不错
+# "Custom_Model_cfg_7/yolo11-C2TSSA-DYT-Mona.yaml",        # DYT-Mona 可能会表现较好
+# "Custom_Model_cfg_7/yolo11-C2TSSA-DYT.yaml",             # 相对复杂的模型，但可能需要调优
+# "Custom_Model_cfg_7/yolo11-C2TSSA.yaml",                 # TSSA 的基础版本，效果不错
 
 # "Custom_Model_cfg_7/yolo11-C2ASSA.yaml",               # 暂时不行
 
-"Custom_Model_cfg_7/yolo11-C2BRA.yaml",                 # 比较基础的结构，可能表现一般
-"Custom_Model_cfg_7/yolo11-C2DA.yaml",                  # 基本架构，但缺乏高效优化
+# "Custom_Model_cfg_7/yolo11-C2BRA.yaml",                 # 比较基础的结构，可能表现一般
+# "Custom_Model_cfg_7/yolo11-C2DA.yaml",                  # 基本架构，但缺乏高效优化
 # "Custom_Model_cfg_7/yolo11-C2DPB.yaml",                 # 暂时不行
 
-
+"/sysv/vehicle_orientation_mini/ultralytics/runs/detect/yolo11_MAFPN_modifyX_Repvit_20260130_20_51/weights/best.pt"
             ]
 data = "Custom_dataset_cfg/vehicle_orientation_mini.yaml"
 
@@ -80,7 +80,7 @@ if __name__ == '__main__':
         model_name = os.path.splitext(os.path.basename(model_yaml_path))[0]
         print(f"\n==== Training model: {model_name} ====\n")
         model = YOLO(model_yaml_path)
-        # model.train(resume=True)
+        model.train(resume=True)
 #
 # <<<<<<< HEAD
 #         model.train(
@@ -98,19 +98,19 @@ if __name__ == '__main__':
 #             name=f"{model_name}_{datetime.now().strftime('%Y%m%d_%H_%M')}"
 #         )
 # =======
-        model.train(
-            data=data,
-            epochs=200,
-            batch=64,
-            imgsz=640,  # 保持不变
-            cos_lr=True,
-            lr0=0.01,  # ↑ 初始学习率
-            lrf=0.1,  # ↑ 最终学习率比例
-            close_mosaic=20,  # 提前关闭 mosaic
-            save=True,
-            device=[0,1,2,3],
-            # amp=False,
-            name=f"{model_name}_{datetime.now().strftime('%Y%m%d_%H_%M')}"
-        )
+#         model.train(
+#             data=data,
+#             epochs=200,
+#             batch=64,
+#             imgsz=640,  # 保持不变
+#             cos_lr=True,
+#             lr0=0.01,  # ↑ 初始学习率
+#             lrf=0.1,  # ↑ 最终学习率比例
+#             close_mosaic=20,  # 提前关闭 mosaic
+#             save=True,
+#             device=[0,1,2,3],
+#             # amp=False,
+#             name=f"{model_name}_{datetime.now().strftime('%Y%m%d_%H_%M')}"
+#         )
 # >>>>>>> fe705cf0be66db3253a39dab4347b0f99ce842c5
 
