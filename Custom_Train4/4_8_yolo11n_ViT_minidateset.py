@@ -69,8 +69,10 @@ model_yaml_paths = [
 # "Custom_Model_cfg_7/yolo11-C2BRA.yaml",                 # 比较基础的结构，可能表现一般
 # "Custom_Model_cfg_7/yolo11-C2DA.yaml",                  # 基本架构，但缺乏高效优化
 # "Custom_Model_cfg_7/yolo11-C2DPB.yaml",                 # 暂时不行
-
-"/sysv/vehicle_orientation_mini/ultralytics/runs/detect/yolo11_MAFPN_modifyX_Repvit_20260130_20_51/weights/best.pt"
+"Custom_Model_cfg_8/yolo11_MAFPN_modifyX_C3k2_Mona.yaml",
+"Custom_Model_cfg_8/yolo11_Ghost_Rep_Ghost_shufflev2_MAFPN_Mona.yaml",
+"Custom_Model_cfg_8/yolo11_Ghost_Rep_Ghost_shufflev2_CA_MAFPN_Mona.yaml",
+# "/sysv/vehicle_orientation_mini/ultralytics/runs/detect/yolo11_MAFPN_modifyX_Repvit_20260130_20_51/weights/best.pt"
             ]
 data = "Custom_dataset_cfg/vehicle_orientation_mini.yaml"
 
@@ -80,37 +82,22 @@ if __name__ == '__main__':
         model_name = os.path.splitext(os.path.basename(model_yaml_path))[0]
         print(f"\n==== Training model: {model_name} ====\n")
         model = YOLO(model_yaml_path)
-        model.train(resume=True)
-#
-# <<<<<<< HEAD
-#         model.train(
-#             data=data,
-#             epochs=200,
-#             batch=32,
-#             imgsz=640,  # 保持不变
-#             cos_lr=True,
-#             lr0=0.01,  # ↑ 初始学习率
-#             lrf=0.1,  # ↑ 最终学习率比例
-#             close_mosaic=20,  # 提前关闭 mosaic
-#             save=True,
-#             device=[0,1,2,3],
-#             amp=False,
-#             name=f"{model_name}_{datetime.now().strftime('%Y%m%d_%H_%M')}"
-#         )
+        # model.train(resume=True)
+
 # =======
-#         model.train(
-#             data=data,
-#             epochs=200,
-#             batch=64,
-#             imgsz=640,  # 保持不变
-#             cos_lr=True,
-#             lr0=0.01,  # ↑ 初始学习率
-#             lrf=0.1,  # ↑ 最终学习率比例
-#             close_mosaic=20,  # 提前关闭 mosaic
-#             save=True,
-#             device=[0,1,2,3],
-#             # amp=False,
-#             name=f"{model_name}_{datetime.now().strftime('%Y%m%d_%H_%M')}"
-#         )
+        model.train(
+            data=data,
+            epochs=200,
+            batch=64,
+            imgsz=640,  # 保持不变
+            cos_lr=True,
+            lr0=0.01,  # ↑ 初始学习率
+            lrf=0.1,  # ↑ 最终学习率比例
+            close_mosaic=20,  # 提前关闭 mosaic
+            save=True,
+            device=[0,1,2,3],
+            # amp=False,
+            name=f"{model_name}_{datetime.now().strftime('%Y%m%d_%H_%M')}"
+        )
 # >>>>>>> fe705cf0be66db3253a39dab4347b0f99ce842c5
 
