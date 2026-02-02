@@ -51,7 +51,7 @@ model_yaml_paths = [
 
 # "Custom_Model_cfg_7/yolo11-C2PSA-Mona.yaml",  # 这个模型可能较有潜力
 # "Custom_Model_cfg_7/yolo11-C2PSA-SEFFN.yaml",  # SEFFN 是一种新的结构，可能有一定提升
-"Custom_Model_cfg_7/yolo11-C2PSA-SEFN.yaml",  # 也许是针对某些情况优化的模型
+# "Custom_Model_cfg_7/yolo11-C2PSA-SEFN.yaml",  # 也许是针对某些情况优化的模型 # 暂时不行
 
 # "Custom_Model_cfg_7/yolo11-C2Pola-DYT.yaml",  # 暂时不行
 # "Custom_Model_cfg_7/yolo11-C2Pola.yaml",       # 暂时不行
