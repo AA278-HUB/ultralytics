@@ -83,13 +83,13 @@ model_yaml_paths = [
 # "/sysv/vehicle_orientation_mini/ultralytics/runs/detect/yolo11_MAFPN_modifyX_Repvit_20260130_20_51/weights/best.pt"
 #     "Custom_Model_cfg_6/yolo11-C3k2-UniRepNetBlock.yaml"
 
-    # "Custom_Model_cfg_9/yolo11-RepDGM.yaml",
-    # "Custom_Model_cfg_9/yolo11-RepDGM_V2.yaml",
-    # "Custom_Model_cfg_9/yolo11-RepGMS.yaml",
-    # "Custom_Model_cfg_9/yolo11-RepGVA_ELAN.yaml",
-    # "Custom_Model_cfg_9/yolo11-RepSFA.yaml",
-    # "Custom_Model_cfg_9/yolo11-RepHMS_pro.yaml",
-    # "Custom_Model_cfg_9/yolo11-RepHMA.yaml",
+    "Custom_Model_cfg_9/yolo11-RepDGM.yaml",
+    "Custom_Model_cfg_9/yolo11-RepDGM_V2.yaml",
+    "Custom_Model_cfg_9/yolo11-RepGMS.yaml",
+    "Custom_Model_cfg_9/yolo11-RepGVA_ELAN.yaml",
+    "Custom_Model_cfg_9/yolo11-RepSFA.yaml",
+    "Custom_Model_cfg_9/yolo11-RepHMS_pro.yaml",
+    "Custom_Model_cfg_9/yolo11-RepHMA.yaml",
 
     "Custom_Model_cfg_10/yolo11_MAFPN_modifyX_RepDGM.yaml",
     "Custom_Model_cfg_10/yolo11_MAFPN_modifyX_RepDGMv2.yaml",
