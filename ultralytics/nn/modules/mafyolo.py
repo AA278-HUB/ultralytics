@@ -455,4 +455,114 @@ class ConvMS(nn.Module):
         return y_out
     
 
-    
+# 假设已有 Conv, UniRepLKNetBlock, get_bn 等原模块
+
+class GatedAttention(nn.Module):  # 新增：Gated Attention (受  启发)
+    def __init__(self, channels):
+        super().__init__()
+        self.fc1 = nn.Linear(channels, channels // 16)
+        self.fc2 = nn.Linear(channels // 16, channels)
+        self.act = nn.Sigmoid()
+
+    def forward(self, x):
+        avg_pool = F.adaptive_avg_pool2d(x, (1, 1)).squeeze(-1).squeeze(-1)
+        gate = self.act(self.fc2(F.relu(self.fc1(avg_pool))))
+        return x * gate.unsqueeze(-1).unsqueeze(-1)
+
+class DepthBottleneckUniv3(nn.Module):  # 升级瓶颈块：更大内核 + 重参数化 + 注意
+    def __init__(self, in_channels, out_channels, shortcut=True, kersize=7,  # 默认更大内核
+                 expansion_depth=2, small_kersize=3, use_depthwise=True, reparam=True):
+        super().__init__()
+        mid_channel = int(in_channels * expansion_depth)
+        mid_channel2 = mid_channel
+        self.conv1 = Conv(in_channels, mid_channel, 1)
+        self.shortcut = shortcut
+        if use_depthwise:
+            self.conv2 = UniRepLKNetBlock(mid_channel, kernel_size=kersize)  # 更大内核
+            self.act = nn.SiLU()
+            if reparam:  # 非对称重参数化
+                self.reparam_branch = nn.Sequential(
+                    Conv(mid_channel, mid_channel, 1),  # 1x1 分支
+                    Conv(mid_channel, mid_channel, 3, 1, groups=mid_channel)  # 3x3 DW 分支
+                )
+            self.one_conv = Conv(mid_channel, mid_channel2, kernel_size=1)
+            self.conv3 = UniRepLKNetBlock(mid_channel2, kernel_size=kersize)
+            self.act1 = nn.SiLU()
+            self.one_conv2 = Conv(mid_channel2, out_channels, kernel_size=1)
+            self.attention = GatedAttention(out_channels)  # 新增注意
+        else:
+            self.conv2 = Conv(out_channels, out_channels, 3, 1)
+
+    def forward(self, x):
+        y = self.conv1(x)
+        y = self.act(self.conv2(y))
+        if hasattr(self, 'reparam_branch'):  # 重参数化应用
+            y += self.reparam_branch(y)  # 训练时添加，推理时合并
+        y = self.one_conv(y)
+        y = self.act1(self.conv3(y))
+        y = self.one_conv2(y)
+        y = self.attention(y)  # 应用 gated attention
+        if self.shortcut:
+            y += x  # 残差连接
+        return y
+
+    def reparameterize(self):  # 推理时合并
+        if hasattr(self, 'reparam_branch'):
+            # 合并 reparam_branch 到 conv2/conv3 (伪代码，实际需实现 fuse_bn 等)
+            self.conv2.weight.data += self.reparam_branch[1].weight.data  # 示例合并
+            del self.reparam_branch
+
+#Grok 帮写
+class RepHMSv2(nn.Module):  # 主模块：融入 R-ELAN 风格融合
+    def __init__(self, in_channels, out_channels, width=3, depth=1, depth_expansion=2,
+                 kersize=7, shortcut=True, expansion=0.5, small_kersize=3,
+                 use_depthwise=True, reparam=True):  # 新增 reparam
+        super().__init__()
+        self.width = width
+        self.depth = depth
+        c1 = int(out_channels * expansion) * width
+        c_ = int(out_channels * expansion)
+        self.c_ = c_
+        self.conv1 = Conv(in_channels, c1, 1, 1)
+        self.RepElanMSBlock = nn.ModuleList()
+        for _ in range(width - 1):
+            DepthBlock = nn.ModuleList([
+                DepthBottleneckUniv3(self.c_, self.c_, shortcut, kersize, depth_expansion,
+                                     small_kersize, use_depthwise, reparam)  # 使用新瓶颈
+                for _ in range(depth)
+            ])
+            self.RepElanMSBlock.append(DepthBlock)
+        self.conv2 = Conv(c_ * 1 + c_ * (width - 1) * depth, out_channels, 1, 1)
+        self.residual_agg = nn.ModuleList([nn.Identity() for _ in range(depth)])  # R-ELAN 残差聚合
+
+    def forward(self, x):
+        x = self.conv1(x)
+        x_out = [x[:, i * self.c_:(i + 1) * self.c_] for i in range(self.width)]
+        x_out[1] = x_out[1] + x_out[0]  # 初始融合
+        cascade = []
+        elan = [x_out[0]]
+        for i in range(self.width - 1):
+            for j in range(self.depth):
+                if i > 0:
+                    x_out[i + 1] = x_out[i + 1] + cascade[j] + self.residual_agg[j](x_out[0])  # 添加 R-ELAN 残差
+                    if j == self.depth - 1:
+                        if self.depth > 1:
+                            cascade = [cascade[-1]]
+                        else:
+                            cascade = []
+                x_out[i + 1] = self.RepElanMSBlock[i][j](x_out[i + 1])
+                elan.append(x_out[i + 1])
+                if i < self.width - 2:
+                    cascade.append(x_out[i + 1])
+        y_out = torch.cat(elan, 1)
+        y_out = self.conv2(y_out)
+        return y_out
+# if __name__ == "__main__":
+#     # 测试 RepHMSv2 模块
+#     model = RepHMSv2(in_channels=3, out_channels=64)
+#     model.eval()  # 设置为评估模式，避免 BN 问题
+#     input_tensor = torch.randn(1, 3, 224, 224)
+#     output = model(input_tensor)
+#     print("Input shape:", input_tensor.shape)
+#     print("Output shape:", output.shape)
+#     print("Test completed successfully.")

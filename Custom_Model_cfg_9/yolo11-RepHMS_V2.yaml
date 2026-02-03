@@ -1,0 +1,44 @@
+# Parameters
+nc: 80  # number of classes
+scales:  # model compound scaling constants, i.e. 'model=yolo11n-v2.yaml' will call yolo11-v2.yaml with scale 'n'
+  # [depth, width, max_channels]
+  n: [0.50, 0.25, 1024]  # summary: ~319 layers, ~3.0M parameters (estimated, +5-10% vs original due to gates/attn)
+  s: [0.50, 0.50, 1024]  # summary: ~319 layers, ~11M parameters
+  m: [0.75, 1.00, 512]   # Increased depth slightly for medium
+  l: [1.00, 1.00, 512]   # summary: ~631 layers, ~30M parameters
+  x: [1.00, 1.50, 512]   # summary: ~631 layers, ~65M parameters
+
+# YOLO11n-v2 backbone (RepHMSPlus → RepHMSv2 with larger kernels)
+backbone:
+  # [from, repeats, module, args]
+  - [-1, 1, Conv, [64, 3, 2]]  # 0-P1/2
+  - [-1, 1, Conv, [128, 3, 2]]  # 1-P2/4
+  - [-1, 1, RepHMSv2, [128, 2, 2, 3, 5]]  # 2 (out_channels=128, depth=2, depth_expansion=2, width=3, kersize=5; increased from 3 for better RF)
+  - [-1, 1, Conv, [256, 3, 2]]  # 3-P3/8
+  - [-1, 1, RepHMSv2, [256, 3, 2, 3, 7]]  # 4 (kersize=7, up from 5)
+  - [-1, 1, Conv, [512, 3, 2]]  # 5-P4/16
+  - [-1, 1, RepHMSv2, [512, 3, 2, 3, 9]]  # 6 (kersize=9, up from 7)
+  - [-1, 1, Conv, [1024, 3, 2]]  # 7-P5/32
+  - [-1, 1, RepHMSv2, [1024, 2, 2, 3, 11]]  # 8 (kersize=11, up from 9 for deepest layer)
+  - [-1, 1, SPPF, [1024, 5]]  # 9
+  - [-1, 2, C2PSA, [1024]]  # 10
+
+# YOLO11n-v2 head (RepHMSPlus → RepHMSv2 with larger kernels)
+head:
+  - [-1, 1, nn.Upsample, [None, 2, "nearest"]]
+  - [[-1, 6], 1, Concat, [1]]  # cat backbone P4
+  - [-1, 1, RepHMSv2, [512, 2, 2, 3, 9]]  # 13 (kersize=9, up from 7)
+
+  - [-1, 1, nn.Upsample, [None, 2, "nearest"]]
+  - [[-1, 4], 1, Concat, [1]]  # cat backbone P3
+  - [-1, 1, RepHMSv2, [256, 2, 2, 3, 7]]  # 16 (P3/8-small; kersize=7, up from 5)
+
+  - [-1, 1, Conv, [256, 3, 2]]
+  - [[-1, 13], 1, Concat, [1]]  # cat head P4
+  - [-1, 1, RepHMSv2, [512, 2, 2, 3, 9]]  # 19 (P4/16-medium; kersize=9, up from 7)
+
+  - [-1, 1, Conv, [512, 3, 2]]
+  - [[-1, 10], 1, Concat, [1]]  # cat head P5
+  - [-1, 1, RepHMSv2, [1024, 2, 2, 3, 11]]  # 22 (P5/32-large; kersize=11, up from 9)
+
+  - [[16, 19, 22], 1, Detect, [nc]]  # Detect(P3, P4, P5)
