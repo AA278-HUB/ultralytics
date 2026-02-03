@@ -67,8 +67,31 @@ model_yaml_paths = [
     # "Custom_Model_cfg_7/yolo11-C2TSSA-DYT.yaml",
     # "Custom_Model_cfg_7/yolo11-C2TSSA.yaml"
     # "Custom_Model_cfg_8/yolo11-RepHMS_plus.yaml",
-    "Custom_Model_cfg_8/yolo11_MAFPN_plus.yaml",
-    "Custom_Model_cfg_4/yolo11_MAFPN.yaml",
+    # "Custom_Model_cfg_8/yolo11_MAFPN_plus.yaml",
+    # "Custom_Model_cfg_4/yolo11_MAFPN.yaml",
+    # "Custom_Model_cfg_9/yolo11_MAFPN_modifyX_C3k2.yaml"
+
+    # "Custom_Model_cfg_9/yolo11-RepHMS_V2.yaml"
+
+
+    # "Custom_Model_cfg_9/yolo11-RepDGM.yaml",
+    # "Custom_Model_cfg_9/yolo11-RepDGM_V2.yaml",
+    # "Custom_Model_cfg_9/yolo11-RepGMS.yaml",
+    # "Custom_Model_cfg_9/yolo11-RepGVA_ELAN.yaml",
+    # "Custom_Model_cfg_9/yolo11-RepSFA.yaml",
+    # "Custom_Model_cfg_9/yolo11-RepHMS_pro.yaml",
+    # "Custom_Model_cfg_9/yolo11-RepHMA.yaml",
+
+    "Custom_Model_cfg_10/yolo11_MAFPN_modifyX_RepDGM.yaml",
+    "Custom_Model_cfg_10/yolo11_MAFPN_modifyX_RepDGMv2.yaml",
+    "Custom_Model_cfg_10/yolo11_MAFPN_modifyX_RepDGM_GMS.yaml",
+
+    "Custom_Model_cfg_10/yolo11_MAFPN_modifyX_RepDGM_GVA_ELAN.yaml",
+    "Custom_Model_cfg_10/yolo11_MAFPN_modifyX_RepHMA.yaml",
+
+    "Custom_Model_cfg_10/yolo11_MAFPN_modifyX_RepHMS_pro.yaml",
+    "Custom_Model_cfg_10/yolo11_MAFPN_modifyX_RepSFA.yaml",
+
 ]
 
 
@@ -95,7 +118,7 @@ if __name__ == '__main__':
         model.info()
         # 部署准备
         model.fuse()
-        model.eval()
+        # model.eval()
         # model.val()
         # print("训练结束打印参数")
         # model.info()

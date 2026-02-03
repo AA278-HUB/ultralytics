@@ -557,6 +557,692 @@ class RepHMSv2(nn.Module):  # 主模块：融入 R-ELAN 风格融合
         y_out = torch.cat(elan, 1)
         y_out = self.conv2(y_out)
         return y_out
+
+
+
+#=============Gemini帮写==============
+class SimpleGate(nn.Module):
+    """一个轻量级的门控模块，用于过滤级联时的冗余信息"""
+
+    def __init__(self, channels):
+        super().__init__()
+        self.gate = nn.Sequential(
+            nn.AdaptiveAvgPool2d(1),
+            nn.Conv2d(channels, channels, 1),
+            nn.Sigmoid()
+        )
+
+    def forward(self, x, residual):
+        return x + residual * self.gate(x)
+
+'''1'''
+class RepGMS(nn.Module):
+    """
+    RepGMS: Reparameterized Gated Multi-Scale Block
+    在 RepHMS 基础上增加了 Gate 融合机制和特征校准
+    """
+
+    def __init__(self, in_channels, out_channels, width=3, depth=1, depth_expansion=2, kersize=5, shortcut=True,
+                 expansion=0.5, small_kersize=3, use_depthwise=True):
+        super(RepGMS, self).__init__()
+        self.width = width
+        self.depth = depth
+        c1 = int(out_channels * expansion) * width
+        c_ = int(out_channels * expansion)
+        self.c_ = c_
+
+        self.conv1 = Conv(in_channels, c1, 1, 1)
+
+        # 改进 1: 引入门控融合，减少级联噪声
+        self.gates = nn.ModuleList([SimpleGate(c_) for _ in range(width - 1)])
+
+        self.RepElanMSBlock = nn.ModuleList()
+        for _ in range(width - 1):
+            DepthBlock = nn.ModuleList([
+                DepthBottleneckUniv2(self.c_, self.c_, shortcut, kersize, depth_expansion, small_kersize, use_depthwise)
+                for _ in range(depth)
+            ])
+            self.RepElanMSBlock.append(DepthBlock)
+
+        # 改进 2: 增加一个最终的特征校准层 (类似 SE 但更轻量)
+        self.conv2 = Conv(c_ * 1 + c_ * (width - 1) * depth, out_channels, 1, 1)
+
+    def forward(self, x):
+        x = self.conv1(x)
+        # Split features
+        x_out = [x[:, i * self.c_:(i + 1) * self.c_] for i in range(self.width)]
+
+        # 第一路径级联
+        x_out[1] = x_out[1] + x_out[0]
+
+        cascade = []
+        elan = [x_out[0]]
+
+        for i in range(self.width - 1):
+            for j in range(self.depth):
+                if i > 0:
+                    # 核心改进：使用门控融合替代直接相加
+                    # x_out[i + 1] = x_out[i + 1] + cascade[j]
+                    x_out[i + 1] = self.gates[i - 1](x_out[i + 1], cascade[j])
+
+                    if j == self.depth - 1:
+                        if self.depth > 1:
+                            cascade = [cascade[-1]]
+                        else:
+                            cascade = []
+
+                x_out[i + 1] = self.RepElanMSBlock[i][j](x_out[i + 1])
+                elan.append(x_out[i + 1])
+
+                if i < self.width - 2:
+                    cascade.append(x_out[i + 1])
+
+        y_out = torch.cat(elan, 1)
+        y_out = self.conv2(y_out)
+        return y_out #
+
+class StarReLU(nn.Module):
+    """来自最新 Vision Transformer 研究，比 SiLU 更高效且具备更好的非线性表达"""
+
+    def __init__(self, scale_value=1.0, bias_value=0.0):
+        super().__init__()
+        self.relu = nn.ReLU()
+        self.scale = nn.Parameter(torch.tensor(scale_value))
+        self.bias = nn.Parameter(torch.tensor(bias_value))
+
+    def forward(self, x):
+        return self.scale * (self.relu(x) ** 2) + self.bias
+
+
+class PConv(nn.Module):
+    """Partial Convolution: 减少冗余计算，提升特征提取效率"""
+
+    def __init__(self, dim, n_div=4, forward='split_cat', kernel_size=3):
+        super().__init__()
+        self.dim_conv3 = dim // n_div
+        self.dim_untouched = dim - self.dim_conv3
+        self.partial_conv3 = nn.Conv2d(self.dim_conv3, self.dim_conv3, kernel_size, 1, kernel_size // 2, bias=False)
+
+    def forward(self, x):
+        # 仅对一部分通道进行卷积，其余透传
+        x1, x2 = torch.split(x, [self.dim_conv3, self.dim_untouched], dim=1)
+        x1 = self.partial_conv3(x1)
+        return torch.cat((x1, x2), 1)
+
+class GCI_Module(nn.Module):
+    """Global Context Injection: 全局信息注入模块"""
+
+    def __init__(self, channels):
+        super().__init__()
+        self.global_pool = nn.AdaptiveAvgPool2d(1)
+        self.gate = nn.Sequential(
+            nn.Conv2d(channels, channels, 1),
+            nn.Sigmoid()
+        )
+
+    def forward(self, x, global_feat):
+        # 将全局信息调制到当前分支
+        return x * self.gate(global_feat)
+
+class RepGVA_Bottleneck(nn.Module):
+    def __init__(self, c1, c2, k=5, expansion=1.0):
+        super().__init__()
+        c_ = int(c2 * expansion)
+        self.cv1 = Conv(c1, c_, 1, 1)
+        # 结合 PConv 和 UniRepLK 的大核思想
+        self.pconv = PConv(c_, n_div=4, kernel_size=k)
+        self.lk_block = UniRepLKNetBlock(c_, kernel_size=k)
+        self.cv2 = Conv(c_, c2, 1, 1)
+        self.act = StarReLU()
+
+    def forward(self, x):
+        y = self.cv1(x)
+        y = self.pconv(y)
+        y = self.lk_block(y)
+        return self.cv2(self.act(y))
+
+'''2'''
+class RepGVA_ELAN(nn.Module):
+    """
+    最新一代 RepGVA-ELAN:
+    集成了全局上下文注入、Partial Conv 以及 StarReLU
+    """
+
+    def __init__(self, in_channels, out_channels, width=3, depth=1, kersize=5, expansion=0.5):
+        super().__init__()
+        self.width = width
+        self.c_ = int(out_channels * expansion)
+        c_total = self.c_ * width
+
+        self.conv1 = Conv(in_channels, c_total, 1, 1)
+
+        # 全局特征提取分支
+        self.global_extractor = nn.Sequential(
+            nn.AdaptiveAvgPool2d(1),
+            Conv(self.c_, self.c_, 1, 1)
+        )
+
+        # 全局注入模块
+        self.gci_modules = nn.ModuleList([GCI_Module(self.c_) for _ in range(width - 1)])
+
+        self.blocks = nn.ModuleList()
+        for _ in range(width - 1):
+            self.blocks.append(nn.ModuleList([
+                RepGVA_Bottleneck(self.c_, self.c_, k=kersize) for _ in range(depth)
+            ]))
+
+        self.conv2 = Conv(self.c_ * (1 + (width - 1) * depth), out_channels, 1, 1)
+
+    def forward(self, x):
+        x = self.conv1(x)
+        x_out = list(x.split(self.c_, 1))
+
+        # 提取第一个分支作为全局信息源
+        global_context = self.global_extractor(x_out[0])
+
+        elan_results = [x_out[0]]
+        for i in range(self.width - 1):
+            branch_feat = x_out[i + 1]
+            # 注入全局信息
+            branch_feat = self.gci_modules[i](branch_feat, global_context)
+
+            for j in range(len(self.blocks[i])):
+                branch_feat = self.blocks[i][j](branch_feat)
+                elan_results.append(branch_feat)
+
+        return self.conv2(torch.cat(elan_results, 1))
+
+class DynamicGate(nn.Module):
+    """动态上下文门控：通过全局感受野生成空间/通道权重"""
+
+    def __init__(self, channels, reduction=4):
+        super().__init__()
+        mid_channels = channels // reduction
+        self.gate = nn.Sequential(
+            nn.AdaptiveAvgPool2d(1),
+            nn.Conv2d(channels, mid_channels, 1),
+            nn.ReLU(inplace=True),
+            nn.Conv2d(mid_channels, channels, 1),
+            nn.Sigmoid()
+        )
+
+    def forward(self, x, skip):
+        # 根据当前主干特征 x，动态调整跳连特征 skip 的注入强度
+        g = self.gate(x)
+        return x + g * skip
+class PartialUniRepBottleneck(nn.Module):
+    """
+    结合 PConv 思想的大核瓶颈模块
+    只对 1/4 的通道进行昂贵的大核卷积，其余通道保留原始特征
+    """
+
+    def __init__(self, in_channels, out_channels, kersize=5, p_ratio=0.25):
+        super().__init__()
+        self.split_c = int(in_channels * p_ratio)
+        self.conv_p = UniRepLKNetBlock(self.split_c, kernel_size=kersize)
+        self.conv_1x1 = Conv(in_channels, out_channels, 1)
+        self.act = nn.SiLU()
+
+    def forward(self, x):
+        # 部分卷积：只处理 split_c 长度的通道
+        x1, x2 = torch.split(x, [self.split_c, x.shape[1] - self.split_c], dim=1)
+        x1 = self.conv_p(x1)
+        x = torch.cat((x1, x2), dim=1)
+        return self.act(self.conv_1x1(x))
+
+
+''''3'''
+class RepDGM(nn.Module):
+    """
+    RepDGM: Reparameterized Dynamic Gated Multi-scale Block
+    集成了：1. PConv 算子 2. 动态门控融合 3. ELAN 级联结构
+    """
+
+    def __init__(self, in_channels, out_channels, width=3, depth=1, kersize=5, expansion=0.5):
+        super(RepDGM, self).__init__()
+        self.width = width
+        self.c_ = int(out_channels * expansion)
+
+        # 输入投影
+        self.conv1 = Conv(in_channels, self.c_ * width, 1, 1)
+
+        # 动态门控组
+        self.gates = nn.ModuleList([DynamicGate(self.c_) for _ in range(width - 1)])
+
+        # 深度增强组
+        self.blocks = nn.ModuleList()
+        for _ in range(width - 1):
+            self.blocks.append(nn.ModuleList([
+                PartialUniRepBottleneck(self.c_, self.c_, kersize=kersize)
+                for _ in range(depth)
+            ]))
+
+        # 最终融合
+        self.conv2 = Conv(self.c_ * (1 + (width - 1) * depth), out_channels, 1, 1)
+
+    def forward(self, x):
+        x = self.conv1(x)
+        # 初始特征切分
+        x_splits = list(x.split(self.c_, dim=1))
+
+        results = [x_splits[0]]  # 存储最终 cat 的特征
+        cascade_buffer = x_splits[0]  # 用于跨层传递的缓冲
+
+        for i in range(self.width - 1):
+            curr_feat = x_splits[i + 1]
+
+            # 使用动态门控融合前一层的级联信息
+            curr_feat = self.gates[i](curr_feat, cascade_buffer)
+
+            for j in range(len(self.blocks[i])):
+                curr_feat = self.blocks[i][j](curr_feat)
+                results.append(curr_feat)
+
+            # 更新级联缓冲（通常取该分支的最后输出）
+            cascade_buffer = curr_feat
+
+        y = torch.cat(results, dim=1)
+        return self.conv2(y)
+
+class DynamicGate(nn.Module):
+    """动态上下文门控：通过全局感受野生成空间/通道权重"""
+
+    def __init__(self, channels, reduction=4):
+        super().__init__()
+        mid_channels = channels // reduction
+        self.gate = nn.Sequential(
+            nn.AdaptiveAvgPool2d(1),
+            nn.Conv2d(channels, mid_channels, 1),
+            nn.ReLU(inplace=True),
+            nn.Conv2d(mid_channels, channels, 1),
+            nn.Sigmoid()
+        )
+
+    def forward(self, x, skip):
+        # 根据当前主干特征 x，动态调整跳连特征 skip 的注入强度
+        g = self.gate(x)
+        return x + g * skip
+class PartialUniRepBottleneck(nn.Module):
+    """
+    结合 PConv 思想的大核瓶颈模块
+    只对 1/4 的通道进行昂贵的大核卷积，其余通道保留原始特征
+    """
+
+    def __init__(self, in_channels, out_channels, kersize=5, p_ratio=0.25):
+        super().__init__()
+        self.split_c = int(in_channels * p_ratio)
+        self.conv_p = UniRepLKNetBlock(self.split_c, kernel_size=kersize)
+        self.conv_1x1 = Conv(in_channels, out_channels, 1)
+        self.act = nn.SiLU()
+
+    def forward(self, x):
+        # 部分卷积：只处理 split_c 长度的通道
+        x1, x2 = torch.split(x, [self.split_c, x.shape[1] - self.split_c], dim=1)
+        x1 = self.conv_p(x1)
+        x = torch.cat((x1, x2), dim=1)
+        return self.act(self.conv_1x1(x))
+
+'''4'''
+class RepDGM_V2(nn.Module):
+    """
+    RepDGM: Reparameterized Dynamic Gated Multi-scale Block
+    集成了：1. PConv 算子 2. 动态门控融合 3. ELAN 级联结构
+    """
+
+    def __init__(self, in_channels, out_channels, width=3, depth=1, kersize=5, expansion=0.5):
+        super(RepDGM_V2, self).__init__()
+        self.width = width
+        self.c_ = int(out_channels * expansion)
+
+        # 输入投影
+        self.conv1 = Conv(in_channels, self.c_ * width, 1, 1)
+
+        # 动态门控组
+        self.gates = nn.ModuleList([DynamicGate(self.c_) for _ in range(width - 1)])
+
+        # 深度增强组
+        self.blocks = nn.ModuleList()
+        for _ in range(width - 1):
+            self.blocks.append(nn.ModuleList([
+                PartialUniRepBottleneck(self.c_, self.c_, kersize=kersize)
+                for _ in range(depth)
+            ]))
+
+        # 最终融合
+        self.conv2 = Conv(self.c_ * (1 + (width - 1) * depth), out_channels, 1, 1)
+
+    def forward(self, x):
+        x = self.conv1(x)
+        # 初始特征切分
+        x_splits = list(x.split(self.c_, dim=1))
+
+        results = [x_splits[0]]  # 存储最终 cat 的特征
+        cascade_buffer = x_splits[0]  # 用于跨层传递的缓冲
+
+        for i in range(self.width - 1):
+            curr_feat = x_splits[i + 1]
+
+            # 使用动态门控融合前一层的级联信息
+            curr_feat = self.gates[i](curr_feat, cascade_buffer)
+
+            for j in range(len(self.blocks[i])):
+                curr_feat = self.blocks[i][j](curr_feat)
+                results.append(curr_feat)
+
+            # 更新级联缓冲（通常取该分支的最后输出）
+            cascade_buffer = curr_feat
+
+        y = torch.cat(results, dim=1)
+        return self.conv2(y)
+class StarBottleneck(nn.Module):
+    """
+    基于 StarNet 思想的星型瓶颈模块
+    利用元素级乘法模拟高阶特征交互
+    """
+
+    def __init__(self, ch, kersize=5, expansion=1.0):
+        super().__init__()
+        hidden_ch = int(ch * expansion)
+        self.pre_conv = Conv(ch, hidden_ch * 2, 1)  # 一次性投影到两倍维度
+        self.dw_conv = UniRepLKNetBlock(hidden_ch, kernel_size=kersize)
+        self.post_conv = Conv(hidden_ch, ch, 1)
+        self.act = nn.SiLU()
+
+    def forward(self, x):
+        # 1. 投影并切分为两路
+        x_split = self.pre_conv(x)
+        x1, x2 = torch.split(x_split, x_split.shape[1] // 2, dim=1)
+
+        # 2. 支路 1 进行大核深度卷积增强感官，支路 2 作为调制器
+        x1 = self.dw_conv(x1)
+
+        # 3. 星型运算：元素级乘法 (High-dimensional feature interaction)
+        y = x1 * x2
+
+        # 4. 投影回原始维度并加残差
+        return x + self.post_conv(self.act(y))
+class AdaptiveModulator(nn.Module):
+    """坐标感知的自适应调制模块"""
+
+    def __init__(self, c):
+        super().__init__()
+        self.conv = nn.Sequential(
+            nn.Conv2d(c, c // 4, 1),
+            nn.BatchNorm2d(c // 4),
+            nn.ReLU(inplace=True),
+            nn.Conv2d(c // 4, c, 1),
+            nn.Sigmoid()
+        )
+
+    def forward(self, x, skip):
+        # 计算空间权重，动态调制跳连特征
+        weight = self.conv(x)
+        return x + weight * skip
+'''5'''
+class RepSFA(nn.Module):
+    """
+    RepSFA: Reparameterized Sparse Fusion & Adaptive Modulation Block
+    设计亮点：
+    1. 引入 Star-Operation 提升特征映射的非线性
+    2. 使用自适应调制器优化多尺度级联
+    3. 结构重参数化友好
+    """
+
+    def __init__(self, in_channels, out_channels, width=3, depth=1, kersize=5, expansion=0.5):
+        super(RepSFA, self).__init__()
+        self.width = width
+        self.c_ = int(out_channels * expansion)
+
+        # 输入线性投影
+        self.conv1 = Conv(in_channels, self.c_ * width, 1, 1)
+
+        # 级联调制器：让融合变得“聪明”
+        self.modulators = nn.ModuleList([AdaptiveModulator(self.c_) for _ in range(width - 1)])
+
+        # 深度 Star 模块组
+        self.blocks = nn.ModuleList()
+        for _ in range(width - 1):
+            self.blocks.append(nn.ModuleList([
+                StarBottleneck(self.c_, kersize=kersize)
+                for _ in range(depth)
+            ]))
+
+        self.conv2 = Conv(self.c_ * (1 + (width - 1) * depth), out_channels, 1, 1)
+
+    def forward(self, x):
+        x = self.conv1(x)
+        x_splits = list(x.split(self.c_, dim=1))
+
+        elan_results = [x_splits[0]]
+        current_cascade = x_splits[0]
+
+        for i in range(self.width - 1):
+            feat = x_splits[i + 1]
+
+            # 改进：使用 AFM 进行特征调制融合
+            feat = self.modulators[i](feat, current_cascade)
+
+            for j in range(len(self.blocks[i])):
+                feat = self.blocks[i][j](feat)
+                elan_results.append(feat)
+
+            current_cascade = feat
+
+        return self.conv2(torch.cat(elan_results, dim=1))
+
+
+class StarBottleneckPro(nn.Module):
+    """
+    重构后的星型交互瓶颈：利用高阶非线性提升特征提取强度
+    """
+
+    def __init__(self, ch, kersize=5, expansion=1.0):
+        super().__init__()
+        mid_ch = int(ch * expansion)
+        # 一次性投影得到两个分支进行交互
+        self.pre_conv = Conv(ch, mid_ch * 2, 1)
+        self.dw_conv = UniRepLKNetBlock(mid_ch, kernel_size=kersize)
+        self.post_conv = Conv(mid_ch, ch, 1)
+        self.act = nn.SiLU()
+
+    def forward(self, x):
+        # 产生两个高维分支
+        mu_sigma = self.pre_conv(x)
+        mu, sigma = torch.split(mu_sigma, mu_sigma.shape[1] // 2, dim=1)
+        # 星型运算：x = mu * Conv(sigma)，模拟自注意力的非线性映射
+        out = mu * self.dw_conv(sigma)
+        return x + self.post_conv(self.act(out))
+
+
+class SelectiveFusion(nn.Module):
+    """
+    轻量化动态选择器：决定级联信息的注入权重
+    """
+
+    def __init__(self, c):
+        super().__init__()
+        self.gate = nn.Sequential(
+            nn.AdaptiveAvgPool2d(1),
+            nn.Conv2d(c, c // 4, 1),
+            nn.ReLU(inplace=True),
+            nn.Conv2d(c // 4, c, 1),
+            nn.Sigmoid()
+        )
+
+    def forward(self, current, skip):
+        # 根据当前特征动态调整跳连特征
+        return current + self.gate(current) * skip
+
+'''6'''
+class RepHMS_Pro(nn.Module):
+    """
+    RepHMS-Pro: 在 RepHMS 结构基础上进行的究极进化版
+    1. 级联方式由线性加和改为 Selective Fusion
+    2. 核心算子由 DepthBottleneck 改为 StarBottleneckPro
+    """
+
+    def __init__(self, in_channels, out_channels, width=3, depth=1, kersize=5, expansion=0.5):
+        super(RepHMS_Pro, self).__init__()
+        self.width = width
+        self.depth = depth
+        self.c_ = int(out_channels * expansion)
+
+        # 输入通道投影
+        self.conv1 = Conv(in_channels, self.c_ * width, 1, 1)
+
+        # 动态级联选择器组
+        self.fusion_layers = nn.ModuleList([SelectiveFusion(self.c_) for _ in range(width - 1)])
+
+        # 高阶星型模块组
+        self.RepElanMSBlock = nn.ModuleList()
+        for _ in range(width - 1):
+            self.RepElanMSBlock.append(nn.ModuleList([
+                StarBottleneckPro(self.c_, kersize=kersize)
+                for _ in range(depth)
+            ]))
+
+        # 最终特征聚合
+        self.conv2 = Conv(self.c_ * (1 + (width - 1) * depth), out_channels, 1, 1)
+
+    def forward(self, x):
+        x = self.conv1(x)
+        x_out = [x[:, i * self.c_:(i + 1) * self.c_] for i in range(self.width)]
+
+        # 第一路径简单叠加（保留基础流）
+        x_out[1] = x_out[1] + x_out[0]
+
+        cascade = []
+        elan = [x_out[0]]
+
+        for i in range(self.width - 1):
+            for j in range(self.depth):
+                if i > 0:
+                    # 核心改进：动态选择融合
+                    x_out[i + 1] = self.fusion_layers[i - 1](x_out[i + 1], cascade[j])
+
+                    if j == self.depth - 1:
+                        cascade = [cascade[-1]] if self.depth > 1 else []
+
+                # 核心改进：高阶特征提取
+                x_out[i + 1] = self.RepElanMSBlock[i][j](x_out[i + 1])
+                elan.append(x_out[i + 1])
+
+                if i < self.width - 2:
+                    cascade.append(x_out[i + 1])
+
+        return self.conv2(torch.cat(elan, 1))
+
+
+class DLKA_Bottleneck(nn.Module):
+    """
+    D-LKA: 动态大核注意力瓶颈
+    不仅提取特征，还生成空间掩码进行自校准
+    """
+
+    def __init__(self, ch, kersize=5, expansion=1.5):
+        super().__init__()
+        hidden_ch = int(ch * expansion)
+        self.pre_conv = Conv(ch, hidden_ch, 1)
+
+        # 大核注意力分支：利用重参数化大核捕捉全局依赖
+        self.attn_dw = UniRepLKNetBlock(hidden_ch, kernel_size=kersize)
+        self.attn_1x1 = nn.Conv2d(hidden_ch, hidden_ch, 1)
+
+        # 局部特征分支
+        self.local_conv = DWConv(hidden_ch, hidden_ch, 3)
+
+        self.post_conv = Conv(hidden_ch, ch, 1)
+        self.act = nn.SiLU()
+
+    def forward(self, x):
+        x = self.pre_conv(x)
+        # 生成动态注意力掩码
+        attn = self.attn_1x1(self.attn_dw(x))
+        attn = torch.sigmoid(attn)
+        # 注意力加权 + 局部特征补充
+        x = x * attn + self.local_conv(x)
+        return self.act(self.post_conv(x))
+
+
+class BranchAttention(nn.Module):
+    """
+    分支间上下文校准模块
+    让级联的信息不再是死板的相加，而是基于空间上下文的对齐
+    """
+
+    def __init__(self, c):
+        super().__init__()
+        self.pool = nn.AdaptiveAvgPool2d(1)
+        self.fc = nn.Sequential(
+            nn.Conv2d(c, c // 4, 1),
+            nn.ReLU(inplace=True),
+            nn.Conv2d(c // 4, c, 1),
+            nn.Sigmoid()
+        )
+
+    def forward(self, current, skip):
+        # 计算全局权重
+        scale = self.fc(self.pool(current + skip))
+        return current + skip * scale
+
+'''7'''
+class RepHMA(nn.Module):
+    """
+    RepHMA: 究极进化的重参数化多尺度注意力模块
+    结构上继承 RepHMS，逻辑上引入动态注意力与分支校准
+    """
+
+    def __init__(self, in_channels, out_channels, width=3, depth=1, kersize=7, expansion=0.5):
+        super(RepHMA, self).__init__()
+        self.width = width
+        self.depth=depth
+        self.c_ = int(out_channels * expansion)
+
+        # 输入投影
+        self.conv1 = Conv(in_channels, self.c_ * width, 1, 1)
+
+        # 分支校准层
+        self.calibrators = nn.ModuleList([BranchAttention(self.c_) for _ in range(width - 1)])
+
+        # 核心 D-LKA 模块组
+        self.RepElanMSBlock = nn.ModuleList()
+        for _ in range(width - 1):
+            self.RepElanMSBlock.append(nn.ModuleList([
+                DLKA_Bottleneck(self.c_, kersize=kersize)
+                for _ in range(depth)
+            ]))
+
+        # 最终融合
+        self.conv2 = Conv(self.c_ * (1 + (width - 1) * depth), out_channels, 1, 1)
+
+    def forward(self, x):
+        x = self.conv1(x)
+        x_out = [x[:, i * self.c_:(i + 1) * self.c_] for i in range(self.width)]
+
+        # 初始化级联
+        x_out[1] = x_out[1] + x_out[0]
+
+        cascade = []
+        elan = [x_out[0]]
+
+        for i in range(self.width - 1):
+            for j in range(self.depth):
+                if i > 0:
+                    # 核心改进：分支间自适应校准融合
+                    x_out[i + 1] = self.calibrators[i - 1](x_out[i + 1], cascade[j])
+
+                    if j == self.depth - 1:
+                        cascade = [cascade[-1]] if self.depth > 1 else []
+
+                # 核心改进：D-LKA 动态特征提取
+                x_out[i + 1] = self.RepElanMSBlock[i][j](x_out[i + 1])
+                elan.append(x_out[i + 1])
+
+                if i < self.width - 2:
+                    cascade.append(x_out[i + 1])
+
+        return self.conv2(torch.cat(elan, 1))
+
 # if __name__ == "__main__":
 #     # 测试 RepHMSv2 模块
 #     model = RepHMSv2(in_channels=3, out_channels=64)

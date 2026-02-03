@@ -124,7 +124,8 @@ from .modules.block import ShuffleV1Block, ShuffleV2Block, C3RepGhost2, C2faster
     C3k2_GEMA, C3k2_Sema, C2f_LiteRepMixer, C2f_PSC, C3k2_LiteRepMixer, GSConv, VoVGSCSPC, GSBottleneckC, GSBottleneck, \
     GSConvns, VoVGSCSPC, VoVGSCSP, C2f_FFC, FD_C3k2, C3k2_MogaBlock, C3k2_UniRepLKNetBlock, C3k2_iRMB, \
     C3k2_MambaOut, C3k2_Faster_EMA, C3k2_Star, C3k2_Star_CAA, C3k2_LSBlock  # C2f_DCNv4
-from .modules.mafyolo import RepHMS, AVG
+from .modules.mafyolo import RepHMS, AVG, RepHMSv2, RepHMS_Pro, RepHMA, RepDGM, RepDGM_V2, RepGMS, RepGVA_ELAN, RepSFA
+
 
 # A2C2F_CLASS = (A2C2f, A2C2f_CGLU, A2C2f_KAN, A2C2f_DFFN, A2C2f_FRFN, A2C2f_DYT, A2C2f_CGLU_DYT, A2C2f_DFFN_DYT, A2C2f_FMFFN, A2C2f_FMFFN_DYT, A2C2f_SEFN, A2C2f_Mona, A2C2f_DFFN_DYT_Mona, A2C2f_SEFFN, A2C2f_EDFFN)
 
@@ -1863,6 +1864,14 @@ def parse_model(d, ch, verbose=True):
             VoVGSCSP,
             RepHMS,
             RepHMSPlus,
+            RepHMSv2,
+            RepDGM,
+            RepDGM_V2,
+            RepGMS,
+            RepGVA_ELAN,
+            RepSFA,
+            RepHMS_Pro,
+            RepHMA,
             FD_C3k2,
             # C3k2_MobileMamba,
             # C3k2_MambaVision,
