@@ -71,7 +71,7 @@ model_yaml_paths = [
 # "Custom_Model_cfg_7/yolo11-C2DPB.yaml",                 # 暂时不行
 
 
-    "Custom_Model_cfg_8/yolo11_MAFPN_modifyX_C3k2.yaml"
+    # "Custom_Model_cfg_8/yolo11_MAFPN_modifyX_C3k2.yaml"
 # "Custom_Model_cfg_8/yolo11_MAFPN_modifyX_C3k2_Mona.yaml",
 # "Custom_Model_cfg_8/yolo11_Ghost_Rep_Ghost_shufflev2_MAFPN_Mona.yaml",
 # "Custom_Model_cfg_8/yolo11_Ghost_Rep_Ghost_shufflev2_CA_MAFPN_Mona.yaml",
@@ -81,6 +81,7 @@ model_yaml_paths = [
 #     "Custom_Model_cfg_4/yolo11_MAFPN.yaml",
 #     "Custom_Model_cfg_8/yolo11_MAFPN_plus.yaml",
 # "/sysv/vehicle_orientation_mini/ultralytics/runs/detect/yolo11_MAFPN_modifyX_Repvit_20260130_20_51/weights/best.pt"
+    "Custom_Model_cfg_6/yolo11-C3k2-UniRepNetBlock.yaml"
             ]
 data = "Custom_dataset_cfg/vehicle_orientation_mini.yaml"
 
