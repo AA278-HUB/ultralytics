@@ -79,18 +79,19 @@ model_yaml_paths = [
     # "Custom_Model_cfg_9/yolo11-RepGMS.yaml",
     # "Custom_Model_cfg_9/yolo11-RepGVA_ELAN.yaml",
     # "Custom_Model_cfg_9/yolo11-RepSFA.yaml",
-    # "Custom_Model_cfg_9/yolo11-RepHMS_pro.yaml",
+    "Custom_Model_cfg_9/yolo11-RepHMS_pro.yaml",
+    # "Custom_Model_cfg_8/yolo11-RepHMS_plus.yaml",
     # "Custom_Model_cfg_9/yolo11-RepHMA.yaml",
 
-    "Custom_Model_cfg_10/yolo11_MAFPN_modifyX_RepDGM.yaml",
-    "Custom_Model_cfg_10/yolo11_MAFPN_modifyX_RepDGMv2.yaml",
-    "Custom_Model_cfg_10/yolo11_MAFPN_modifyX_RepDGM_GMS.yaml",
-
-    "Custom_Model_cfg_10/yolo11_MAFPN_modifyX_RepDGM_GVA_ELAN.yaml",
-    "Custom_Model_cfg_10/yolo11_MAFPN_modifyX_RepHMA.yaml",
-
-    "Custom_Model_cfg_10/yolo11_MAFPN_modifyX_RepHMS_pro.yaml",
-    "Custom_Model_cfg_10/yolo11_MAFPN_modifyX_RepSFA.yaml",
+    # "Custom_Model_cfg_10/yolo11_MAFPN_modifyX_RepDGM.yaml",
+    # "Custom_Model_cfg_10/yolo11_MAFPN_modifyX_RepDGMv2.yaml",
+    # "Custom_Model_cfg_10/yolo11_MAFPN_modifyX_RepDGM_GMS.yaml",
+    #
+    # "Custom_Model_cfg_10/yolo11_MAFPN_modifyX_RepDGM_GVA_ELAN.yaml",
+    # "Custom_Model_cfg_10/yolo11_MAFPN_modifyX_RepHMA.yaml",
+    #
+    # "Custom_Model_cfg_10/yolo11_MAFPN_modifyX_RepHMS_pro.yaml",
+    # "Custom_Model_cfg_10/yolo11_MAFPN_modifyX_RepSFA.yaml",
 
 ]
 
