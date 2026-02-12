@@ -105,6 +105,8 @@ model_yaml_paths = [
     "Custom_Model_cfg_11/yolo11_MAFPN_modifyX_RepHMS_Gemini_Star.yaml",
     "Custom_Model_cfg_11/yolo11_MAFPN_modifyX_RepHMS_Grok.yaml",
     "Custom_Model_cfg_11/yolo11_MAFPN_modifyX_RepHMS_Gemini_LightStar.yaml",
+    "Custom_Model_cfg_11/yolo11_MAFPN_modifyX_RepHMS_Grok_V2.yaml",
+    "Custom_Model_cfg_11/yolo11_MAFPN_modifyX_RepHMS_Grok_V3.yaml",
             ]
 data = "Custom_dataset_cfg/vehicle_orientation_mini.yaml"
 
