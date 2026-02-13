@@ -123,7 +123,7 @@ if __name__ == '__main__':
         model.train(
             data=data,
             epochs=200,
-            batch=32,
+            batch=64,
             imgsz=640,  # 保持不变
             cos_lr=True,
             lr0=0.01,  # ↑ 初始学习率
