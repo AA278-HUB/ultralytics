@@ -104,7 +104,8 @@ model_yaml_paths = [
     # "Custom_Model_cfg_11/yolo11_MAFPN_modifyX_RepHMS_Gemini.yaml",
     # "Custom_Model_cfg_11/yolo11_MAFPN_modifyX_RepHMS_Gemini_Star.yaml",
     # "Custom_Model_cfg_11/yolo11_MAFPN_modifyX_RepHMS_Grok.yaml",
-    # "Custom_Model_cfg_11/yolo11_MAFPN_modifyX_RepHMS_Gemini_LightStar.yaml",
+
+    "Custom_Model_cfg_11/yolo11_MAFPN_modifyX_RepHMS_Gemini_LightStar.yaml",
     "Custom_Model_cfg_11/yolo11_MAFPN_modifyX_RepHMS_Grok_V2.yaml",
     "Custom_Model_cfg_11/yolo11_MAFPN_modifyX_RepHMS_Grok_V3.yaml",
             ]
@@ -122,7 +123,7 @@ if __name__ == '__main__':
         model.train(
             data=data,
             epochs=200,
-            batch=64,
+            batch=32,
             imgsz=640,  # 保持不变
             cos_lr=True,
             lr0=0.01,  # ↑ 初始学习率
