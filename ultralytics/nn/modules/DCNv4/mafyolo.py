@@ -1579,6 +1579,141 @@ class RepHMSPlusV3(nn.Module):
         return y
 
 
+
+# -----------------------------------------------------------------------
+# 1. SimAM: 无参数注意力机制 (Simple Attention Module)
+#    参考论文: SimAM: A Simple, Parameter-Free Attention Module for Convolutional Neural Networks
+# -----------------------------------------------------------------------
+class SimAM(nn.Module):
+    def __init__(self, e_lambda=1e-4):
+        super(SimAM, self).__init__()
+        self.activaton = nn.Sigmoid()
+        self.e_lambda = e_lambda
+
+    def forward(self, x):
+        b, c, h, w = x.size()
+        n = w * h - 1
+        x_minus_mu_square = (x - x.mean(dim=[2, 3], keepdim=True)).pow(2)
+        y = x_minus_mu_square / (4 * (x_minus_mu_square.sum(dim=[2, 3], keepdim=True) / n + self.e_lambda)) + 0.5
+        return x * self.activaton(y)
+
+
+# -----------------------------------------------------------------------
+# 2. RepStarBlock: 结合 Star Operation 和 Large Kernel 的轻量化模块
+#    替代原有的 DepthBottleneckUniv2 (5层 -> 3层, 但特征更强)
+# -----------------------------------------------------------------------
+class RepStarBlock(nn.Module):
+    def __init__(self, in_channels, out_channels, kersize=7, expansion=2, use_depthwise=True):
+        super(RepStarBlock, self).__init__()
+
+        # StarNet / ConvNeXt 风格: 宽进窄出或者中间膨胀
+        hidden_channels = int(in_channels * expansion)
+
+        # 1. 大核深度卷积 (Large Kernel Depthwise) - 获取大感受野
+        self.dw = UniRepLKNetBlock(in_channels, kernel_size=kersize) if use_depthwise else \
+            Conv(in_channels, in_channels, kersize, 1, groups=in_channels)
+
+        # 2. Star Operation 的两个分支
+        # 分支A: 变换通道
+        self.f1 = Conv(in_channels, hidden_channels, 1, 1)
+        # 分支B: 门控分支 (不使用激活函数，直接作为 gate)
+        self.f2 = Conv(in_channels, hidden_channels, 1, 1)
+
+        # 3. 输出投影
+        self.out_conv = Conv(hidden_channels, out_channels, 1, 1)
+
+        self.act = nn.SiLU()
+
+    def forward(self, x):
+        # Step 1: 大核提取空间特征
+        x_dw = self.dw(x)
+
+        # Step 2: Star Operation (Element-wise Multiplication)
+        # 这种乘法产生的高阶特征比单纯的 ReLU/SiLU 更丰富
+        x1 = self.f1(x_dw)
+        x2 = self.f2(x_dw)
+        x_star = self.act(x1) * x2  # StarNet 核心: 激活后的特征 * 原始特征
+
+        # Step 3: 输出
+        out = self.out_conv(x_star)
+        return out
+
+
+# -----------------------------------------------------------------------
+# 3. RepHMS_Star: 改进后的主模块
+# -----------------------------------------------------------------------
+class RepHMS_Star(nn.Module):
+    def __init__(self, in_channels, out_channels, width=3, depth=1, depth_expansion=2, kersize=7, shortcut=True,
+                 expansion=0.5, small_kersize=3, use_depthwise=True):
+        super(RepHMS_Star, self).__init__()
+        self.width = width
+        self.depth = depth
+
+        # 通道计算
+        c_ = int(out_channels * expansion)  # split后的通道数
+        self.c_ = c_
+
+        # 初始投影：将输入映射到足够多的通道以供split
+        # 相比原版，这里我们稍微降低一点初始膨胀系数以节省参数，因为 StarBlock 内部有膨胀
+        c1 = c_ * width
+        self.conv1 = Conv(in_channels, c1, 1, 1)
+
+        self.RepElanMSBlock = nn.ModuleList()
+        for _ in range(width - 1):
+            # 使用更高效的 RepStarBlock 替代 DepthBottleneckUniv2
+            # 注意: 这里输入输出都是 c_
+            DepthBlock = nn.ModuleList([
+                RepStarBlock(self.c_, self.c_, kersize=kersize, expansion=depth_expansion, use_depthwise=use_depthwise)
+                for _ in range(depth)
+            ])
+            self.RepElanMSBlock.append(DepthBlock)
+
+        # 引入 SimAM 注意力
+        self.simam = SimAM()
+
+        # 最终融合层
+        # 输入通道 = split的第1部分 + 后续部分的输出
+        # 原版逻辑是 concat(elan, 1)，elan包含所有split部分经过处理后的结果
+        total_channels = c_ * width
+        self.conv2 = Conv(total_channels, out_channels, 1, 1)
+
+    def forward(self, x):
+        # 1. 初始映射
+        y = self.conv1(x)
+
+        # 2. Split (分块)
+        # torch.split 比切片索引通常更快且更易读
+        x_split = list(torch.split(y, self.c_, dim=1))
+
+        # 3. 层次化处理 (Hierarchical Processing)
+        # x_split[0] 直接保留作为基准特征 (类似 CSP/ELAN 的 part1)
+        output_chunks = [x_split[0]]
+
+        # 这种写法模拟了 Dense Connection，但为了效率我们简化级联逻辑
+        # 只需要将上一级的输出加到当前级即可 (Residual Cascade)
+        current_feat = x_split[1]
+
+        for i in range(self.width - 1):
+            # 如果不是第一块，加上前一块的特征 (Feature Reuse)
+            if i > 0:
+                current_feat = current_feat + x_split[i + 1]  # 融合当前split部分
+
+            # 深度处理
+            for j in range(self.depth):
+                current_feat = self.RepElanMSBlock[i][j](current_feat)
+
+            output_chunks.append(current_feat)
+
+        # 4. Concat
+        y_out = torch.cat(output_chunks, 1)
+
+        # 5. Attention Refinement (关键改进)
+        y_out = self.simam(y_out)
+
+        # 6. Final Projection
+        y_out = self.conv2(y_out)
+
+        return y_out
 if __name__ == "__main__":
     # 创建模型（输入通道64，输出通道256，常见 YOLO 配置）
     model = RepHMSPlus(in_channels=64, out_channels=256, width=3, depth=1, kersize=5, expansion=0.5)
