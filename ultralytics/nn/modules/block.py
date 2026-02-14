@@ -4775,6 +4775,105 @@ class C3k2_SC(nn.Module):
         return self.cv2(torch.cat(y, 1))
 
 
+import torch
+import torch.nn as nn
+
+
+# ---------------- 基础组件 ----------------
+def autopad(k, p=None, d=1):
+    if d > 1:
+        k = d * (k - 1) + 1 if isinstance(k, int) else [d * (x - 1) + 1 for x in k]
+    if p is None:
+        p = k // 2 if isinstance(k, int) else [x // 2 for x in k]
+    return p
+
+
+class Conv(nn.Module):
+    """标准卷积块: Conv + BN + SiLU"""
+    default_act = nn.SiLU()
+
+    def __init__(self, c1, c2, k=1, s=1, p=None, g=1, d=1, act=True):
+        super().__init__()
+        self.conv = nn.Conv2d(c1, c2, k, s, autopad(k, p, d), groups=g, dilation=d, bias=False)
+        self.bn = nn.BatchNorm2d(c2)
+        self.act = self.default_act if act is True else act if isinstance(act, nn.Module) else nn.Identity()
+
+    def forward(self, x):
+        return self.act(self.bn(self.conv(x)))
+
+
+# ---------------- 核心改进：Star-LargeKernel ----------------
+
+class StarLKBlock(nn.Module):
+    """
+    Star-LargeKernel Block: 结合了大核感受野与星形乘法交互。
+    原理:
+    1. 分支 A 使用 3x3 卷积捕捉局部细节。
+    2. 分支 B 使用 7x7 大核深度卷积捕捉全局形状。
+    3. 两者进行星形乘法 (Element-wise Prod)，实现类似 Attention 的动态门控效果。
+    """
+
+    def __init__(self, c1, c2, k=7, shortcut=True, e=0.5):
+        super().__init__()
+        c_ = int(c2 * e)
+        # 输入投影：将通道扩充，为分支切分做准备
+        self.cv1 = Conv(c1, c_ * 2, 1, 1)
+
+        # 分支 A: 局部特征提取 (3x3 Depthwise)
+        self.dw_local = nn.Conv2d(c_, c_, kernel_size=3, stride=1, padding=1, groups=c_, bias=False)
+
+        # 分支 B: 全局特征提取 (大核 Depthwise)
+        # 使用 7x7 或 9x9 大核，模拟全局感受野
+        self.dw_global = nn.Conv2d(c_, c_, kernel_size=k, stride=1, padding=k // 2, groups=c_, bias=False)
+
+        self.bn = nn.BatchNorm2d(c_ * 2)
+        self.act = nn.ReLU6()  # StarNet 推荐使用 ReLU6 提升乘法后的稳定性
+
+        # 输出投影
+        self.cv2 = Conv(c_, c2, 1, 1, act=False)
+        self.add = shortcut and c1 == c2
+
+    def forward(self, x):
+        # 1. 第一步：1x1 卷积扩充通道
+        x_tmp = self.cv1(x)
+
+        # 2. 第二步：切分为两个分支
+        x1, x2 = x_tmp.chunk(2, 1)
+
+        # 3. 第三步：分支交互 (Star Operation)
+        # x1 经过 3x3 卷积，x2 经过大核卷积
+        # 它们进行元素级乘法，大核分支起到了“空间权重门控”的作用
+        x_star = self.act(self.dw_local(x1)) * self.dw_global(x2)
+
+        # 4. 第四步：输出投影与残差连接
+        out = self.cv2(x_star)
+        return x + out if self.add else out
+
+
+class C3k2_StarLK(nn.Module):
+    """
+    基于 Star-LargeKernel 的改进 C3k2 模块。
+    """
+
+    def __init__(self, c1, c2, n=1, shortcut=False, g=1, e=0.5, lk_size=7):
+        super().__init__()
+        self.c = int(c2 * e)
+        self.cv1 = Conv(c1, 2 * self.c, 1, 1)
+        self.cv2 = Conv((2 + n) * self.c, c2, 1)
+
+        # 使用 StarLKBlock 替换普通 Bottleneck
+        # n 次堆叠提供更深的特征抽象
+        self.m = nn.ModuleList(
+            StarLKBlock(self.c, self.c, k=lk_size, shortcut=shortcut, e=1.0) for _ in range(n)
+        )
+
+    def forward(self, x):
+        # CSP 分割结构
+        y = list(self.cv1(x).chunk(2, 1))
+        # 级联处理
+        y.extend(m(y[-1]) for m in self.m)
+        # 最终特征融合
+        return self.cv2(torch.cat(y, 1))
 ######################################## StartNet end ########################################
 
 ######################################## KAN begin ########################################
