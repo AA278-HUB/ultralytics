@@ -4358,6 +4358,146 @@ class C3k2_LSBlock(C3k2):
         super().__init__(c1, c2, n, c3k, e, g, shortcut)
         self.m = nn.ModuleList(
             C3k_LSBlock(self.c, self.c, n, shortcut, g) if c3k else LSBlock(self.c) for _ in range(n))
+
+
+
+# ---------------- 工具函数 (若已有可忽略) ----------------
+def autopad_1(k, p=None, d=1):  # kernel, padding, dilation
+    """自动填充，确保输出形状与输入一致"""
+    if d > 1:
+        k = d * (k - 1) + 1 if isinstance(k, int) else [d * (x - 1) + 1 for x in k]
+    if p is None:
+        p = k // 2 if isinstance(k, int) else [x // 2 for x in k]
+    return p
+
+
+class Conv(nn.Module):
+    """标准卷积块: Conv + BN + SiLU"""
+    default_act = nn.SiLU()
+
+    def __init__(self, c1, c2, k=1, s=1, p=None, g=1, d=1, act=True):
+        super().__init__()
+        self.conv = nn.Conv2d(c1, c2, k, s, autopad_1(k, p, d), groups=g, dilation=d, bias=False)
+        self.bn = nn.BatchNorm2d(c2)
+        self.act = self.default_act if act is True else act if isinstance(act, nn.Module) else nn.Identity()
+
+    def forward(self, x):
+        return self.act(self.bn(self.conv(x)))
+
+
+# ---------------- 核心改进组件 ----------------
+
+class LSKA(nn.Module):
+    """
+    LSKA (Large Separable Kernel Attention) 注意力机制
+    论文参考: Visual Attention Network 等近期改进
+    作用: 通过大卷积核分解(如7x7分解为1x7和7x1)，以极低的计算量获取全局感受野。
+    """
+
+    def __init__(self, dim, k=7):
+        super().__init__()
+        # 深度可分离卷积分解 (Depthwise Separable Decomposition)
+        # 1. 水平方向深度卷积
+        self.conv0h = nn.Conv2d(dim, dim, kernel_size=(1, k), padding=(0, k // 2), groups=dim, bias=True)
+        # 2. 垂直方向深度卷积
+        self.conv0v = nn.Conv2d(dim, dim, kernel_size=(k, 1), padding=(k // 2, 0), groups=dim, bias=True)
+
+        # 3. 空间卷积 (进一步融合特征)
+        self.conv_spatial = nn.Conv2d(dim, dim, kernel_size=5, stride=1, padding=2, groups=dim, dilation=1, bias=True)
+        # 4. 1x1 卷积用于通道交互
+        self.conv1 = nn.Conv2d(dim, dim, 1)
+
+    def forward(self, x):
+        u = x.clone()
+        attn = self.conv0h(x)
+        attn = self.conv0v(attn)
+        attn = self.conv_spatial(attn)
+        attn = self.conv1(attn)
+        return u * attn  # 门控机制
+
+
+class StarBlock(nn.Module):
+    """
+    StarNet 瓶颈层设计
+    原理: 使用两个分支的元素级乘法(Element-wise Multiplication)来模拟高维特征映射。
+    结构: Conv1x1 -> (DWConv * DWConv) -> Conv1x1
+    优势: 比传统 Residual Block 参数更少，但特征表达能力更强。
+    """
+
+    def __init__(self, c1, c2, k=3, s=1, e=0.5):  # e为膨胀/收缩系数
+        super().__init__()
+        c_ = int(c2 * e)  # 隐藏层通道数
+
+        # 1. 输入投影
+        self.cv1 = Conv(c1, c_, 1, 1)
+
+        # 2. Star Operation (核心部分)
+        # 分支1: 深度卷积 (负责特征提取)
+        self.dw1 = nn.Conv2d(c_, c_, k, s, padding=k // 2, groups=c_, bias=False)
+        # 分支2: 深度卷积 (负责产生注意力门控权重)
+        self.dw2 = nn.Conv2d(c_, c_, k, s, padding=k // 2, groups=c_, bias=False)
+
+        self.bn1 = nn.BatchNorm2d(c_)
+        self.bn2 = nn.BatchNorm2d(c_)
+        self.act = nn.ReLU6()  # StarNet 原文推荐 ReLU6，计算更高效且利于量化
+
+        # 3. 输出投影
+        self.cv2 = Conv(c_, c2, 1, 1, act=False)
+
+    def forward(self, x):
+        x = self.cv1(x)
+        # 元素级乘法：模拟高阶特征交互
+        # 一个分支作为内容，另一个分支作为动态门控
+        x1 = self.dw1(x)
+        x2 = self.dw2(x)
+        x = self.act(self.bn1(x1)) * self.bn2(x2)
+        return self.cv2(x)
+
+
+class C3k2_Star_Gemini(nn.Module):
+    """
+    改进版 C3k2 模块
+    整合了 CSP 结构、StarNet 瓶颈层 和 LSKA 注意力。
+    """
+
+    def __init__(self, c1, c2, n=1, shortcut=False, g=1, e=0.5, k=3):
+        """
+        Args:
+            c1: 输入通道
+            c2: 输出通道
+            n:  Bottleneck 重复次数
+            shortcut: 是否使用残差连接 (对于StarBlock通常设为False或根据实验调整)
+            e:  CSP 扩展系数
+        """
+        super().__init__()
+        self.c = int(c2 * e)  # 隐藏通道数
+
+        # CSP 的两个分支
+        self.cv1 = Conv(c1, 2 * self.c, 1, 1)
+        self.cv2 = Conv((2 + n) * self.c, c2, 1)
+
+        # 使用 StarBlock 替换原有的 Bottleneck
+        # 注意: StarBlock 内部自带深度卷积，参数量很低，因此 n 可以适当增加或保持不变
+        self.m = nn.ModuleList(
+            StarBlock(self.c, self.c, k=k, e=1.0) for _ in range(n)
+        )
+
+        # 在 CSP 融合后加入 LSKA 注意力，增强全局特征
+        self.att = LSKA(c2)
+
+    def forward(self, x):
+        # 1. CSP 分割 (Chunk)
+        y = list(self.cv1(x).chunk(2, 1))
+
+        # 2. 通过 StarBlock 堆叠层
+        # 这里保留了 DenseNet 风格的级联 (extend)，能最大化特征复用
+        y.extend(m(y[-1]) for m in self.m)
+
+        # 3. 拼接并降维
+        out = self.cv2(torch.cat(y, 1))
+
+        # 4. 应用 LSKA 注意力并输出
+        return self.att(out)
 ######################################## StartNet end ########################################
 
 ######################################## KAN begin ########################################

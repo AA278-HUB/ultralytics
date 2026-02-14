@@ -108,7 +108,8 @@ model_yaml_paths = [
 
     # "Custom_Model_cfg_12/yolo11_MAFPN_modifyX_RepHMS_Ultra.yaml"
     # "Custom_Model_cfg_12/yolo11_MAFPN_modifyX_RepHMS_Omni.yaml "
-    "Custom_Model_cfg_12/yolo11_MAFPN_modifyX_RepHMS_UltraGrok.yaml"
+    # "Custom_Model_cfg_12/yolo11_MAFPN_modifyX_RepHMS_UltraGrok.yaml"
+    "Custom_Model_cfg_12/yolo11_Star.yaml",
 ]
 
 
