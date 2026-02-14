@@ -4498,6 +4498,128 @@ class C3k2_Star_Gemini(nn.Module):
 
         # 4. 应用 LSKA 注意力并输出
         return self.att(out)
+
+
+import torch
+import torch.nn as nn
+
+
+# ---------------- 基础组件 ----------------
+class Conv(nn.Module):
+    """标准卷积块"""
+    default_act = nn.SiLU()
+
+    def __init__(self, c1, c2, k=1, s=1, p=None, g=1, d=1, act=True):
+        super().__init__()
+        # 自动计算 padding
+        if p is None:
+            p = k // 2 if isinstance(k, int) else [x // 2 for x in k]
+
+        self.conv = nn.Conv2d(c1, c2, k, s, p, groups=g, dilation=d, bias=False)
+        self.bn = nn.BatchNorm2d(c2)
+        self.act = self.default_act if act is True else act if isinstance(act, nn.Module) else nn.Identity()
+
+    def forward(self, x):
+        return self.act(self.bn(self.conv(x)))
+
+
+# ---------------- 核心改进组件 ----------------
+
+class SimAM(nn.Module):
+    """
+    SimAM: A Simple, Parameter-Free Attention Module for Convolutional Neural Networks
+    ICML 2021, 无参注意力机制。
+    原理：基于神经科学理论，通过能量函数寻找显著性神经元。
+    """
+
+    def __init__(self, e_lambda=1e-4):
+        super().__init__()
+        self.coeff_lambda = e_lambda
+
+    def forward(self, x):
+        b, c, h, w = x.size()
+        n = w * h - 1
+        x_minus_mu_square = (x - x.mean(dim=[2, 3], keepdim=True)).pow(2)
+        y = x_minus_mu_square / (4 * (x_minus_mu_square.sum(dim=[2, 3], keepdim=True) / n + self.coeff_lambda)) + 0.5
+        return x * torch.sigmoid(y)
+
+
+class PKIBlock(nn.Module):
+    """
+    Poly Kernel Inception Block (多核多尺度模块)
+    并行使用不同大小的卷积核来捕捉多尺度特征，然后通过 SimAM 增强。
+    """
+
+    def __init__(self, c1, c2, shortcut=True, g=1, e=0.5):
+        super().__init__()
+        c_ = int(c2 * e)  # 隐藏层通道数
+        self.cv1 = Conv(c1, c_, 1, 1)
+        self.cv2 = Conv(c_, c2, 1, 1)
+        self.add = shortcut and c1 == c2
+
+        # 多尺度分支设计
+        # 我们将特征图在通道维度分成3份，分别通过不同大小的核
+        # 注意：为了保持效率，全部使用 Depthwise Convolution (groups=channels)
+        self.chunk_dim = c_ // 4
+
+        # 分支1: 3x3 (细节)
+        self.branch1 = nn.Conv2d(self.chunk_dim, self.chunk_dim, kernel_size=3, stride=1, padding=1,
+                                 groups=self.chunk_dim, bias=False)
+        # 分支2: 5x5 (中等物体)
+        self.branch2 = nn.Conv2d(self.chunk_dim, self.chunk_dim, kernel_size=5, stride=1, padding=2,
+                                 groups=self.chunk_dim, bias=False)
+        # 分支3: 7x7 (大物体/上下文)
+        self.branch3 = nn.Conv2d(self.chunk_dim, self.chunk_dim, kernel_size=7, stride=1, padding=3,
+                                 groups=self.chunk_dim, bias=False)
+        # 分支4: 保持原样 (类似ResNet的identity)
+
+        # 注意力增强
+        self.att = SimAM()
+
+    def forward(self, x):
+        y = self.cv1(x)
+
+        # 将特征图沿通道切分为4份
+        # split比chunk更灵活，这里假设通道数能被4整除，如果不整除代码会自动处理剩余部分
+        chunks = torch.split(y, self.chunk_dim, dim=1)
+
+        # 如果通道数不能完美被4整除，取前4个进行处理，或者动态调整（这里假设输入通道设计是规整的）
+        # 处理各分支
+        b1 = self.branch1(chunks[0])
+        b2 = self.branch2(chunks[1])
+        b3 = self.branch3(chunks[2])
+        b4 = chunks[3]  # Identity分支
+
+        # 拼接回原始形状
+        y = torch.cat([b1, b2, b3, b4], dim=1)
+
+        # 注意力加权
+        y = self.att(y)
+
+        y = self.cv2(y)
+        return x + y if self.add else y
+
+
+class C3k2_PKI(nn.Module):
+    """
+    基于 PKI (多尺度) 的改进版 C3k2
+    """
+
+    def __init__(self, c1, c2, n=1, shortcut=False, g=1, e=0.5, k=3):
+        super().__init__()
+        self.c = int(c2 * e)
+        self.cv1 = Conv(c1, 2 * self.c, 1, 1)
+        self.cv2 = Conv((2 + n) * self.c, c2, 1)
+
+        # 使用 PKIBlock 替代普通 Bottleneck
+        self.m = nn.ModuleList(
+            PKIBlock(self.c, self.c, shortcut, g, e=1.0) for _ in range(n)
+        )
+
+    def forward(self, x):
+        y = list(self.cv1(x).chunk(2, 1))
+        y.extend(m(y[-1]) for m in self.m)
+        return self.cv2(torch.cat(y, 1))
 ######################################## StartNet end ########################################
 
 ######################################## KAN begin ########################################
