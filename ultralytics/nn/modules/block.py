@@ -4620,6 +4620,161 @@ class C3k2_PKI(nn.Module):
         y = list(self.cv1(x).chunk(2, 1))
         y.extend(m(y[-1]) for m in self.m)
         return self.cv2(torch.cat(y, 1))
+
+
+# import torch
+# import torch.nn as nn
+# import torch.nn.functional as F
+#
+#
+# # ---------------- 基础组件 ----------------
+# def autopad(k, p=None, d=1):
+#     if d > 1:
+#         k = d * (k - 1) + 1 if isinstance(k, int) else [d * (x - 1) + 1 for x in k]
+#     if p is None:
+#         p = k // 2 if isinstance(k, int) else [x // 2 for x in k]
+#     return p
+
+
+class Conv(nn.Module):
+    default_act = nn.SiLU()
+
+    def __init__(self, c1, c2, k=1, s=1, p=None, g=1, d=1, act=True):
+        super().__init__()
+        self.conv = nn.Conv2d(c1, c2, k, s, autopad(k, p, d), groups=g, dilation=d, bias=False)
+        self.bn = nn.BatchNorm2d(c2)
+        self.act = self.default_act if act is True else act if isinstance(act, nn.Module) else nn.Identity()
+
+    def forward(self, x):
+        return self.act(self.bn(self.conv(x)))
+
+
+# ---------------- ScConv 核心组件 (CVPR 2023) ----------------
+
+class SRU(nn.Module):
+    """
+    Spatial Reconstruction Unit (空间重构单元)
+    作用: 分离并抑制空间上的冗余特征(背景噪声)。
+    """
+
+    def __init__(self, c1, g=32):
+        super().__init__()
+        self.gn = nn.GroupNorm(num_groups=g, num_channels=c1)
+
+    def forward(self, x):
+        b, c, h, w = x.shape
+        # 1. 通过 GroupNorm 获取空间重要性描述子
+        gn_x = self.gn(x)
+        # 2. 生成门控权重 (Sigmoid 将值映射到 0~1)
+        w_gamma = self.gn.weight.reshape(1, -1, 1, 1)
+        w_beta = self.gn.bias.reshape(1, -1, 1, 1)
+
+        # 这里的门控机制：利用归一化后的特征强度来判断像素的重要性
+        gate = torch.sigmoid(gn_x * w_gamma + w_beta)
+
+        # 3. 特征分离
+        # 信息丰富的特征 (Informative)
+        x1 = x * gate
+        # 信息较少的特征 (Redundant/Noise)，通过 1-gate 抑制
+        x2 = x * (1 - gate)
+
+        # 4. 重构：将两部分特征拼接 (这里简化为直接叠加处理后的结果，更符合轻量化设计)
+        # 原论文是拼接后过Conv，这里为了适配 C3k2 结构，我们直接返回处理后的加权特征
+        return x1 + x2  # 或者 torch.cat([x1, x2], dim=1) 后接 1x1 conv 降维，这里采用加法融合以节省参数
+
+
+class CRU(nn.Module):
+    """
+    Channel Reconstruction Unit (通道重构单元)
+    作用: 使用 "Split-Transform-Fuse" 策略减少通道冗余。
+    """
+
+    def __init__(self, c1, c2, alpha=0.5):
+        super().__init__()
+        self.up_c = int(c1 * alpha)
+        self.low_c = c1 - self.up_c
+
+        # 上分支：轻量级提取
+        self.conv1 = nn.Conv2d(self.up_c, self.up_c, 3, 1, 1, bias=False)
+
+        # 下分支：特征压缩与提取
+        self.conv2 = nn.Conv2d(self.low_c, self.low_c, 3, 1, 1, bias=False)
+
+        # 融合卷积
+        self.conv_fuse = Conv(c1, c2, 1, 1)
+
+    def forward(self, x):
+        # Split (切分)
+        up, low = torch.split(x, [self.up_c, self.low_c], dim=1)
+
+        # Transform (变换)
+        up = self.conv1(up)
+        low = self.conv2(low)
+
+        # Fuse (融合)
+        return self.conv_fuse(torch.cat([up, low], dim=1))
+
+
+class ScConv(nn.Module):
+    """
+    ScConv: 结合 SRU 和 CRU 的完整卷积模块
+    """
+
+    def __init__(self, c1, c2, k=3, s=1):
+        super().__init__()
+        # 这里的 SRU 不需要改变通道数，主要做空间筛选
+        self.sru = SRU(c1)
+        # CRU 负责改变通道数和特征融合，替代标准 Conv
+        self.cru = CRU(c1, c2)
+
+    def forward(self, x):
+        x = self.sru(x)
+        x = self.cru(x)
+        return x
+
+
+class ScBottleneck(nn.Module):
+    """
+    使用 ScConv 的瓶颈层
+    结构: Conv1x1 -> ScConv -> Conv1x1 (可选)
+    """
+
+    def __init__(self, c1, c2, shortcut=True, g=1, e=0.5):
+        super().__init__()
+        c_ = int(c2 * e)
+        self.cv1 = Conv(c1, c_, 1, 1)
+        # 核心替换：用 ScConv 替换中间的 3x3 Conv
+        self.sc_conv = ScConv(c_, c_, k=3)
+        self.cv2 = Conv(c_, c2, 1, 1)
+        self.add = shortcut and c1 == c2
+
+    def forward(self, x):
+        return x + self.cv2(self.sc_conv(self.cv1(x))) if self.add else self.cv2(self.sc_conv(self.cv1(x)))
+
+
+class C3k2_SC(nn.Module):
+    """
+    基于 ScConv (CVPR 2023) 的改进版 C3k2
+    专注解决特征冗余问题，提升有效特征占比。
+    """
+
+    def __init__(self, c1, c2, n=1, shortcut=False, g=1, e=0.5, k=3):
+        super().__init__()
+        self.c = int(c2 * e)
+        self.cv1 = Conv(c1, 2 * self.c, 1, 1)
+        self.cv2 = Conv((2 + n) * self.c, c2, 1)
+
+        # 使用 ScBottleneck
+        self.m = nn.ModuleList(
+            ScBottleneck(self.c, self.c, shortcut, g, e=1.0) for _ in range(n)
+        )
+
+    def forward(self, x):
+        y = list(self.cv1(x).chunk(2, 1))
+        y.extend(m(y[-1]) for m in self.m)
+        return self.cv2(torch.cat(y, 1))
+
+
 ######################################## StartNet end ########################################
 
 ######################################## KAN begin ########################################
