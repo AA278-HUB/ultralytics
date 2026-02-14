@@ -1639,9 +1639,70 @@ class RepStarBlock(nn.Module):
         return out
 
 
+import torch
+import torch.nn as nn
+import torch.nn.functional as F
+
+
 # -----------------------------------------------------------------------
-# 3. RepHMS_Star: 改进后的主模块
+# 1. PShift: Partial Shift Conv (高效位移算子)
+# 优化了原版 ShiftwiseConv 的速度，采用部分通道位移
 # -----------------------------------------------------------------------
+class PShift(nn.Module):
+    def __init__(self, channels, shift_fraction=0.25):
+        super().__init__()
+        self.shift_c = int(channels * shift_fraction)
+
+    def forward(self, x):
+        # x: [B, C, H, W]
+        out = x.clone()
+        c = self.shift_c
+        # 对前 c 个通道进行不同方向的偏移，无需 torch.roll，直接切片拼接更快
+        # 向上、下、左、右偏移
+        c4 = c // 4
+        out[:, :c4, 1:, :] = x[:, :c4, :-1, :]  # Shift Up
+        out[:, c4:2 * c4, :-1, :] = x[:, c4:2 * c4, 1:, :]  # Shift Down
+        out[:, 2 * c4:3 * c4, :, 1:] = x[:, 2 * c4:3 * c4, :, :-1]  # Shift Left
+        out[:, 3 * c4:c, :, :-1] = x[:, 3 * c4:c, :, 1:]  # Shift Right
+        return out
+
+
+# -----------------------------------------------------------------------
+# 2. StarGatedBottleneck: 星型门控瓶颈层
+# 结合了 UniRepLKNet 的感受野和 StarNet 的非线性交互
+# -----------------------------------------------------------------------
+class StarGatedBottleneck(nn.Module):
+    def __init__(self, in_channels, out_channels, kersize=7, expansion=2.0):
+        super().__init__()
+        mid = int(in_channels * expansion)
+        self.conv1 = Conv(in_channels, mid, 1)
+
+        # 大核深度卷积获取空间上下文
+        self.lk = UniRepLKNetBlock(mid, kernel_size=kersize)
+
+        # PShift 增强
+        self.pshift = PShift(mid)
+
+        # Star-Operation 分支：通过两个 1x1 卷积的元素级乘法模拟高阶特征
+        self.gate_w1 = nn.Conv2d(mid, mid, 1, groups=mid, bias=False)
+        self.gate_w2 = nn.Conv2d(mid, mid, 1, bias=False)
+
+        self.conv_out = Conv(mid, out_channels, 1)
+        self.act = nn.SiLU()
+
+    def forward(self, x):
+        x = self.conv1(x)
+
+        # 空间特征提取
+        y = self.lk(x)
+        y = self.pshift(y)
+
+        # Star-Operation: (W1*y) * (W2*y) 产生极强的非线性
+        # 这种结构在 StarNet 中证明比单一激活层更有效
+        star = self.gate_w1(y) * self.gate_w2(y)
+
+        return self.conv_out(self.act(star))
+
 class RepHMS_Star(nn.Module):
     def __init__(self, in_channels, out_channels, width=3, depth=1, depth_expansion=2, kersize=7, shortcut=True,
                  expansion=0.5, small_kersize=3, use_depthwise=True):
@@ -1714,6 +1775,406 @@ class RepHMS_Star(nn.Module):
         y_out = self.conv2(y_out)
 
         return y_out
+
+
+# -----------------------------------------------------------------------
+# 3. Light-Context-Attention (LCA): 轻量级上下文注意力
+# 用于 concat 后的全局特征精炼
+# -----------------------------------------------------------------------
+class LCA(nn.Module):
+    def __init__(self, channels, reduction=16):
+        super().__init__()
+        self.avg_pool = nn.AdaptiveAvgPool2d(1)
+        # 空间注意力分支
+        self.spat_conv = nn.Conv2d(channels, 1, kernel_size=3, padding=1, bias=False)
+        # 通道权重分支
+        self.chan_fc = nn.Sequential(
+            nn.Conv2d(channels, channels // reduction, 1, bias=False),
+            nn.SiLU(),
+            nn.Conv2d(channels // reduction, channels, 1, bias=False)
+        )
+        self.sigmoid = nn.Sigmoid()
+
+    def forward(self, x):
+        # 通道注意力
+        ca = self.chan_fc(self.avg_pool(x))
+        # 空间注意力
+        sa = self.spat_conv(x)
+        return x * self.sigmoid(ca) * self.sigmoid(sa)
+
+
+# -----------------------------------------------------------------------
+# 4. RepHMS_Ultra: 最终改进主模块
+# -----------------------------------------------------------------------
+class RepHMS_Ultra(nn.Module):
+    def __init__(self, in_channels, out_channels, width=3, depth=1, depth_expansion=1.5, kersize=7,
+                 expansion=0.5):
+        super().__init__()
+        self.width = width
+        self.depth = depth
+        c_ = int(out_channels * expansion)
+        self.c_ = c_
+
+        self.conv1 = Conv(in_channels, c_ * width, 1, 1)
+
+        # 使用新的星型门控瓶颈
+        self.blocks = nn.ModuleList()
+        for _ in range(width - 1):
+            block_list = nn.ModuleList([
+                StarGatedBottleneck(c_, c_, kersize, depth_expansion)
+                for _ in range(depth)
+            ])
+            self.blocks.append(block_list)
+
+        # 跨分支动态对齐 Alpha (Scalar Learnable)
+        self.alphas = nn.Parameter(torch.ones(width - 1, depth) * 0.5)
+
+        # 全局上下文精炼
+        self.refine = LCA(c_ * (1 + (width - 1) * depth))
+        self.conv2 = Conv(c_ * (1 + (width - 1) * depth), out_channels, 1, 1)
+
+    def forward(self, x):
+        x = self.conv1(x)
+        # Split
+        x_out = list(torch.split(x, self.c_, dim=1))
+
+        # 初始特征流融合
+        x_out[1] = x_out[1] + x_out[0]
+
+        elan = [x_out[0]]
+        cascade = []
+
+        for i in range(self.width - 1):
+            for j in range(self.depth):
+                current = x_out[i + 1]
+
+                # 改进的动态级联：使用可学习的缩放因子 alpha
+                if i > 0 and cascade:
+                    current = current + self.alphas[i - 1, j] * cascade[j]
+
+                # 通过 StarGatedBottleneck 处理
+                current = self.blocks[i][j](current)
+
+                x_out[i + 1] = current
+                elan.append(current)
+
+                # 保存用于下一层 Cascade 的特征
+                if i < self.width - 2:
+                    if j < len(cascade):
+                        cascade[j] = current
+                    else:
+                        cascade.append(current)
+
+        # 融合所有尺度
+        y = torch.cat(elan, 1)
+        # LCA 注意力精炼
+        y = self.refine(y)
+        y = self.conv2(y)
+        return y
+
+# -----------------------------------------------------------------------
+# 3. RepHMS_Star: 改进后的主模块
+# -----------------------------------------------------------------------
+
+
+# -----------------------------------------------------------------------
+# 1. GlobalSpectralFilter (GSF): 基于频域的全局特征捕捉
+#    通过全局平均池化和频域掩码模拟 2D DCT 的效果，实现全局交互
+# -----------------------------------------------------------------------
+class GlobalSpectralFilter(nn.Module):
+    def __init__(self, channels):
+        super().__init__()
+        # 频域学习权重：在不增加 FLOPs 的情况下捕捉全局空间特征
+        self.weight = nn.Parameter(torch.ones(1, channels, 1, 1))
+
+    def forward(self, x):
+        # 1. 提取全局空间统计信息 (类似频域中的零频率分量)
+        atten = F.adaptive_avg_pool2d(x, 1)
+        # 2. 频域加权
+        atten = atten * self.weight
+        # 3. 这里的乘法实现了全局上下文的重校准
+        return x * torch.sigmoid(atten)
+
+
+# -----------------------------------------------------------------------
+# 2. SelectiveGate: 模拟 Mamba 的选择性机制
+#    利用 Tanh 和 Sigmoid 的交互产生动态选择流
+# -----------------------------------------------------------------------
+class SelectiveGate(nn.Module):
+    def __init__(self, channels):
+        super().__init__()
+        self.conv_gate = nn.Conv2d(channels, channels * 2, 1)
+        self.conv_out = nn.Conv2d(channels, channels, 1)
+
+    def forward(self, x):
+        # 模拟 Mamba 的选路逻辑
+        g = self.conv_gate(x)
+        x1, x2 = g.chunk(2, dim=1)
+        # Tanh 控制强度，Sigmoid 控制门控
+        out = torch.tanh(x1) * torch.sigmoid(x2)
+        return self.conv_out(out)
+
+
+# -----------------------------------------------------------------------
+# 3. OmniBottleneck: 全能瓶颈层
+#    融合了：大核卷积(空间) + 频域过滤器(全局) + 选择性门控(动态)
+# -----------------------------------------------------------------------
+class OmniBottleneck(nn.Module):
+    def __init__(self, in_channels, out_channels, kersize=7):
+        super().__init__()
+        mid = in_channels
+
+        # 局部特征：深度卷积
+        self.local_conv = UniRepLKNetBlock(mid, kernel_size=kersize)
+
+        # 全局特征：频域过滤
+        self.global_filter = GlobalSpectralFilter(mid)
+
+        # 动态选择：选择性门控
+        self.selective_gate = SelectiveGate(mid)
+
+        # 投影与融合
+        self.proj = Conv(mid, out_channels, 1)
+
+    def forward(self, x):
+        identity = x
+        # 1. 空间与全局并行提取
+        x_local = self.local_conv(x)
+        x_global = self.global_filter(x)
+
+        # 2. 动态特征交互
+        y = self.selective_gate(x_local + x_global)
+
+        # 3. 残差连接与输出
+        return self.proj(y + identity)
+# -----------------------------------------------------------------------
+# 4. RepHMS_Omni: 最终的主模块
+# -----------------------------------------------------------------------
+class RepHMS_Omni(nn.Module):
+    def __init__(self, in_channels, out_channels, width=3, depth=1, kersize=7, expansion=0.5):
+        super().__init__()
+        self.width = width
+        self.depth = depth
+        c_ = int(out_channels * expansion)
+        self.c_ = c_
+
+        self.conv1 = Conv(in_channels, c_ * width, 1, 1)
+
+        # 核心：OmniBottleneck
+        self.blocks = nn.ModuleList()
+        for _ in range(width - 1):
+            block_list = nn.ModuleList([
+                OmniBottleneck(c_, c_, kersize=kersize)
+                for _ in range(depth)
+            ])
+            self.blocks.append(block_list)
+
+        # 特征自适应聚合 (FAM)
+        self.fam = nn.Sequential(
+            nn.AdaptiveAvgPool2d(1),
+            nn.Conv2d(c_ * (1 + (width - 1) * depth), c_ * (1 + (width - 1) * depth), 1, groups=c_),
+            nn.Sigmoid()
+        )
+
+        self.conv2 = Conv(c_ * (1 + (width - 1) * depth), out_channels, 1, 1)
+
+    def forward(self, x):
+        x = self.conv1(x)
+        x_out = list(torch.split(x, self.c_, dim=1))
+
+        # 初始跨分支连接
+        x_out[1] = x_out[1] + x_out[0]
+
+        elan = [x_out[0]]
+        cascade = []
+
+        for i in range(self.width - 1):
+            for j in range(self.depth):
+                current = x_out[i + 1]
+
+                # 特征重用
+                if i > 0 and cascade:
+                    current = current + cascade[j]
+
+                # Omni 处理
+                current = self.blocks[i][j](current)
+
+                x_out[i + 1] = current
+                elan.append(current)
+
+                if i < self.width - 2:
+                    if j < len(cascade):
+                        cascade[j] = current
+                    else:
+                        cascade.append(current)
+
+        # 融合所有特征
+        y = torch.cat(elan, 1)
+        # 频域自适应权重精炼
+        y = y * self.fam(y)
+        y = self.conv2(y)
+        return y
+
+
+
+# 使用更少的移位和动态选择来减少计算，同时模拟大核
+class EfficientShiftwiseConv(nn.Module):
+    def __init__(self, channels, kernel_size=3, shift_range=1, reduction=4):  # 减少shift_range以提高效率
+        # 初始化函数：设置通道、核大小、移位范围和缩减率
+        super().__init__()
+        self.dwconv = nn.Conv2d(channels, channels, kernel_size=3, padding=1, groups=channels)  # 深度卷积
+        self.shift_range = shift_range  # 较小的范围以降低FLOPs（例如，1模拟~5x5有效）
+        self.reduction = reduction  # 通道缩减用于轻量级门控
+
+        # 轻量级门控，用于动态选择移位重要性（受Gated UniRepLKNet和DynamicVit启发）
+        self.gate = nn.Sequential(
+            nn.AdaptiveAvgPool2d(1),  # 自适应平均池化
+            nn.Conv2d(channels, channels // self.reduction, 1),  # 1x1卷积降维
+            nn.SiLU(),  # SiLU激活函数
+            nn.Conv2d(channels // self.reduction, (2 * shift_range + 1) ** 2 - 1, 1),  # 为每个移位方向生成门控
+            nn.Softmax(dim=1)  # Softmax归一化权重
+        )
+
+    def forward(self, x):
+        # 前向传播：执行深度卷积并应用动态移位
+        out = self.dwconv(x)
+        # 生成移位的动态权重
+        weights = self.gate(out)  # (B, num_shifts, 1, 1)
+
+        # 高效移位聚合：基于权重进行加权求和
+        shifted = []
+        idx = 0
+        for dx in range(-self.shift_range, self.shift_range + 1):
+            for dy in range(-self.shift_range, self.shift_range + 1):
+                if dx == 0 and dy == 0:
+                    continue
+                shift_out = torch.roll(out, shifts=(dx, dy), dims=(2, 3))  # 循环移位
+                shifted.append(shift_out * weights[:, idx:idx + 1, :, :])  # 加权移位
+                idx += 1
+        if shifted:
+            out = out + sum(shifted)  # 聚合所有移位
+        return out
+
+    # 重参数化（部署时：将移位合并为等效大核，类似于UniRepLKNet）
+    def reparameterize(self):
+        # 简化版：实际实现可通过展开移位并折叠成大核（参考原始ShiftwiseConv论文）
+        pass
+
+
+# 改进瓶颈：混合大核 + EfficientShiftwiseConv + 轻量级EMA（来自最近论文的Efficient Multi-scale Attention）
+class DepthBottleneckUltra(nn.Module):
+    def __init__(self, in_channels, out_channels, kersize=5, expansion_depth=1.5):  # 减少扩展率以降低参数
+        # 初始化函数：设置输入输出通道、大核大小和扩展深度
+        super().__init__()
+        mid = int(in_channels * expansion_depth)  # 降低中间通道以减少参数/FLOPs
+
+        self.conv1 = Conv(in_channels, mid, 1)  # 1x1卷积扩展通道
+
+        # 第一部分：精简UniRepLKNet（如果可能使用较小核，但保留用于感受野）
+        self.large_kernel = UniRepLKNetBlock(mid, kernel_size=kersize if kersize <= 7 else 7)  # 限制核大小以减少FLOPs
+
+        # 第二部分：EfficientShiftwiseConv（降低shift_range以提高效率）
+        self.shift_conv = EfficientShiftwiseConv(mid, shift_range=1)  # 带门控的高效版本
+
+        self.conv_mid = Conv(mid, mid, 1)  # 中间1x1卷积
+
+        # 轻量级EMA（来自EMA-Net论文，CVPR 2023/2024变体：低成本多尺度注意力）
+        self.ema = nn.Sequential(
+            nn.AdaptiveAvgPool2d(1),  # 全局池化
+            nn.Conv2d(mid, mid // 8, 1),  # 降维
+            nn.SiLU(),  # 激活
+            nn.Conv2d(mid // 8, mid, 1),  # 通道权重
+            nn.Sigmoid()  # Sigmoid激活
+        )
+        # 本地尺度（简单3x3平均用于多尺度）
+        self.local_pool = nn.AvgPool2d(3, stride=1, padding=1)  # 局部平均池化
+
+        self.conv_out = Conv(mid, out_channels, 1)  # 输出1x1卷积
+        self.act = nn.SiLU()  # SiLU激活
+
+    def forward(self, x):
+        # 前向传播：执行扩展、混合大核、多尺度融合和移位
+        y = self.act(self.conv1(x))
+        y_large = self.large_kernel(y)
+
+        # 多尺度融合：全局EMA + 局部池化
+        global_attn = self.ema(y_large)  # 全局注意力
+        local_attn = self.local_pool(y_large)  # 局部注意力
+        y = y_large * global_attn + local_attn * (1 - global_attn)  # 动态混合（受最近YOLO论文中MSFA启发）
+
+        # 添加高效移位
+        shifted = self.shift_conv(y)  # 移位卷积
+        y = self.act(self.conv_mid(y + shifted))  # 中间卷积并激活
+
+        y = self.conv_out(y)  # 输出
+        return y
+
+# 主块：RepHMSUltra（优化级联带动态修剪 + pre-concat EMA）
+class RepHMSUltra_Grok(nn.Module):
+    def __init__(self, in_channels, out_channels, width=3, depth=1, depth_expansion=1.5, kersize=5,
+                 expansion=0.5, use_depthwise=True):  # 减少扩展率以节省参数/FLOPs
+        # 初始化函数：设置输入输出通道、宽度、深度等参数
+        super().__init__()
+        self.width = width  # 宽度参数
+        self.depth = depth  # 深度参数
+        c_ = int(out_channels * expansion)  # 中间通道计算
+        self.conv1 = Conv(in_channels, c_ * width, 1, 1)  # 输入1x1卷积
+
+        # 使用新ultra瓶颈（由于减少扩展，参数更少）
+        self.blocks = nn.ModuleList()  # 块列表
+        for _ in range(width - 1):
+            block_list = nn.ModuleList([
+                DepthBottleneckUltra(c_, c_, kersize, depth_expansion)  # 创建瓶颈块
+                for _ in range(depth)
+            ])
+            self.blocks.append(block_list)  # 添加到列表
+
+        # Pre-concat EMA（Efficient Multi-scale Attention：降低通道，多尺度池化）
+        # 为了正确实现多尺度：
+        self.global_pool = nn.AdaptiveAvgPool2d(1)  # 全局池化
+        self.local_pool = nn.AvgPool2d(3, stride=1, padding=1)  # 局部池化
+        self.ema_reduction = nn.Conv2d(c_ * (1 + (width - 1) * depth), c_ * (1 + (width - 1) * depth) // 16, 1)  # 降维
+        self.ema_excite = nn.Sequential(nn.SiLU(), nn.Conv2d(2 * (c_ * (1 + (width - 1) * depth) // 16),
+                                                             c_ * (1 + (width - 1) * depth), 1), nn.Sigmoid())  # 激励层
+
+        self.conv2 = Conv(c_ * (1 + (width - 1) * depth), out_channels, 1, 1)  # 输出1x1卷积
+
+    def forward(self, x):
+        # 前向传播：输入卷积、级联处理、多尺度EMA和输出
+        x = self.conv1(x)
+        x_out = [x[:, i * x.shape[1] // self.width:(i + 1) * x.shape[1] // self.width] for i in
+                 range(self.width)]  # 分割通道
+        x_out[1] = x_out[1] + x_out[0]  # 初始残差
+
+        cascade = []  # 级联列表
+        elan = [x_out[0]]  # ELAN列表
+
+        for i in range(self.width - 1):
+            for j in range(self.depth):
+                current = x_out[i + 1]  # 当前块
+                if i > 0 and cascade:
+                    # 动态级联加权（基于输入统计的标量alpha，受最近论文中Dynamic ReLU/Pos启发）
+                    alpha = current.std(dim=(2, 3), keepdim=True).sigmoid()  # 基于方差动态计算（鼓励修剪低方差分支）
+                    current = current + alpha * cascade[j]  # 加权添加
+                    if j == self.depth - 1:
+                        cascade = [cascade[-1]] if self.depth > 1 else []  # 更新级联
+                current = self.blocks[i][j](current)  # 执行块
+                x_out[i + 1] = current
+                elan.append(current)  # 添加到ELAN
+                if i < self.width - 2:
+                    cascade.append(current)  # 添加到级联
+
+        y = torch.cat(elan, 1)  # 连接ELAN
+
+        reduced = self.ema_reduction(y)
+        global_p = self.global_pool(reduced)  # (B, C//16, 1, 1)
+        local_p = nn.AdaptiveAvgPool2d(1)(self.local_pool(reduced))  # 先局部池化，再全局池化到 (B, C//16, 1, 1)
+        ms_feat = torch.cat([global_p, local_p], dim=1)  # 现在形状匹配：(B, 2*(C//16), 1, 1)
+        attn = self.ema_excite(ms_feat)
+        y = y * attn  # 注意：attn 需要广播到 y 的形状 (B, C, H, W)
+
+        y = self.conv2(y)  # 输出卷积
+        return y
 if __name__ == "__main__":
     # 创建模型（输入通道64，输出通道256，常见 YOLO 配置）
     model = RepHMSPlus(in_channels=64, out_channels=256, width=3, depth=1, kersize=5, expansion=0.5)

@@ -7,7 +7,6 @@ scales:
   l: [1.00, 1.00, 512]
   x: [1.00, 1.50, 512]
 
-# YOLO11 Backbone (使用 RepHMS 增强特征提取)
 backbone:
   - [-1, 1, Conv, [64, 3, 2]]      # 0-P1/2
   - [-1, 1, Conv, [128, 3, 2]]     # 1-P2/4
@@ -21,7 +20,6 @@ backbone:
   - [-1, 1, SPPF, [1024, 5]]       # 9
   - [-1, 2, C2PSA, [1024]]         # 10
 
-# BiFPN Head (C3k2 全部替换为 RepHMSPlus)
 head:
   # Neck Input Adapters (统一通道为 512 以匹配 BiFPN 加权求和)
   - [2, 1, Conv, [512, 1, 1]]  # 11 P2_in

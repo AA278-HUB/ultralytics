@@ -115,7 +115,8 @@ from .Extramodule.transformer import C2BRA, C2CGA, C2DA, C2DPB, C2Pola, C2TSSA, 
     C2TSSA_DYT_Mona_SEFN, C2TSSA_DYT_Mona_SEFFN, C2PSA_EDFFN
 from .RepStar import C3k2_RepStar, RepDW, RepStarBlock
 from .modules.DCNv4.mafyolo import RepHMSPlus, RepHMS_Gemini, RepHMSPlus_Grok, RepHMSStar_Gemini, RepHMSOmni, \
-    RepHMS_Gemini_V2, RepHMS_Gemini_LightStar, RepHMSPlus_Grock_V2, RepHMSPlusV3, RepHMS_Star
+    RepHMS_Gemini_V2, RepHMS_Gemini_LightStar, RepHMSPlus_Grock_V2, RepHMSPlusV3, RepHMS_Star, RepHMS_Ultra, \
+    RepHMS_Omni, RepHMSUltra_Grok
 # from .modules.C3k2_MobileMamba import C3k2_MobileMamba, C3k2_MambaVision
 # from .modules.C3k2_MobileMamba import C3k2Mamba
 # from .Extramodule.Neck.Gold import RepGDNeck
@@ -1874,6 +1875,9 @@ def parse_model(d, ch, verbose=True):
             RepHMSPlus_Grock_V2,
             RepHMSPlusV3,
             RepHMS_Star,
+            RepHMS_Ultra,
+            RepHMS_Omni,
+            RepHMSUltra_Grok,
 
             RepHMSv2,
             RepDGM,
