@@ -5259,6 +5259,185 @@ class C3k2_UniStar(nn.Module):
         return self.cv2(torch.cat(y, 1))
 
 
+# ---------------- 核心：RFAConv (Receptive Field Attention Convolution) ----------------
+
+class RFAConv(nn.Module):
+    """
+    基于感受野注意力的动态卷积。
+    打破了传统卷积参数共享的限制，为每个感受野生成特定的权重。
+    """
+
+    def __init__(self, in_channel, out_channel, kernel_size=3, stride=1):
+        super().__init__()
+        self.kernel_size = kernel_size
+        self.stride = stride
+        self.out_channel = out_channel
+
+        # 1. 权重生成器：通过平均池化捕捉全局上下文
+        # 这一步是为了生成“注意力图”，决定哪些空间位置更重要
+        self.get_weight = nn.Sequential(
+            nn.AdaptiveAvgPool2d(kernel_size),
+            nn.Conv2d(in_channel, int(in_channel * (kernel_size ** 2)), kernel_size=1, groups=in_channel),
+            nn.BatchNorm2d(int(in_channel * (kernel_size ** 2))),
+            nn.Softmax(dim=1)  # 归一化，生成概率分布形式的注意力
+        )
+
+        # 2. 特征展开：将 spatial 维度的数据展开为 sliding blocks
+        # 这一步使用 nn.Unfold，模拟卷积的滑动窗口过程
+        self.unfold = nn.Unfold(kernel_size=kernel_size, padding=kernel_size // 2, stride=stride)
+
+        # 3. 最终的卷积映射
+        # 由于我们手动处理了空间混合，这里只需要一个 1x1 卷积（类似于 Pointwise Conv）来调整通道数
+        self.conv = nn.Conv2d(in_channel, out_channel, kernel_size=kernel_size, stride=kernel_size, bias=False)
+        self.bn = nn.BatchNorm2d(out_channel)
+        self.act = nn.SiLU()
+
+    def forward(self, x):
+        b, c, h, w = x.shape
+
+        # --- 步骤 1: 生成感受野注意力权重 ---
+        # weight: [B, C * K*K, H, W] -> 也就是每个像素点都有 K*K 个权重值
+        weight = self.get_weight(x)
+
+        # 将权重调整形状以便与展开后的特征相乘
+        h_out, w_out = (h - 1) // self.stride + 1, (w - 1) // self.stride + 1
+        # 这里的插值是为了确保权重图和输出特征图尺寸一致
+        weight = F.interpolate(weight, size=(h_out, w_out), mode='nearest')
+        weight = weight.view(b, c, self.kernel_size * self.kernel_size, h_out, w_out)
+
+        # --- 步骤 2: 展开输入特征 ---
+        # x_unfold: [B, C * K*K, L], L = H_out * W_out
+        x_unfold = self.unfold(x)
+        x_unfold = x_unfold.view(b, c, self.kernel_size * self.kernel_size, h_out, w_out)
+
+        # --- 步骤 3: 动态加权 (Receptive Field Attention) ---
+        # 核心：将生成的动态权重 乘到 展开的特征上
+        # 这一步实现了：不同的空间位置，特征被不同的权重“强调”或“抑制”
+        out = x_unfold * weight
+
+        # 将加权后的特征重组，准备过卷积
+        out = out.contiguous().view(b, c * self.kernel_size * self.kernel_size, h_out * w_out)
+        out = out.view(b, c, self.kernel_size, self.kernel_size, h_out, w_out)
+        # 维度变换，拼接回图像形状
+        out = out.permute(0, 1, 4, 5, 2, 3).contiguous().view(b, c, h_out * self.kernel_size, w_out * self.kernel_size)
+
+        # --- 步骤 4: 最终映射 ---
+        out = self.conv(out)
+        return self.act(self.bn(out))
+
+
+# ---------------- 瓶颈层与模块封装 ----------------
+
+class RFABottleneck(nn.Module):
+    """
+    使用 RFAConv 的重型瓶颈层
+    """
+
+    def __init__(self, c1, c2, shortcut=True, g=1, e=0.5):
+        super().__init__()
+        c_ = int(c2 * e)
+        # 输入投影
+        self.cv1 = Conv(c1, c_, 1, 1)
+
+        # 核心替换：使用 RFAConv 替代普通的 3x3 Conv
+        # 这会让网络仔细“审视”每一个像素的邻域
+        self.rfa_conv = RFAConv(c_, c_, kernel_size=3)
+
+        # 再次利用 1x1 卷积增加非线性并调整通道
+        self.cv2 = Conv(c_, c2, 1, 1)
+        self.add = shortcut and c1 == c2
+
+    def forward(self, x):
+        return x + self.cv2(self.rfa_conv(self.cv1(x))) if self.add else self.cv2(self.rfa_conv(self.cv1(x)))
+
+
+class C3k2_RFA(nn.Module):
+    """
+    基于感受野注意力 (RFA) 的改进模块。
+    特点：高计算量，高参数利用率，极强的空间适应性。
+    """
+
+    def __init__(self, c1, c2, n=1, shortcut=False, e=0.5, g=1):
+        super().__init__()
+        self.c = int(c2 * e)
+        self.cv1 = Conv(c1, 2 * self.c, 1, 1)
+        self.cv2 = Conv((2 + n) * self.c, c2, 1)
+
+        # 堆叠 RFA Bottleneck
+        self.m = nn.ModuleList(
+            RFABottleneck(self.c, self.c, shortcut, g, e=1.0) for _ in range(n)
+        )
+
+    def forward(self, x):
+        y = list(self.cv1(x).chunk(2, 1))
+        y.extend(m(y[-1]) for m in self.m)
+        return self.cv2(torch.cat(y, 1))
+
+#
+# import torch
+# import torch.nn as nn
+# 假设基础 Conv 模块已经定义（YOLO 标准实现）
+# 如果在外部使用，请确保引入：from ultralytics.nn.modules.conv import Conv
+
+class SGLK_Block(nn.Module):
+    """
+    Star-Gated Large-Kernel Block (SGLK).
+    核心思想：
+    1. Star Operation: 通过元素级乘法实现非线性特征增强。
+    2. Large Kernel: 使用 7x7 深度可分离卷积获取类 Transformer 的感受野。
+    3. Gating: 动态调节特征流向。
+    """
+
+    def __init__(self, c1, c2, shortcut=True, g=1, k=7, e=0.5):
+        super().__init__()
+        c_ = int(c2 * e)
+        # 第一步：投影分流，cv1 输出通道为 2 * c_
+        self.cv1 = nn.Conv2d(c1, c_ * 2, 1, 1, bias=False)
+        self.bn1 = nn.BatchNorm2d(c_ * 2)
+
+        # 第二步：大核深度卷积分支 (Large Kernel DWConv)
+        self.lk = nn.Conv2d(c_, c_, k, 1, k // 2, groups=c_, bias=False)
+        self.bn2 = nn.BatchNorm2d(c_)
+
+        # 第三步：输出融合
+        self.cv2 = nn.Conv2d(c_, c2, 1, 1, bias=False)
+        self.bn3 = nn.BatchNorm2d(c2)
+
+        self.act = nn.SiLU()
+        self.add = shortcut and c1 == c2
+
+    def forward(self, x):
+        # 门控与星型运算分支
+        x1, x2 = self.bn1(self.cv1(x)).chunk(2, 1)
+
+        # Star Operation: x1 * DWConv(x2)
+        # 模拟高阶交互: y = f(x) * g(x)
+        y = x1 * self.bn2(self.lk(x2))
+
+        y = self.bn3(self.cv2(y))
+        return x + self.act(y) if self.add else self.act(y)
+# 假设已有 C3, C3k, C2f 的类定义
+# from ultralytics.nn.modules.block import C3, C3k, C2f, Bottleneck
+
+class C3k_SGLK(C3k):
+    """继承 C3k，将内部 Bottleneck 替换为 SGLK_Block。"""
+    def __init__(self, c1, c2, n=1, shortcut=True, g=1, e=0.5, k=7):
+        super().__init__(c1, c2, n, shortcut, g, e)
+        c_ = int(c2 * e)
+        # 核心改进：替换 self.m
+        self.m = nn.Sequential(*(SGLK_Block(c_, c_, shortcut, g, k=k, e=1.0) for _ in range(n)))
+
+class C3k2_SGLK(C2f):
+    """继承 C2f，内部嵌套改进后的 C3k_SGLK。"""
+    def __init__(self, c1, c2, n=1, c3k=True, e=0.5,k=7, g=1, shortcut=True):
+        super().__init__(c1, c2, n, shortcut, g, e)
+        # 核心改进：确保 C3k 标志位开启时调用我们的 SGLK 版本
+        # 即使 c3k 为 False，我们也使用增强的 SGLK_Block 替代原生 Bottleneck
+        self.m = nn.ModuleList(
+            C3k_SGLK(self.c, self.c, 2, shortcut, g, e=1.0, k=k) if c3k else
+            SGLK_Block(self.c, self.c, shortcut, g, k=k, e=1.0) for _ in range(n)
+        )
+
 #
 # # Standard CBAM with fix for small channels
 # class ChannelAttention(nn.Module):
