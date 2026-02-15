@@ -5017,19 +5017,28 @@ class C3k2_StarDynamic(C2f):
         )
 
 
-# Standard CBAM with fix for small channels
+
+# ---------------- 核心组件 1: CBAM 注意力 (重型) ----------------
+
 class ChannelAttention(nn.Module):
+    """
+    CBAM 的通道注意力部分: 使用 MLP 强行提取通道重要性。
+    参数量来源: 两个全连接层 (Linear)。
+    """
+
     def __init__(self, in_planes, ratio=16):
-        super().__init__()
-        reduced_dim = max(1, in_planes // ratio)  # Fix: ensure at least 1
+        super(ChannelAttention, self).__init__()
         self.avg_pool = nn.AdaptiveAvgPool2d(1)
         self.max_pool = nn.AdaptiveMaxPool2d(1)
-        self.fc1 = nn.Conv2d(in_planes, reduced_dim, 1, bias=False)
+
+        # 使用 1x1 卷积代替 Linear，方便处理
+        self.fc1 = nn.Conv2d(in_planes, in_planes // ratio, 1, bias=False)
         self.relu1 = nn.ReLU()
-        self.fc2 = nn.Conv2d(reduced_dim, in_planes, 1, bias=False)
+        self.fc2 = nn.Conv2d(in_planes // ratio, in_planes, 1, bias=False)
         self.sigmoid = nn.Sigmoid()
 
     def forward(self, x):
+        # 同时利用平均池化和最大池化的信息
         avg_out = self.fc2(self.relu1(self.fc1(self.avg_pool(x))))
         max_out = self.fc2(self.relu1(self.fc1(self.max_pool(x))))
         out = avg_out + max_out
@@ -5037,12 +5046,19 @@ class ChannelAttention(nn.Module):
 
 
 class SpatialAttention(nn.Module):
+    """
+    CBAM 的空间注意力部分: 关注'哪里'是重要的。
+    """
+
     def __init__(self, kernel_size=7):
-        super().__init__()
-        self.conv1 = nn.Conv2d(2, 1, kernel_size, padding=kernel_size // 2, bias=False)
+        super(SpatialAttention, self).__init__()
+        assert kernel_size in (3, 7), 'kernel size must be 3 or 7'
+        padding = 3 if kernel_size == 7 else 1
+        self.conv1 = nn.Conv2d(2, 1, kernel_size, padding=padding, bias=False)
         self.sigmoid = nn.Sigmoid()
 
     def forward(self, x):
+        # 沿通道轴做平均和最大操作，压缩通道
         avg_out = torch.mean(x, dim=1, keepdim=True)
         max_out, _ = torch.max(x, dim=1, keepdim=True)
         x = torch.cat([avg_out, max_out], dim=1)
@@ -5051,18 +5067,21 @@ class SpatialAttention(nn.Module):
 
 
 class CBAM(nn.Module):
-    def __init__(self, channels, ratio=16, kernel_size=7):
-        super().__init__()
-        self.ca = ChannelAttention(channels, ratio=ratio)
-        self.sa = SpatialAttention(kernel_size=kernel_size)
+    """完整的 CBAM 模块"""
+
+    def __init__(self, c1, ratio=16, kernel_size=7):
+        super(CBAM, self).__init__()
+        self.ca = ChannelAttention(c1, ratio)
+        self.sa = SpatialAttention(kernel_size)
 
     def forward(self, x):
-        out = x * self.ca(x)  # channel attention
-        out = out * self.sa(out)  # spatial attention
-        return out
+        x = x * self.ca(x)  # 通道加权
+        x = x * self.sa(x)  # 空间加权
+        return x
 
 
-# The rest remains the same
+# ---------------- 核心组件 2: HIE Bottleneck (高阶交互瓶颈) ----------------
+
 class HIE_Bottleneck(nn.Module):
     """
     High-Order Interaction Extraction Bottleneck
@@ -5113,56 +5132,280 @@ class HIE_Bottleneck(nn.Module):
         return x + out if self.add else out
 
 
-class C3k_HIE(C3k):
+class C3k2_HIE(nn.Module):
     """
-    HIE variant of C3k, using HIE_Bottleneck instead of standard Bottleneck.
-    Inherits from C3k to match the paradigm, overriding the module list.
-    """
-
-    def __init__(self, c1: int, c2: int, n: int = 1, shortcut: bool = True, g: int = 1, e: float = 0.5):
-        """
-        Initialize C3k_HIE module.
-        Args:
-            c1 (int): Input channels.
-            c2 (int): Output channels.
-            n (int): Number of Bottleneck blocks.
-            shortcut (bool): Whether to use shortcut connections.
-            g (int): Groups for convolutions.
-            e (float): Expansion ratio.
-        """
-        # Call C3k init with a dummy k=3 since HIE_Bottleneck doesn't use k
-        super().__init__(c1, c2, n, shortcut, g, e, k=3)
-
-        c_ = int(c2 * e)  # hidden channels
-        # Override the module list to use HIE_Bottleneck
-        self.m = nn.Sequential(*(HIE_Bottleneck(c_, c_, shortcut, g, e=1.0) for _ in range(n)))
-
-
-class C3k2_HIE(C2f):
-    """
-    HIE variant of C3k2, following the original C3k2 design paradigm.
-    Inherits from C2f and optionally uses C3k_HIE blocks if c3k is True.
+    基于 HIE (High-Order Interaction) 的重型 C3k2 模块
     """
 
-    def __init__(
-            self, c1: int, c2: int, n: int = 1, c3k: bool = False, e: float = 0.5, g: int = 1, shortcut: bool = True
-    ):
-        """
-        Initialize C3k2_HIE module.
-        Args:
-            c1 (int): Input channels.
-            c2 (int): Output channels.
-            n (int): Number of blocks.
-            c3k (bool): Whether to use C3k_HIE blocks.
-            e (float): Expansion ratio.
-            g (int): Groups for convolutions.
-            shortcut (bool): Whether to use shortcut connections.
-        """
-        super().__init__(c1, c2, n, shortcut, g, e)
+    def __init__(self, c1, c2, n=1, shortcut=False, e=0.5, g=1):
+        super().__init__()
+        self.c = int(c2 * e)
+        self.cv1 = Conv(c1, 2 * self.c, 1, 1)
+        self.cv2 = Conv((2 + n) * self.c, c2, 1)
+
+        # 堆叠 HIE Bottleneck
         self.m = nn.ModuleList(
-            C3k_HIE(self.c, self.c, 2, shortcut, g) if c3k else HIE_Bottleneck(self.c, self.c, shortcut, g) for _ in
-            range(n)
+            HIE_Bottleneck(self.c, self.c, shortcut, g, e=1.0) for _ in range(n)
         )
+
+    def forward(self, x):
+        y = list(self.cv1(x).chunk(2, 1))
+        y.extend(m(y[-1]) for m in self.m)
+        return self.cv2(torch.cat(y, 1))
+
+
+# ---------------- 核心故事组件：UniStar Block ----------------
+
+class GlobalContextGate(nn.Module):
+    """
+    全局上下文门控 (Story: 让模型具备全局视野，动态调整权重)
+    基于 SE-Layer 的简化与增强，作为 Star 操作的第三个乘数。
+    """
+
+    def __init__(self, channels, reduction=4):
+        super().__init__()
+        self.avg_pool = nn.AdaptiveAvgPool2d(1)
+        # 瓶颈结构，压缩再放大，捕捉通道相关性
+        self.fc = nn.Sequential(
+            nn.Conv2d(channels, channels // reduction, 1, bias=False),
+            nn.ReLU(inplace=True),
+            nn.Conv2d(channels // reduction, channels, 1, bias=False),
+            nn.Sigmoid()  # 输出 0~1 的门控值
+        )
+
+    def forward(self, x):
+        # x: [B, C, H, W] -> [B, C, 1, 1] -> 权重
+        return self.fc(self.avg_pool(x))
+
+
+class UniStarBlock(nn.Module):
+    """
+    UniStar: 融合大核、小核与星形交互的统一模块
+    """
+
+    def __init__(self, c1, c2, k_large=7, k_small=3, e=3.0):
+        # e=3.0: 这里的膨胀系数设大一点，增加隐式空间的维度
+        super().__init__()
+        c_hidden = int(c2 * e)
+
+        # 1. 维度爆炸 (Projection): 将特征映射到高维
+        self.cv1 = Conv(c1, c_hidden, 1, 1)
+
+        # 2. 双路卷积 (Dual-Path Conv)
+        # Path A: Global Shape (大核, 模拟 Transformer 的大感受野)
+        self.dw_large = nn.Conv2d(c_hidden, c_hidden, kernel_size=k_large, stride=1,
+                                  padding=k_large // 2, groups=c_hidden, bias=False)
+
+        # Path B: Local Detail (小核, 保持细节)
+        self.dw_small = nn.Conv2d(c_hidden, c_hidden, kernel_size=k_small, stride=1,
+                                  padding=k_small // 2, groups=c_hidden, bias=False)
+
+        # 3. 门控生成器
+        self.global_gate = GlobalContextGate(c_hidden)
+
+        # 归一化与激活
+        self.bn_l = nn.BatchNorm2d(c_hidden)
+        self.bn_s = nn.BatchNorm2d(c_hidden)
+        self.act = nn.ReLU6()  # ReLU6 在 Star 操作中表现更稳
+
+        # 4. 输出投影
+        self.cv2 = Conv(c_hidden, c2, 1, 1, act=False)
+
+    def forward(self, x):
+        x = self.cv1(x)
+
+        # --- 核心故事：Star Interaction (星形交互) ---
+        # 传统 ResNet: y = f(x) + x
+        # UniStar: y = (Local * Global) * Gate
+
+        # 1. 获取大尺度特征 (Global)
+        x_global = self.bn_l(self.dw_large(x))
+
+        # 2. 获取小尺度特征 (Local)
+        x_local = self.bn_s(self.dw_small(x))
+
+        # 3. 获取全局通道权重 (Gate)
+        x_gate = self.global_gate(x)
+
+        # 4. 高阶融合：
+        # Star Operation: 元素级乘法。
+        # 逻辑：当 "局部细节" 和 "全局轮廓" 都激活，且 "全局门控" 认为该通道重要时，特征才会被保留。
+        x_star = self.act(x_local) * x_global * x_gate
+
+        return self.cv2(x_star)
+
+
+class C3k2_UniStar(nn.Module):
+    """
+    基于 UniStar 的重型 C3k2 模块
+    """
+
+    def __init__(self, c1, c2, n=1, shortcut=False, e=0.5, g=1):
+        super().__init__()
+        self.c = int(c2 * e)
+        self.cv1 = Conv(c1, 2 * self.c, 1, 1)
+        self.cv2 = Conv((2 + n) * self.c, c2, 1)
+
+        # 堆叠 UniStarBlock
+        # 注意: 这里的 e=2.0 或 3.0 指的是 Block 内部的膨胀，
+        # 外部 C3k2 还是保持标准的通道缩放，防止参数量失控
+        self.m = nn.ModuleList(
+            UniStarBlock(self.c, self.c, k_large=7, k_small=3, e=2.0) for _ in range(n)
+        )
+
+    def forward(self, x):
+        y = list(self.cv1(x).chunk(2, 1))
+        y.extend(m(y[-1]) for m in self.m)
+        return self.cv2(torch.cat(y, 1))
+
+
+#
+# # Standard CBAM with fix for small channels
+# class ChannelAttention(nn.Module):
+#     def __init__(self, in_planes, ratio=16):
+#         super().__init__()
+#         reduced_dim = max(1, in_planes // ratio)  # Fix: ensure at least 1
+#         self.avg_pool = nn.AdaptiveAvgPool2d(1)
+#         self.max_pool = nn.AdaptiveMaxPool2d(1)
+#         self.fc1 = nn.Conv2d(in_planes, reduced_dim, 1, bias=False)
+#         self.relu1 = nn.ReLU()
+#         self.fc2 = nn.Conv2d(reduced_dim, in_planes, 1, bias=False)
+#         self.sigmoid = nn.Sigmoid()
+#
+#     def forward(self, x):
+#         avg_out = self.fc2(self.relu1(self.fc1(self.avg_pool(x))))
+#         max_out = self.fc2(self.relu1(self.fc1(self.max_pool(x))))
+#         out = avg_out + max_out
+#         return self.sigmoid(out)
+#
+#
+# class SpatialAttention(nn.Module):
+#     def __init__(self, kernel_size=7):
+#         super().__init__()
+#         self.conv1 = nn.Conv2d(2, 1, kernel_size, padding=kernel_size // 2, bias=False)
+#         self.sigmoid = nn.Sigmoid()
+#
+#     def forward(self, x):
+#         avg_out = torch.mean(x, dim=1, keepdim=True)
+#         max_out, _ = torch.max(x, dim=1, keepdim=True)
+#         x = torch.cat([avg_out, max_out], dim=1)
+#         x = self.conv1(x)
+#         return self.sigmoid(x)
+#
+#
+# class CBAM(nn.Module):
+#     def __init__(self, channels, ratio=16, kernel_size=7):
+#         super().__init__()
+#         self.ca = ChannelAttention(channels, ratio=ratio)
+#         self.sa = SpatialAttention(kernel_size=kernel_size)
+#
+#     def forward(self, x):
+#         out = x * self.ca(x)  # channel attention
+#         out = out * self.sa(out)  # spatial attention
+#         return out
+#
+#
+# # The rest remains the same
+# class HIE_Bottleneck(nn.Module):
+#     """
+#     High-Order Interaction Extraction Bottleneck
+#     结构:
+#       1. 输入 -> 两个并行分支 (3x3 和 5x5)
+#       2. 分支融合
+#       3. CBAM 精修
+#       4. 残差连接
+#     """
+#
+#     def __init__(self, c1, c2, shortcut=True, g=1, e=0.5):
+#         super().__init__()
+#         c_ = int(c2 * e)
+#
+#         # 输入投影
+#         self.cv1 = Conv(c1, c_, 1, 1)
+#
+#         # --- 并行多尺度分支 (增加参数的核心) ---
+#         # 分支 1: 标准 3x3
+#         self.branch1 = Conv(c_, c_, k=3, s=1, g=g)
+#
+#         # 分支 2: 大核 5x5 (这里不用DWConv，直接用标准Conv，为了追求极致表达能力)
+#         # 注意: 标准 5x5 卷积参数量是 3x3 的近 3 倍，这是为了满足你“参数多点无所谓”的要求
+#         self.branch2 = Conv(c_, c_, k=5, s=1, g=g, p=2)
+#
+#         # --- 融合后的注意力 ---
+#         self.attn = CBAM(c_, ratio=16)
+#
+#         # 输出投影
+#         self.cv2 = Conv(c_, c2, 1, 1)
+#         self.add = shortcut and c1 == c2
+#
+#     def forward(self, x):
+#         y = self.cv1(x)
+#
+#         # 并行提取特征
+#         b1 = self.branch1(y)
+#         b2 = self.branch2(y)
+#
+#         # 特征相加融合 (类似于 ResNet 的多路径变体)
+#         y_fused = b1 + b2
+#
+#         # 注意力加权: 让模型自己决定哪些特征是重要的
+#         y_refined = self.attn(y_fused)
+#
+#         # 输出
+#         out = self.cv2(y_refined)
+#         return x + out if self.add else out
+#
+#
+# class C3k_HIE(C3k):
+#     """
+#     HIE variant of C3k, using HIE_Bottleneck instead of standard Bottleneck.
+#     Inherits from C3k to match the paradigm, overriding the module list.
+#     """
+#
+#     def __init__(self, c1: int, c2: int, n: int = 1, shortcut: bool = True, g: int = 1, e: float = 0.5):
+#         """
+#         Initialize C3k_HIE module.
+#         Args:
+#             c1 (int): Input channels.
+#             c2 (int): Output channels.
+#             n (int): Number of Bottleneck blocks.
+#             shortcut (bool): Whether to use shortcut connections.
+#             g (int): Groups for convolutions.
+#             e (float): Expansion ratio.
+#         """
+#         # Call C3k init with a dummy k=3 since HIE_Bottleneck doesn't use k
+#         super().__init__(c1, c2, n, shortcut, g, e, k=3)
+#
+#         c_ = int(c2 * e)  # hidden channels
+#         # Override the module list to use HIE_Bottleneck
+#         self.m = nn.Sequential(*(HIE_Bottleneck(c_, c_, shortcut, g, e=1.0) for _ in range(n)))
+#
+#
+# class C3k2_HIE(C2f):
+#     """
+#     HIE variant of C3k2, following the original C3k2 design paradigm.
+#     Inherits from C2f and optionally uses C3k_HIE blocks if c3k is True.
+#     """
+#
+#     def __init__(
+#             self, c1: int, c2: int, n: int = 1, c3k: bool = False, e: float = 0.5, g: int = 1, shortcut: bool = True
+#     ):
+#         """
+#         Initialize C3k2_HIE module.
+#         Args:
+#             c1 (int): Input channels.
+#             c2 (int): Output channels.
+#             n (int): Number of blocks.
+#             c3k (bool): Whether to use C3k_HIE blocks.
+#             e (float): Expansion ratio.
+#             g (int): Groups for convolutions.
+#             shortcut (bool): Whether to use shortcut connections.
+#         """
+#         super().__init__(c1, c2, n, shortcut, g, e)
+#         self.m = nn.ModuleList(
+#             C3k_HIE(self.c, self.c, 2, shortcut, g) if c3k else HIE_Bottleneck(self.c, self.c, shortcut, g) for _ in
+#             range(n)
+#         )
 
 
 ######################################## StartNet end ########################################
