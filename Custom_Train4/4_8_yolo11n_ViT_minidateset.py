@@ -147,10 +147,10 @@ if __name__ == '__main__':
         model.train(
             data=data,
             epochs=200,
-            batch=128,
+            batch=64,
             imgsz=640,  # 保持不变
             cos_lr=True,
-            lr0=0.01,  # ↑ 初始学习率
+            lr0=0.005,  # ↑ 初始学习率
             lrf=0.1,  # ↑ 最终学习率比例
             close_mosaic=20,  # 提前关闭 mosaic
             save=True,
