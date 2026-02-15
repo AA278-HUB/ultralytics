@@ -4371,18 +4371,6 @@ def autopad_1(k, p=None, d=1):  # kernel, padding, dilation
     return p
 
 
-class Conv(nn.Module):
-    """标准卷积块: Conv + BN + SiLU"""
-    default_act = nn.SiLU()
-
-    def __init__(self, c1, c2, k=1, s=1, p=None, g=1, d=1, act=True):
-        super().__init__()
-        self.conv = nn.Conv2d(c1, c2, k, s, autopad_1(k, p, d), groups=g, dilation=d, bias=False)
-        self.bn = nn.BatchNorm2d(c2)
-        self.act = self.default_act if act is True else act if isinstance(act, nn.Module) else nn.Identity()
-
-    def forward(self, x):
-        return self.act(self.bn(self.conv(x)))
 
 
 # ---------------- 核心改进组件 ----------------
@@ -4454,73 +4442,66 @@ class StarBlock(nn.Module):
         return self.cv2(x)
 
 
-class C3k2_Star_Gemini(nn.Module):
+class C3k_Star_Gemini(C3k):
     """
-    改进版 C3k2 模块
-    整合了 CSP 结构、StarNet 瓶颈层 和 LSKA 注意力。
+    Star_Gemini variant of C3k, using StarBlock instead of standard Bottleneck.
+    Inherits from C3k to match the paradigm, overriding the module list.
     """
 
-    def __init__(self, c1, c2, n=1, shortcut=False, g=1, e=0.5, k=3):
+    def __init__(self, c1: int, c2: int, n: int = 1, shortcut: bool = True, g: int = 1, e: float = 0.5):
         """
+        Initialize C3k_Star_Gemini module.
         Args:
-            c1: 输入通道
-            c2: 输出通道
-            n:  Bottleneck 重复次数
-            shortcut: 是否使用残差连接 (对于StarBlock通常设为False或根据实验调整)
-            e:  CSP 扩展系数
+            c1 (int): Input channels.
+            c2 (int): Output channels.
+            n (int): Number of Bottleneck blocks.
+            shortcut (bool): Whether to use shortcut connections.
+            g (int): Groups for convolutions.
+            e (float): Expansion ratio.
         """
-        super().__init__()
-        self.c = int(c2 * e)  # 隐藏通道数
+        # Call C3k init with a dummy k=3 since StarBlock uses its own k
+        super().__init__(c1, c2, n, shortcut, g, e, k=3)
 
-        # CSP 的两个分支
-        self.cv1 = Conv(c1, 2 * self.c, 1, 1)
-        self.cv2 = Conv((2 + n) * self.c, c2, 1)
+        c_ = int(c2 * e)  # hidden channels
+        # Override the module list to use StarBlock
+        self.m = nn.Sequential(*(StarBlock(c_, c_, k=3, e=1.0) for _ in range(n)))
 
-        # 使用 StarBlock 替换原有的 Bottleneck
-        # 注意: StarBlock 内部自带深度卷积，参数量很低，因此 n 可以适当增加或保持不变
+
+class C3k2_Star_Gemini(C2f):
+    """
+    Star_Gemini variant of C3k2, following the original C3k2 design paradigm.
+    Inherits from C2f and optionally uses C3k_Star_Gemini blocks if c3k is True.
+    Integrates LSKA attention after the final convolution.
+    """
+
+    def __init__(
+            self, c1: int, c2: int, n: int = 1, c3k: bool = False, e: float = 0.5, g: int = 1, shortcut: bool = True
+    ):
+        """
+        Initialize C3k2_Star_Gemini module.
+        Args:
+            c1 (int): Input channels.
+            c2 (int): Output channels.
+            n (int): Number of blocks.
+            c3k (bool): Whether to use C3k_Star_Gemini blocks.
+            e (float): Expansion ratio.
+            g (int): Groups for convolutions.
+            shortcut (bool): Whether to use shortcut connections.
+        """
+        super().__init__(c1, c2, n, shortcut, g, e)
         self.m = nn.ModuleList(
-            StarBlock(self.c, self.c, k=k, e=1.0) for _ in range(n)
+            C3k_Star_Gemini(self.c, self.c, 2, shortcut, g) if c3k else StarBlock(self.c, self.c, k=3, e=1.0) for _ in
+            range(n)
         )
-
         # 在 CSP 融合后加入 LSKA 注意力，增强全局特征
         self.att = LSKA(c2)
 
     def forward(self, x):
-        # 1. CSP 分割 (Chunk)
         y = list(self.cv1(x).chunk(2, 1))
-
-        # 2. 通过 StarBlock 堆叠层
-        # 这里保留了 DenseNet 风格的级联 (extend)，能最大化特征复用
         y.extend(m(y[-1]) for m in self.m)
-
-        # 3. 拼接并降维
         out = self.cv2(torch.cat(y, 1))
-
-        # 4. 应用 LSKA 注意力并输出
+        # 应用 LSKA 注意力并输出
         return self.att(out)
-
-
-import torch
-import torch.nn as nn
-
-
-# ---------------- 基础组件 ----------------
-class Conv(nn.Module):
-    """标准卷积块"""
-    default_act = nn.SiLU()
-
-    def __init__(self, c1, c2, k=1, s=1, p=None, g=1, d=1, act=True):
-        super().__init__()
-        # 自动计算 padding
-        if p is None:
-            p = k // 2 if isinstance(k, int) else [x // 2 for x in k]
-
-        self.conv = nn.Conv2d(c1, c2, k, s, p, groups=g, dilation=d, bias=False)
-        self.bn = nn.BatchNorm2d(c2)
-        self.act = self.default_act if act is True else act if isinstance(act, nn.Module) else nn.Identity()
-
-    def forward(self, x):
-        return self.act(self.bn(self.conv(x)))
 
 
 # ---------------- 核心改进组件 ----------------
@@ -4544,7 +4525,7 @@ class SimAM(nn.Module):
         return x * torch.sigmoid(y)
 
 
-class PKIBlock(nn.Module):
+class PKIBottleneck(nn.Module):
     """
     Poly Kernel Inception Block (多核多尺度模块)
     并行使用不同大小的卷积核来捕捉多尺度特征，然后通过 SimAM 增强。
@@ -4600,54 +4581,55 @@ class PKIBlock(nn.Module):
         return x + y if self.add else y
 
 
-class C3k2_PKI(nn.Module):
+class C3k_PKI(C3k):
     """
-    基于 PKI (多尺度) 的改进版 C3k2
+    PKI variant of C3k, using PKIBlock instead of standard Bottleneck.
+    Inherits from C3k to match the paradigm, overriding the module list.
     """
 
-    def __init__(self, c1, c2, n=1, shortcut=False, g=1, e=0.5, k=3):
-        super().__init__()
-        self.c = int(c2 * e)
-        self.cv1 = Conv(c1, 2 * self.c, 1, 1)
-        self.cv2 = Conv((2 + n) * self.c, c2, 1)
+    def __init__(self, c1: int, c2: int, n: int = 1, shortcut: bool = True, g: int = 1, e: float = 0.5):
+        """
+        Initialize C3k_PKI module.
+        Args:
+            c1 (int): Input channels.
+            c2 (int): Output channels.
+            n (int): Number of Bottleneck blocks.
+            shortcut (bool): Whether to use shortcut connections.
+            g (int): Groups for convolutions.
+            e (float): Expansion ratio.
+        """
+        # Call C3k init with a dummy k=3 since PKIBlock may not use k
+        super().__init__(c1, c2, n, shortcut, g, e, k=3)
 
-        # 使用 PKIBlock 替代普通 Bottleneck
+        c_ = int(c2 * e)  # hidden channels
+        # Override the module list to use PKIBlock
+        self.m = nn.Sequential(*(PKIBottleneck(c_, c_, shortcut, g, e=1.0) for _ in range(n)))
+
+
+class C3k2_PKI(C2f):
+    """
+    PKI variant of C3k2, following the original C3k2 design paradigm.
+    Inherits from C2f and optionally uses C3k_PKI blocks if c3k is True.
+    """
+
+    def __init__(
+            self, c1: int, c2: int, n: int = 1, c3k: bool = False, e: float = 0.5, g: int = 1, shortcut: bool = True
+    ):
+        """
+        Initialize C3k2_PKI module.
+        Args:
+            c1 (int): Input channels.
+            c2 (int): Output channels.
+            n (int): Number of blocks.
+            c3k (bool): Whether to use C3k_PKI blocks.
+            e (float): Expansion ratio.
+            g (int): Groups for convolutions.
+            shortcut (bool): Whether to use shortcut connections.
+        """
+        super().__init__(c1, c2, n, shortcut, g, e)
         self.m = nn.ModuleList(
-            PKIBlock(self.c, self.c, shortcut, g, e=1.0) for _ in range(n)
+            C3k_PKI(self.c, self.c, 2, shortcut, g) if c3k else PKIBottleneck(self.c, self.c, shortcut, g) for _ in range(n)
         )
-
-    def forward(self, x):
-        y = list(self.cv1(x).chunk(2, 1))
-        y.extend(m(y[-1]) for m in self.m)
-        return self.cv2(torch.cat(y, 1))
-
-
-# import torch
-# import torch.nn as nn
-# import torch.nn.functional as F
-#
-#
-# # ---------------- 基础组件 ----------------
-# def autopad(k, p=None, d=1):
-#     if d > 1:
-#         k = d * (k - 1) + 1 if isinstance(k, int) else [d * (x - 1) + 1 for x in k]
-#     if p is None:
-#         p = k // 2 if isinstance(k, int) else [x // 2 for x in k]
-#     return p
-
-
-class Conv(nn.Module):
-    default_act = nn.SiLU()
-
-    def __init__(self, c1, c2, k=1, s=1, p=None, g=1, d=1, act=True):
-        super().__init__()
-        self.conv = nn.Conv2d(c1, c2, k, s, autopad(k, p, d), groups=g, dilation=d, bias=False)
-        self.bn = nn.BatchNorm2d(c2)
-        self.act = self.default_act if act is True else act if isinstance(act, nn.Module) else nn.Identity()
-
-    def forward(self, x):
-        return self.act(self.bn(self.conv(x)))
-
 
 # ---------------- ScConv 核心组件 (CVPR 2023) ----------------
 
@@ -4752,57 +4734,61 @@ class ScBottleneck(nn.Module):
         return x + self.cv2(self.sc_conv(self.cv1(x))) if self.add else self.cv2(self.sc_conv(self.cv1(x)))
 
 
-class C3k2_SC(nn.Module):
+class C3k_SC(C3k):
     """
-    基于 ScConv (CVPR 2023) 的改进版 C3k2
-    专注解决特征冗余问题，提升有效特征占比。
+    SC variant of C3k, using ScBottleneck instead of standard Bottleneck.
+    Inherits from C3k to match the paradigm, overriding the module list.
     """
 
-    def __init__(self, c1, c2, n=1, shortcut=False, g=1, e=0.5, k=3):
-        super().__init__()
-        self.c = int(c2 * e)
-        self.cv1 = Conv(c1, 2 * self.c, 1, 1)
-        self.cv2 = Conv((2 + n) * self.c, c2, 1)
+    def __init__(self, c1: int, c2: int, n: int = 1, shortcut: bool = True, g: int = 1, e: float = 0.5):
+        """
+        Initialize C3k_SC module.
+        Args:
+            c1 (int): Input channels.
+            c2 (int): Output channels.
+            n (int): Number of Bottleneck blocks.
+            shortcut (bool): Whether to use shortcut connections.
+            g (int): Groups for convolutions.
+            e (float): Expansion ratio.
+        """
+        # Call C3k init with a dummy k=3 since ScBottleneck uses its own k internally
+        super().__init__(c1, c2, n, shortcut, g, e, k=3)
 
-        # 使用 ScBottleneck
+        c_ = int(c2 * e)  # hidden channels
+        # Override the module list to use ScBottleneck
+        self.m = nn.Sequential(*(ScBottleneck(c_, c_, shortcut, g, e=1.0) for _ in range(n)))
+
+
+class C3k2_SC(C2f):
+    """
+    SC variant of C3k2, following the original C3k2 design paradigm.
+    Inherits from C2f and optionally uses C3k_SC blocks if c3k is True.
+    """
+
+    def __init__(
+            self, c1: int, c2: int, n: int = 1, c3k: bool = False, e: float = 0.5, g: int = 1, shortcut: bool = True
+    ):
+        """
+        Initialize C3k2_SC module.
+        Args:
+            c1 (int): Input channels.
+            c2 (int): Output channels.
+            n (int): Number of blocks.
+            c3k (bool): Whether to use C3k_SC blocks.
+            e (float): Expansion ratio.
+            g (int): Groups for convolutions.
+            shortcut (bool): Whether to use shortcut connections.
+        """
+        super().__init__(c1, c2, n, shortcut, g, e)
         self.m = nn.ModuleList(
-            ScBottleneck(self.c, self.c, shortcut, g, e=1.0) for _ in range(n)
+            C3k_SC(self.c, self.c, 2, shortcut, g) if c3k else ScBottleneck(self.c, self.c, shortcut, g) for _ in
+            range(n)
         )
 
-    def forward(self, x):
-        y = list(self.cv1(x).chunk(2, 1))
-        y.extend(m(y[-1]) for m in self.m)
-        return self.cv2(torch.cat(y, 1))
 
 
-import torch
-import torch.nn as nn
 
-
-# ---------------- 基础组件 ----------------
-def autopad(k, p=None, d=1):
-    if d > 1:
-        k = d * (k - 1) + 1 if isinstance(k, int) else [d * (x - 1) + 1 for x in k]
-    if p is None:
-        p = k // 2 if isinstance(k, int) else [x // 2 for x in k]
-    return p
-
-
-class Conv(nn.Module):
-    """标准卷积块: Conv + BN + SiLU"""
-    default_act = nn.SiLU()
-
-    def __init__(self, c1, c2, k=1, s=1, p=None, g=1, d=1, act=True):
-        super().__init__()
-        self.conv = nn.Conv2d(c1, c2, k, s, autopad(k, p, d), groups=g, dilation=d, bias=False)
-        self.bn = nn.BatchNorm2d(c2)
-        self.act = self.default_act if act is True else act if isinstance(act, nn.Module) else nn.Identity()
-
-    def forward(self, x):
-        return self.act(self.bn(self.conv(x)))
-
-
-# ---------------- 核心改进：Star-LargeKernel ----------------
+# Assuming C2f, C3k, Conv, and other base classes are defined as in the original codebase.
 
 class StarLKBlock(nn.Module):
     """
@@ -4850,30 +4836,59 @@ class StarLKBlock(nn.Module):
         return x + out if self.add else out
 
 
-class C3k2_StarLK(nn.Module):
+class C3k_StarLK(C3k):
     """
-    基于 Star-LargeKernel 的改进 C3k2 模块。
+    StarLK variant of C3k, using StarLKBlock instead of standard Bottleneck.
+    Inherits from C3k to match the paradigm, overriding the module list.
     """
 
-    def __init__(self, c1, c2, n=1, shortcut=False, g=1, e=0.5, lk_size=7):
-        super().__init__()
-        self.c = int(c2 * e)
-        self.cv1 = Conv(c1, 2 * self.c, 1, 1)
-        self.cv2 = Conv((2 + n) * self.c, c2, 1)
+    def __init__(self, c1: int, c2: int, n: int = 1, shortcut: bool = True, g: int = 1, e: float = 0.5):
+        """
+        Initialize C3k_StarLK module.
+        Args:
+            c1 (int): Input channels.
+            c2 (int): Output channels.
+            n (int): Number of Bottleneck blocks.
+            shortcut (bool): Whether to use shortcut connections.
+            g (int): Groups for convolutions.
+            e (float): Expansion ratio.
+        """
+        # Call C3k init with a dummy k=3 since StarLKBlock doesn't use k
+        super().__init__(c1, c2, n, shortcut, g, e, k=3)
 
-        # 使用 StarLKBlock 替换普通 Bottleneck
-        # n 次堆叠提供更深的特征抽象
+        c_ = int(c2 * e)  # hidden channels
+        # Override the module list to use StarLKBlock
+        self.m = nn.Sequential(*(StarLKBlock(c_, c_, k=7, shortcut=shortcut, e=1.0) for _ in range(n)))
+
+
+class C3k2_StarLK(C2f):
+    """
+    StarLK variant of C3k2, following the original C3k2 design paradigm.
+    Inherits from C2f and optionally uses C3k_StarLK blocks if c3k is True.
+    """
+
+    def __init__(
+            self, c1: int, c2: int, n: int = 1, c3k: bool = False, e: float = 0.5, g: int = 1, shortcut: bool = True,
+            lk_size: int = 7
+    ):
+        """
+        Initialize C3k2_StarLK module.
+        Args:
+            c1 (int): Input channels.
+            c2 (int): Output channels.
+            n (int): Number of blocks.
+            c3k (bool): Whether to use C3k_StarLK blocks.
+            e (float): Expansion ratio.
+            g (int): Groups for convolutions.
+            shortcut (bool): Whether to use shortcut connections.
+            lk_size (int): Kernel size for large kernel in StarLKBlock.
+        """
+        super().__init__(c1, c2, n, shortcut, g, e)
         self.m = nn.ModuleList(
-            StarLKBlock(self.c, self.c, k=lk_size, shortcut=shortcut, e=1.0) for _ in range(n)
+            C3k_StarLK(self.c, self.c, 2, shortcut, g) if c3k else StarLKBlock(self.c, self.c, k=lk_size,
+                                                                               shortcut=shortcut, e=1.0) for _ in
+            range(n)
         )
-
-    def forward(self, x):
-        # CSP 分割结构
-        y = list(self.cv1(x).chunk(2, 1))
-        # 级联处理
-        y.extend(m(y[-1]) for m in self.m)
-        # 最终特征融合
-        return self.cv2(torch.cat(y, 1))
 
 
 class SEBlock(nn.Module):
@@ -4881,11 +4896,12 @@ class SEBlock(nn.Module):
 
     def __init__(self, c, r=16):
         super().__init__()
+        reduced_dim = max(1, c // r)  # Ensure at least 1 to avoid zero-size tensors
         self.avg_pool = nn.AdaptiveAvgPool2d(1)
         self.fc = nn.Sequential(
-            nn.Linear(c, c // r, bias=False),
+            nn.Linear(c, reduced_dim, bias=False),
             nn.ReLU(inplace=True),
-            nn.Linear(c // r, c, bias=False),
+            nn.Linear(reduced_dim, c, bias=False),
             nn.Sigmoid()
         )
 
@@ -4949,27 +4965,206 @@ class StarDynamicBottleneck(nn.Module):
         return y
 
 
-class C3k2_StarDynamic(nn.Module):
+class C3k_StarDynamic(C3k):
     """
-    超强表达能力版 C3k2。
-    适用于对精度要求极高，且硬件能够承受中等参数增加的场景。
+    StarDynamic variant of C3k, using StarDynamicBottleneck instead of standard Bottleneck.
+    Inherits from C3k to match the paradigm, overriding the module list.
     """
 
-    def __init__(self, c1, c2, n=1, shortcut=False, g=1, e=0.5):
-        super().__init__()
-        self.c = int(c2 * e)
-        self.cv1 = Conv(c1, 2 * self.c, 1, 1)
-        self.cv2 = Conv((2 + n) * self.c, c2, 1)
+    def __init__(self, c1: int, c2: int, n: int = 1, shortcut: bool = True, g: int = 1, e: float = 0.5):
+        """
+        Initialize C3k_StarDynamic module.
+        Args:
+            c1 (int): Input channels.
+            c2 (int): Output channels.
+            n (int): Number of Bottleneck blocks.
+            shortcut (bool): Whether to use shortcut connections.
+            g (int): Groups for convolutions.
+            e (float): Expansion ratio.
+        """
+        # Call C3k init with a dummy k=3 since StarDynamicBottleneck doesn't use k
+        super().__init__(c1, c2, n, shortcut, g, e, k=3)
 
-        # 堆叠重型 StarDynamicBottleneck
+        c_ = int(c2 * e)  # hidden channels
+        # Override the module list to use StarDynamicBottleneck
+        self.m = nn.Sequential(*(StarDynamicBottleneck(c_, c_, shortcut, g, e=1.0) for _ in range(n)))
+
+
+class C3k2_StarDynamic(C2f):
+    """
+    StarDynamic variant of C3k2, following the original C3k2 design paradigm.
+    Inherits from C2f and optionally uses C3k_StarDynamic blocks if c3k is True.
+    """
+
+    def __init__(
+            self, c1: int, c2: int, n: int = 1, c3k: bool = False, e: float = 0.5, g: int = 1, shortcut: bool = True
+    ):
+        """
+        Initialize C3k2_StarDynamic module.
+        Args:
+            c1 (int): Input channels.
+            c2 (int): Output channels.
+            n (int): Number of blocks.
+            c3k (bool): Whether to use C3k_StarDynamic blocks.
+            e (float): Expansion ratio.
+            g (int): Groups for convolutions.
+            shortcut (bool): Whether to use shortcut connections.
+        """
+        super().__init__(c1, c2, n, shortcut, g, e)
         self.m = nn.ModuleList(
-            StarDynamicBottleneck(self.c, self.c, shortcut, g, e=1.0) for _ in range(n)
+            C3k_StarDynamic(self.c, self.c, 2, shortcut, g) if c3k else StarDynamicBottleneck(self.c, self.c, shortcut,
+                                                                                              g) for _ in range(n)
         )
 
+
+# Standard CBAM with fix for small channels
+class ChannelAttention(nn.Module):
+    def __init__(self, in_planes, ratio=16):
+        super().__init__()
+        reduced_dim = max(1, in_planes // ratio)  # Fix: ensure at least 1
+        self.avg_pool = nn.AdaptiveAvgPool2d(1)
+        self.max_pool = nn.AdaptiveMaxPool2d(1)
+        self.fc1 = nn.Conv2d(in_planes, reduced_dim, 1, bias=False)
+        self.relu1 = nn.ReLU()
+        self.fc2 = nn.Conv2d(reduced_dim, in_planes, 1, bias=False)
+        self.sigmoid = nn.Sigmoid()
+
     def forward(self, x):
-        y = list(self.cv1(x).chunk(2, 1))
-        y.extend(m(y[-1]) for m in self.m)
-        return self.cv2(torch.cat(y, 1))
+        avg_out = self.fc2(self.relu1(self.fc1(self.avg_pool(x))))
+        max_out = self.fc2(self.relu1(self.fc1(self.max_pool(x))))
+        out = avg_out + max_out
+        return self.sigmoid(out)
+
+
+class SpatialAttention(nn.Module):
+    def __init__(self, kernel_size=7):
+        super().__init__()
+        self.conv1 = nn.Conv2d(2, 1, kernel_size, padding=kernel_size // 2, bias=False)
+        self.sigmoid = nn.Sigmoid()
+
+    def forward(self, x):
+        avg_out = torch.mean(x, dim=1, keepdim=True)
+        max_out, _ = torch.max(x, dim=1, keepdim=True)
+        x = torch.cat([avg_out, max_out], dim=1)
+        x = self.conv1(x)
+        return self.sigmoid(x)
+
+
+class CBAM(nn.Module):
+    def __init__(self, channels, ratio=16, kernel_size=7):
+        super().__init__()
+        self.ca = ChannelAttention(channels, ratio=ratio)
+        self.sa = SpatialAttention(kernel_size=kernel_size)
+
+    def forward(self, x):
+        out = x * self.ca(x)  # channel attention
+        out = out * self.sa(out)  # spatial attention
+        return out
+
+
+# The rest remains the same
+class HIE_Bottleneck(nn.Module):
+    """
+    High-Order Interaction Extraction Bottleneck
+    结构:
+      1. 输入 -> 两个并行分支 (3x3 和 5x5)
+      2. 分支融合
+      3. CBAM 精修
+      4. 残差连接
+    """
+
+    def __init__(self, c1, c2, shortcut=True, g=1, e=0.5):
+        super().__init__()
+        c_ = int(c2 * e)
+
+        # 输入投影
+        self.cv1 = Conv(c1, c_, 1, 1)
+
+        # --- 并行多尺度分支 (增加参数的核心) ---
+        # 分支 1: 标准 3x3
+        self.branch1 = Conv(c_, c_, k=3, s=1, g=g)
+
+        # 分支 2: 大核 5x5 (这里不用DWConv，直接用标准Conv，为了追求极致表达能力)
+        # 注意: 标准 5x5 卷积参数量是 3x3 的近 3 倍，这是为了满足你“参数多点无所谓”的要求
+        self.branch2 = Conv(c_, c_, k=5, s=1, g=g, p=2)
+
+        # --- 融合后的注意力 ---
+        self.attn = CBAM(c_, ratio=16)
+
+        # 输出投影
+        self.cv2 = Conv(c_, c2, 1, 1)
+        self.add = shortcut and c1 == c2
+
+    def forward(self, x):
+        y = self.cv1(x)
+
+        # 并行提取特征
+        b1 = self.branch1(y)
+        b2 = self.branch2(y)
+
+        # 特征相加融合 (类似于 ResNet 的多路径变体)
+        y_fused = b1 + b2
+
+        # 注意力加权: 让模型自己决定哪些特征是重要的
+        y_refined = self.attn(y_fused)
+
+        # 输出
+        out = self.cv2(y_refined)
+        return x + out if self.add else out
+
+
+class C3k_HIE(C3k):
+    """
+    HIE variant of C3k, using HIE_Bottleneck instead of standard Bottleneck.
+    Inherits from C3k to match the paradigm, overriding the module list.
+    """
+
+    def __init__(self, c1: int, c2: int, n: int = 1, shortcut: bool = True, g: int = 1, e: float = 0.5):
+        """
+        Initialize C3k_HIE module.
+        Args:
+            c1 (int): Input channels.
+            c2 (int): Output channels.
+            n (int): Number of Bottleneck blocks.
+            shortcut (bool): Whether to use shortcut connections.
+            g (int): Groups for convolutions.
+            e (float): Expansion ratio.
+        """
+        # Call C3k init with a dummy k=3 since HIE_Bottleneck doesn't use k
+        super().__init__(c1, c2, n, shortcut, g, e, k=3)
+
+        c_ = int(c2 * e)  # hidden channels
+        # Override the module list to use HIE_Bottleneck
+        self.m = nn.Sequential(*(HIE_Bottleneck(c_, c_, shortcut, g, e=1.0) for _ in range(n)))
+
+
+class C3k2_HIE(C2f):
+    """
+    HIE variant of C3k2, following the original C3k2 design paradigm.
+    Inherits from C2f and optionally uses C3k_HIE blocks if c3k is True.
+    """
+
+    def __init__(
+            self, c1: int, c2: int, n: int = 1, c3k: bool = False, e: float = 0.5, g: int = 1, shortcut: bool = True
+    ):
+        """
+        Initialize C3k2_HIE module.
+        Args:
+            c1 (int): Input channels.
+            c2 (int): Output channels.
+            n (int): Number of blocks.
+            c3k (bool): Whether to use C3k_HIE blocks.
+            e (float): Expansion ratio.
+            g (int): Groups for convolutions.
+            shortcut (bool): Whether to use shortcut connections.
+        """
+        super().__init__(c1, c2, n, shortcut, g, e)
+        self.m = nn.ModuleList(
+            C3k_HIE(self.c, self.c, 2, shortcut, g) if c3k else HIE_Bottleneck(self.c, self.c, shortcut, g) for _ in
+            range(n)
+        )
+
+
 ######################################## StartNet end ########################################
 
 ######################################## KAN begin ########################################
