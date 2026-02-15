@@ -119,7 +119,7 @@ model_yaml_paths = [
     # "Custom_Model_cfg_12/yolo11_PKI.yaml",
     # "Custom_Model_cfg_12/yolo11_SC.yaml",
 
-    "Custom_Model_cfg_12/yolo11_Star.yaml",
+    # "Custom_Model_cfg_12/yolo11_Star.yaml",
     "Custom_Model_cfg_12/yolo11_PKI.yaml",
     # "Custom_Model_cfg_12/yolo11_SC.yaml",
 
