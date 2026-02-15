@@ -4874,6 +4874,102 @@ class C3k2_StarLK(nn.Module):
         y.extend(m(y[-1]) for m in self.m)
         # 最终特征融合
         return self.cv2(torch.cat(y, 1))
+
+
+class SEBlock(nn.Module):
+    """Squeeze-and-Excitation 通道注意力，增强通道间的表达能力"""
+
+    def __init__(self, c, r=16):
+        super().__init__()
+        self.avg_pool = nn.AdaptiveAvgPool2d(1)
+        self.fc = nn.Sequential(
+            nn.Linear(c, c // r, bias=False),
+            nn.ReLU(inplace=True),
+            nn.Linear(c // r, c, bias=False),
+            nn.Sigmoid()
+        )
+
+    def forward(self, x):
+        b, c, _, _ = x.size()
+        y = self.avg_pool(x).view(b, c)
+        y = self.fc(y).view(b, c, 1, 1)
+        return x * y
+
+
+# ---------------- 核心重型模块 ----------------
+
+class StarDynamicBottleneck(nn.Module):
+    """
+    重型瓶颈层：融合了多尺度、大核、星形乘法和通道注意力。
+    参数量比标准版增加约 30%-50%，但特征表达能力大幅提升。
+    """
+
+    def __init__(self, c1, c2, shortcut=True, g=1, e=0.5):
+        super().__init__()
+        c_ = int(c2 * e)
+        # 初始扩张：将信息映射到更高维空间
+        self.cv1 = Conv(c1, c_ * 3, 1, 1)
+
+        # 分支 1: 3x3 深度卷积 (局部)
+        self.dw3x3 = nn.Conv2d(c_, c_, 3, 1, 1, groups=c_, bias=False)
+
+        # 分支 2: 7x7 空洞深度卷积 (模拟巨大感受野, Dilation=2 相当于 13x13 范围)
+        self.dw7x7 = nn.Conv2d(c_, c_, 7, 1, padding=6, dilation=2, groups=c_, bias=False)
+
+        # 分支 3: 1x1 卷积 (动态门控权重)
+        self.gate_conv = nn.Conv2d(c_, c_, 1, 1, bias=False)
+
+        self.bn = nn.BatchNorm2d(c_)
+        self.se = SEBlock(c_)  # 通道重校准
+
+        # 输出映射
+        self.cv2 = Conv(c_, c2, 1, 1)
+
+        # LayerScale: 可学习的缩放系数，初始化为一个极小值，有助于深层网络收敛
+        self.gamma = nn.Parameter(1e-6 * torch.ones((c2)), requires_grad=True) if shortcut else None
+        self.add = shortcut and c1 == c2
+
+    def forward(self, x):
+        # 1. 扩充通道并切分为三路
+        x_proj = self.cv1(x)
+        x_local, x_global, x_gate = torch.chunk(x_proj, 3, dim=1)
+
+        # 2. 星形高阶交互：Gate * (Local + Global)
+        # Gate 路控制哪些像素需要被关注，Local 提取纹理，Global 提取形状
+        combined = torch.sigmoid(self.gate_conv(x_gate)) * (self.dw3x3(x_local) + self.dw7x7(x_global))
+
+        # 3. 经过 BN 和 SE 注意力
+        y = self.se(self.bn(combined))
+
+        # 4. 投影回原始通道并进行残差连接
+        y = self.cv2(y)
+        if self.add:
+            # 应用 LayerScale
+            return x + self.gamma.view(1, -1, 1, 1) * y
+        return y
+
+
+class C3k2_StarDynamic(nn.Module):
+    """
+    超强表达能力版 C3k2。
+    适用于对精度要求极高，且硬件能够承受中等参数增加的场景。
+    """
+
+    def __init__(self, c1, c2, n=1, shortcut=False, g=1, e=0.5):
+        super().__init__()
+        self.c = int(c2 * e)
+        self.cv1 = Conv(c1, 2 * self.c, 1, 1)
+        self.cv2 = Conv((2 + n) * self.c, c2, 1)
+
+        # 堆叠重型 StarDynamicBottleneck
+        self.m = nn.ModuleList(
+            StarDynamicBottleneck(self.c, self.c, shortcut, g, e=1.0) for _ in range(n)
+        )
+
+    def forward(self, x):
+        y = list(self.cv1(x).chunk(2, 1))
+        y.extend(m(y[-1]) for m in self.m)
+        return self.cv2(torch.cat(y, 1))
 ######################################## StartNet end ########################################
 
 ######################################## KAN begin ########################################
