@@ -5438,6 +5438,113 @@ class C3k2_SGLK(C2f):
             SGLK_Block(self.c, self.c, shortcut, g, k=k, e=1.0) for _ in range(n)
         )
 
+
+class DBSGLK_Block(nn.Module):
+    """
+    Dual-Branch Star-Gated Large-Kernel Block.
+    融合了双尺度（3x3 + 7x7）和大核门控机制。
+    """
+
+    def __init__(self, c1, c2, shortcut=True, g=1, k=7, e=0.5):
+        super().__init__()
+        c_ = int(c2 * e)  # hidden channels
+
+        # 1. 输入投影：直接映射到 2 * c_，为两个分支准备特征
+        self.cv1 = nn.Conv2d(c1, 2 * c_, 1, 1, bias=False)
+        self.bn1 = nn.BatchNorm2d(2 * c_)
+
+        # 2. 双尺度分支 (Dual-Scale Branches)
+        # 分支 A: 局部细节 (3x3), 充当 "Gate" (门控)
+        # 这里使用 act=True，引入非线性
+        self.local_branch = nn.Sequential(
+            nn.Conv2d(c_, c_, 3, 1, autopad(3), groups=c_, bias=False),
+            nn.BatchNorm2d(c_),
+            nn.SiLU()
+        )
+
+        # 分支 B: 全局上下文 (7x7 或更大), 充当 "Content" (内容)
+        # 大核通常不需要接激活函数，保持线性以保留原始特征分布供门控筛选
+        self.global_branch = nn.Sequential(
+            nn.Conv2d(c_, c_, k, 1, autopad(k), groups=c_, bias=False),
+            nn.BatchNorm2d(c_)
+        )
+
+        # 3. 输出融合投影
+        self.cv2 = nn.Conv2d(c_, c2, 1, 1, bias=False)
+        self.bn2 = nn.BatchNorm2d(c2)
+
+        self.add = shortcut and c1 == c2
+
+    def forward(self, x):
+        # 1. 投影并分流
+        x_split = self.bn1(self.cv1(x))
+        x_local, x_global = x_split.chunk(2, 1)  # 将通道一分为二
+
+        # 2. 双分支处理
+        # Star Operation: 局部特征作为权重，去调制全局特征
+        # 这种写法类似 StarNet/Focal Modulation，能显著提升检测精度
+        y = self.local_branch(x_local) * self.global_branch(x_global)
+
+        # 3. 投影回输出维度
+        y = self.bn2(self.cv2(y))
+
+        return x + y if self.add else y
+# -----------------------------------------------------------
+# 集成到 C3k 和 C2f 模块中
+# -----------------------------------------------------------
+
+class C3k_DBSGLK(nn.Module):
+    """使用 DBSGLK 替换标准 Bottleneck 的 C3k 模块"""
+
+    def __init__(self, c1, c2, n=1, shortcut=True, g=1, e=0.5, k=7):
+        super().__init__()
+        c_ = int(c2 * e)  # hidden channels
+        self.cv1 = nn.Conv2d(c1, c_, 1, 1, bias=False)
+        self.cv2 = nn.Conv2d(c1, c_, 1, 1, bias=False)
+        self.cv3 = nn.Conv2d(c_ * (2 + n), c2, 1)  # 可选的 CSP 结构调整，这里简化逻辑
+
+        # 这里为了适配 C3k 的通用接口，我们复用 C3k 的逻辑，但核心是下面的 m
+        # 注意：YOLOv11 的 C3k 实际上是 CSP 结构。
+        # 下面是适配 Ultralytics C3k 逻辑的写法：
+        self.m = nn.Sequential(*(
+            DBSGLK_Block(c_, c_, shortcut, g, k=k, e=1.0)
+            for _ in range(n)
+        ))
+
+        # C3k 的标准 CSP 融合部分
+        self.cv1 = nn.Conv2d(c1, c_, 1, 1, bias=False)
+        self.cv2 = nn.Conv2d(c1, c_, 1, 1, bias=False)
+        self.cv3 = nn.Conv2d(2 * c_, c2, 1, 1, bias=False)  # 融合 cv1 和 m(cv2)
+        self.bn = nn.BatchNorm2d(2 * c_)  # Optional
+
+    def forward(self, x):
+        # 标准的 CSP 结构：输入分两路，一路经过 Block 堆叠，一路直连，最后 Concat
+        return self.cv3(torch.cat((self.m(self.cv1(x)), self.cv2(x)), dim=1))
+
+
+class C3k2_DBSGLK(nn.Module):
+    """
+    继承自 C2f/C3k2 的结构，但强制使用 DBSGLK。
+    """
+
+    def __init__(self, c1, c2, n=1, c3k=False, e=0.5, g=1, shortcut=True, k=7):
+        super().__init__()
+        self.c = int(c2 * e)
+        self.cv1 = nn.Conv2d(c1, 2 * self.c, 1, 1, bias=False)
+        self.cv2 = nn.Conv2d((2 + n) * self.c, c2, 1)
+
+        # 这里的 n 是重复次数
+        # 我们使用改进的 DBSGLK_Block
+        self.m = nn.ModuleList(
+            DBSGLK_Block(self.c, self.c, shortcut, g, k=k, e=1.0)
+            for _ in range(n)
+        )
+
+    def forward(self, x):
+        # C2f 风格的 Forward：Split -> List -> Concat -> Compress
+        y = list(self.cv1(x).chunk(2, 1))
+        y.extend(m(y[-1]) for m in self.m)
+        return self.cv2(torch.cat(y, 1))
 #
 # # Standard CBAM with fix for small channels
 # class ChannelAttention(nn.Module):
