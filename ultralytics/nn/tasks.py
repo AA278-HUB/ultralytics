@@ -117,7 +117,7 @@ from .RepStar import C3k2_RepStar, RepDW, RepStarBlock
 from .modules.DCNv4.mafyolo import RepHMSPlus, RepHMS_Gemini, RepHMSPlus_Grok, RepHMSStar_Gemini, RepHMSOmni, \
     RepHMS_Gemini_V2, RepHMS_Gemini_LightStar, RepHMSPlus_Grock_V2, RepHMSPlusV3, RepHMS_Star, RepHMS_Ultra, \
     RepHMS_Omni, RepHMSUltra_Grok
-from .modules.Gemini import C3k2_UniRepLK, C3k2_DenseGLK
+from .modules.Gemini import C3k2_UniRepLK, C3k2_DenseGLK, C3k2_StarRepLK
 # from .modules.C3k2_MobileMamba import C3k2_MobileMamba, C3k2_MambaVision
 # from .modules.C3k2_MobileMamba import C3k2Mamba
 # from .Extramodule.Neck.Gold import RepGDNeck
@@ -1924,6 +1924,7 @@ def parse_model(d, ch, verbose=True):
             C3k2_AGLK,
             C3k2_UniRepLK,
             C3k2_DenseGLK,
+            C3k2_StarRepLK,
             # C3k2Mamba,
             # ShuffleV1Block,
         }
@@ -1971,6 +1972,7 @@ def parse_model(d, ch, verbose=True):
             C3k2_AGLK,
             C3k2_UniRepLK,
             C3k2_DenseGLK,
+            C3k2_StarRepLK,
 
         }
     )
