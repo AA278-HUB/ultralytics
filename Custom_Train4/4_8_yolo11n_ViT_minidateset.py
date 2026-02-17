@@ -133,7 +133,8 @@ model_yaml_paths = [
     # "Custom_Model_cfg_12/yolo11_SGLK.yaml"
     # "Custom_Model_cfg_12/yolo11_DBSGLK.yaml"
     # "Custom_Model_cfg_12/yolo11_UniRep.yaml"
-    "Custom_Model_cfg_12/yolo11_StarRepLK.yaml",
+    # "Custom_Model_cfg_12/yolo11_StarRepLK.yaml",
+    "Custom_Model_cfg_12/yolo11_AdvUniRepLK.yaml",
 
 ]
 data = "Custom_dataset_cfg/vehicle_orientation_mini.yaml"
@@ -154,7 +155,7 @@ if __name__ == '__main__':
             imgsz=640,  # 保持不变
             cos_lr=True,
             lr0=0.005,  # ↑ 初始学习率
-            lrf=0.1,  # ↑ 最终学习率比例
+            lrf=0.2,  # ↑ 最终学习率比例
             close_mosaic=20,  # 提前关闭 mosaic
             save=True,
             device=[0,1,2,3],
