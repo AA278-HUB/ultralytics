@@ -6,7 +6,7 @@ from ultralytics.models.yolo.detect import DetectionTrainer
 if __name__ == '__main__':
     # 教师模型（只加载一次，后面复用）
     # teacher = YOLO(r"C:\Users\Hunger\Desktop\ultralytics\Custom_Distiller\best_m.pt")
-    teacher = YOLO(r"/sysv/vehicle_orientation_mini/ultralytics/Custom_Distiller/best_m.pt")
+    teacher = YOLO(r"/sysv/vehicle_orientation_mini/ultralytics/Custom_Distiller/best_x.pt")
     student_path="yolo11n.yaml"
     # teacher.model.eval()           # 可以在这里冻结，也可以放在 trainer 里处理
     # for p in teacher.model.parameters():
@@ -14,6 +14,7 @@ if __name__ == '__main__':
 
     # 要测试的 DistillWeight 值（建议从较宽范围开始，后面再细化）
     distill_weights_to_test = [3.0,5.0, 10.0, 15.0, 20.0, 30.0, 40.0, 60.0]
+    distill_weights_to_test = [1.0]
 
     # 数据集和基本配置（共用部分）
     common_args = dict(
@@ -30,7 +31,7 @@ if __name__ == '__main__':
         # amp=True,                # 建议开启，除非显存/稳定性有问题
         Distill=True,
         Teacher=teacher.model,
-        distill_loss="mgd",      # 或 "mse", "l1", "cwd" 等，看你实现的是哪个
+        distill_loss="cwd",      # 或 "mse", "l1", "cwd" 等，看你实现的是哪个
     )
 
     print(f"将测试 {len(distill_weights_to_test)} 个 DistillWeight 值")

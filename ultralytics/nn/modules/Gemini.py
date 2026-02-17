@@ -658,3 +658,129 @@ class C3k2_StarRepLK(C2f):
             StarRepLK_Block(self.c, self.c, k=k, g=g, shortcut=shortcut, e=1.0)
             for _ in range(n)
         )
+
+
+# ==================== 辅助模块 ====================
+class GRN_1(nn.Module):
+    """Global Response Normalization (ConvNeXt V2)"""
+    def __init__(self, dim):
+        super().__init__()
+        self.gamma = nn.Parameter(torch.zeros(1, dim, 1, 1))
+        self.beta = nn.Parameter(torch.zeros(1, dim, 1, 1))
+
+    def forward(self, x):
+        Gx = torch.norm(x, p=2, dim=(2, 3), keepdim=True)
+        Nx = Gx / (Gx.mean(dim=1, keepdim=True) + 1e-6)
+        return self.gamma * (x * Nx) + self.beta + x
+
+
+class CoordAttention(nn.Module):
+    """Coordinate Attention (CA) - 坐标注意力"""
+    def __init__(self, in_channels: int, reduction_ratio: int = 16):
+        super().__init__()
+        self.reduction_ratio = reduction_ratio
+        self.pool_h = nn.AdaptiveAvgPool2d((None, 1))
+        self.pool_w = nn.AdaptiveAvgPool2d((1, None))
+
+        hidden_dim = max(8, in_channels // reduction_ratio)
+
+        self.conv1 = nn.Conv2d(in_channels, hidden_dim, kernel_size=1, stride=1, padding=0, bias=False)
+        self.bn1 = nn.BatchNorm2d(hidden_dim)
+        self.act = nn.SiLU(inplace=True)
+
+        self.conv_h = nn.Conv2d(hidden_dim, in_channels, kernel_size=1, stride=1, padding=0, bias=False)
+        self.conv_w = nn.Conv2d(hidden_dim, in_channels, kernel_size=1, stride=1, padding=0, bias=False)
+
+    def forward(self, x: torch.Tensor) -> torch.Tensor:
+        identity = x
+        b, c, h, w = x.size()
+
+        # 水平和垂直方向池化
+        x_h = self.pool_h(x)                    # [B, C, H, 1]
+        x_w = self.pool_w(x).permute(0, 1, 3, 2)  # [B, C, W, 1]
+
+        # 拼接并共享卷积
+        y = torch.cat((x_h, x_w), dim=2)        # [B, C, H+W, 1]
+        y = self.conv1(y)
+        y = self.bn1(y)
+        y = self.act(y)
+
+        # 分割回水平/垂直
+        x_h, x_w = torch.split(y, [h, w], dim=2)
+        x_w = x_w.permute(0, 1, 3, 2)           # [B, C, 1, W]
+
+        # 生成注意力权重
+        a_h = self.conv_h(x_h).sigmoid()
+        a_w = self.conv_w(x_w).sigmoid()
+
+        # 坐标注意力加权（广播相乘）
+        out = identity * a_h * a_w
+        return out
+
+
+# ==================== 升级后的核心Block（已集成 CA） ====================
+class SuperUniRepLK_CA_Block(nn.Module):
+    """
+    超强版 UniRepLK_Block（已换成 Coordinate Attention）
+    结合大核 + 多尺度 + GRN + CA，精度进一步显著提升
+    """
+    def __init__(self, c1: int, c2: int, shortcut: bool = True, g: int = 1,
+                 k: int = 13, e: float = 0.5):
+        super().__init__()
+        c_ = int(c2 * e)
+        self.add = shortcut and (c1 == c2)
+
+        # 1. 局部特征（RepConv）
+        self.loc_feat = RepConv(c1, c_, k=3, s=1, g=1)
+
+        # 2. 多尺度大核全局特征（3支并行）
+        self.glob_branches = nn.ModuleList([
+            nn.Sequential(
+                nn.Conv2d(c_, c_, kernel_size=ks, stride=1,
+                          padding=(ks//2) * dil, dilation=dil,
+                          groups=c_, bias=False),
+                nn.BatchNorm2d(c_),
+                nn.SiLU()
+            )
+            for ks, dil in [(k, 1), (max(7, k//2 + 1), 2), (7, 3)]
+        ])
+
+        # 3. 坐标注意力 + GRN（核心升级）
+        self.attn = CoordAttention(c_, reduction_ratio=16)
+        self.grn = GRN_1(c_)
+
+        # 4. 投影输出
+        self.proj = nn.Sequential(
+            nn.Conv2d(c_, c2, 1, 1, bias=False),
+            nn.BatchNorm2d(c2)
+        )
+        self.act = nn.SiLU()
+
+    def forward(self, x: torch.Tensor) -> torch.Tensor:
+        x_loc = self.loc_feat(x)
+
+        # 多尺度大核融合
+        x_glob = sum(branch(x_loc) for branch in self.glob_branches)
+
+        # CA + GRN
+        x_ca = self.attn(x_glob)
+        x_grn = self.grn(x_ca)
+
+        y = self.proj(x_grn)
+        y = self.act(y)
+
+        return x + y if self.add else y
+
+
+# ==================== 升级后的C3k2模块 ====================
+class C3k2_SuperUniRepLK_CA(C2f):
+    """基于 SuperUniRepLK_CA_Block 的 C3k2（推荐直接使用）"""
+    def __init__(
+        self, c1: int, c2: int, n: int = 1, e: float = 0.5,
+        k: int = 13, g: int = 1, shortcut: bool = True
+    ):
+        super().__init__(c1, c2, n, shortcut, g, e)
+        self.m = nn.ModuleList(
+            SuperUniRepLK_CA_Block(self.c, self.c, shortcut, g, k=k, e=1.0)
+            for _ in range(n)
+        )
