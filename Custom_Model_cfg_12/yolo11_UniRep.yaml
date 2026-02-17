@@ -18,36 +18,36 @@ backbone:
   - [-1, 1, Conv, [128, 3, 2]]         # 1-P2/4
 
   # P3/8: K=7
-  - [-1, 2, C3k2_ESGLK, [256, False, 0.25, 7]]   # 2
+  - [-1, 2, C3k2_AGLK, [256, False, 0.5, 15]]   # 2
   - [-1, 1, Conv, [256, 3, 2]]         # 3-P3/8
 
   # P4/16: K=9
   # 为了增加参数量，这里将 Expansion (e) 设为 0.5 (默认)，而不是 0.25
-  - [-1, 2, C3k2_ESGLK, [512, False, 0.5, 9]]    # 4
+  - [-1, 2, C3k2_AGLK, [512, False, 0.5, 15]]    # 4
   - [-1, 1, Conv, [512, 3, 2]]         # 5-P4/16
-  - [-1, 2, C3k2_ESGLK, [512, True, 0.5, 9]]     # 6
+  - [-1, 2, C3k2_AGLK, [512, True, 0.5, 15]]     # 6
 
   # P5/32: K=13
   - [-1, 1, Conv, [1024, 3, 2]]        # 7-P5/32
-  - [-1, 2, C3k2_ESGLK, [1024, True, 0.5, 13]]   # 8
+  - [-1, 2, C3k2_AGLK, [1024, True, 0.5, 15]]   # 8
   - [-1, 1, SPPF, [1024, 5]]           # 9
   - [-1, 2, C2PSA, [1024]]             # 10
 
 head:
   - [-1, 1, nn.Upsample, [None, 2, "nearest"]]
   - [[-1, 6], 1, Concat, [1]]          # cat backbone P4
-  - [-1, 2, C3k2_ESGLK, [512, False, 0.5, 9]]    # 13
+  - [-1, 2, C3k2_AGLK, [512, False, 0.5, 15]]    # 13
 
   - [-1, 1, nn.Upsample, [None, 2, "nearest"]]
   - [[-1, 4], 1, Concat, [1]]          # cat backbone P3
-  - [-1, 2, C3k2_ESGLK, [256, False, 0.5, 7]]    # 16 (P3 small)
+  - [-1, 2, C3k2_AGLK, [256, False, 0.5, 15]]    # 16 (P3 small)
 
   - [-1, 1, Conv, [256, 3, 2]]
   - [[-1, 13], 1, Concat, [1]]         # cat head P4
-  - [-1, 2, C3k2_ESGLK, [512, False, 0.5, 9]]    # 19 (P4 medium)
+  - [-1, 2, C3k2_AGLK, [512, False, 0.5, 15]]    # 19 (P4 medium)
 
   - [-1, 1, Conv, [512, 3, 2]]
   - [[-1, 10], 1, Concat, [1]]         # cat head P5
-  - [-1, 2, C3k2_ESGLK, [1024, True, 0.5, 13]]   # 22 (P5 large)
+  - [-1, 2, C3k2_AGLK, [1024, True, 0.5, 15]]   # 22 (P5 large)
 
   - [[16, 19, 22], 1, Detect, [nc]]

@@ -6219,6 +6219,86 @@ class C3k2_ESGLK(C2f):
             C3k_ESGLK(self.c, self.c, 2, shortcut, g, e=1.0, k=k) if c3k else
             ESGLK_Block(self.c, self.c, shortcut, g, k=k, e=1.0) for _ in range(n)
         )
+
+class SimAM(nn.Module):
+    """SimAM: 参数免费的 3D 注意力（ICML 2021 + 多篇 YOLO 改进验证有效）"""
+
+    def __init__(self, e_lambda: float = 1e-4):
+        super().__init__()
+        self.e_lambda = e_lambda
+
+    def forward(self, x: torch.Tensor) -> torch.Tensor:
+        b, c, h, w = x.size()
+        n = w * h - 1
+        x_minus_mu_square = (x - x.mean(dim=[2, 3], keepdim=True)).pow(2)
+        y = x_minus_mu_square / (4 * (x_minus_mu_square.sum(dim=[2, 3], keepdim=True) / n + self.e_lambda)) + 0.5
+        return x * torch.sigmoid(y)
+
+
+class AGLK_Block(nn.Module):
+    """
+    Advanced Gated Large-Kernel SimAM Block (AGLK_Block)
+    核心：GURLKNet gating + k=15 大核 + SimAM neuron-level 注意力
+    """
+
+    def __init__(self, c1: int, c2: int, shortcut: bool = True, g: int = 1, k: int = 15, e: float = 0.75):
+        super().__init__()
+        c_ = int(c2 * e)  # 更大隐藏容量
+        self.cv1 = nn.Conv2d(c1, c_ * 3, 1, 1, bias=False)  # gate + identity + main
+        self.bn1 = nn.BatchNorm2d(c_ * 3)
+
+        # 大核深度卷积（感受野极强）
+        self.lk = nn.Conv2d(c_, c_, k, 1, k // 2, groups=c_, bias=False)
+        self.bn_lk = nn.BatchNorm2d(c_)
+
+        # 融合 + 输出
+        self.cv2 = nn.Conv2d(2 * c_, c2, 1, 1, bias=False)
+        self.bn2 = nn.BatchNorm2d(c2)
+
+        self.simam = SimAM()  # 零参数强注意力
+        self.act = nn.SiLU()
+        self.add = shortcut and c1 == c2
+
+    def forward(self, x: torch.Tensor) -> torch.Tensor:
+        # GURLKNet 式 3 分支
+        g, i, m = self.bn1(self.cv1(x)).chunk(3, 1)
+
+        # 大核主分支
+        m_proc = self.bn_lk(self.lk(m))
+
+        # 融合 identity + large kernel
+        concat_im = torch.cat([i, m_proc], dim=1)
+
+        # 精确 gating（重复通道匹配）
+        gate = torch.sigmoid(g).repeat(1, 2, 1, 1)
+        gated = gate * concat_im
+
+        y = self.bn2(self.cv2(gated))
+
+        # SimAM 精细增强（对小目标/复杂场景极有效）
+        y = self.simam(y)
+
+        return x + self.act(y) if self.add else self.act(y)
+class C3k_AGLK(C3k):   # 继承你原来的 C3k
+    def __init__(self, c1: int, c2: int, n: int = 1, shortcut: bool = True,
+                 g: int = 1, e: float = 0.75, k: int = 15):
+        super().__init__(c1, c2, n, shortcut, g, e)
+        c_ = int(c2 * e)
+        self.m = nn.Sequential(
+            *(AGLK_Block(c_, c_, shortcut, g, k=k, e=1.0) for _ in range(n))
+        )
+
+
+class C3k2_AGLK(C2f):   # 继承你原来的 C2f
+    def __init__(self, c1: int, c2: int, n: int = 1, c3k: bool = True,
+                 e: float = 0.75, k: int = 15, g: int = 1, shortcut: bool = True):
+        super().__init__(c1, c2, n, shortcut, g, e)
+        e=0.75
+        self.m = nn.ModuleList(
+            C3k_AGLK(self.c, self.c, 2, shortcut, g, e=1.0, k=k) if c3k else
+            AGLK_Block(self.c, self.c, shortcut, g, k=k, e=1.0)
+            for _ in range(n)
+        )
 # class MSDA_Block(nn.Module):
 #     """
 #     Multi-Scale Dense Aggregation Block.
