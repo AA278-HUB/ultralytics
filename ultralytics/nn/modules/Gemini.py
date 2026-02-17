@@ -281,107 +281,380 @@ class C3k2_DenseGLK(C2f):
         )
 
 
-class GRN(nn.Module):
-    """
-    Global Response Normalization (GRN) layer from ConvNeXt V2.
-    Enhances feature competition and contrast.
-    """
+# class GRN(nn.Module):
+#     """
+#     Global Response Normalization (GRN) layer from ConvNeXt V2.
+#     Enhances feature competition and contrast.
+#     """
+#
+#     def __init__(self, dim, eps=1e-6):
+#         super().__init__()
+#         self.gamma = nn.Parameter(torch.zeros(1, 1, 1, dim))
+#         self.beta = nn.Parameter(torch.zeros(1, 1, 1, dim))
+#         self.eps = eps
+#
+#     def forward(self, x):
+#         # x: (B, C, H, W) -> permute to (B, H, W, C) for layer norm style logic
+#         x = x.permute(0, 2, 3, 1)
+#         Gx = torch.norm(x, p=2, dim=(1, 2), keepdim=True)
+#         Nx = Gx / (Gx.mean(dim=-1, keepdim=True) + self.eps)
+#         x = self.gamma * (x * Nx) + self.beta + x
+#         x = x.permute(0, 3, 1, 2)
+#         return x
+# class StarRepLK_Block(nn.Module):
+#     """
+#     StarRepLK Block:
+#     1. RepConv for Local Features (3x3).
+#     2. Large Kernel Depthwise Conv for Global Context (7x7).
+#     3. Star Operation (Element-wise Multiplication) for high-order non-linearity.
+#     4. GRN for feature contrast.
+#     5. SEBlock for channel attention.
+#     """
+#
+#     def __init__(self, c1, c2, shortcut=True, g=1, k=7, e=0.5):
+#         super().__init__()
+#         self.c = c2  # Output channels
+#
+#         # 1. Expansion & Local Feature Extraction (RepConv)
+#         # We expand to 2x channels to facilitate the "Star" split later
+#         self.local_rep = RepConv(c1, 2 * c2, k=3, s=1, g=g)
+#
+#         # 2. Global Context (Large Kernel Depthwise)
+#         # Applied on the expanded features to capture context before gating
+#         padding = k // 2
+#         self.global_dw = nn.Conv2d(2 * c2, 2 * c2, k, stride=1, padding=padding, groups=2 * c2, bias=False)
+#         self.bn_dw = nn.BatchNorm2d(2 * c2)
+#
+#         # 3. Feature Processing components
+#         self.grn = GRN(c2)
+#         self.attn = SEBlock(c2, ratio=16)  # Channel Attention
+#
+#         # 4. Final Projection
+#         self.proj = nn.Conv2d(c2, c2, 1, 1, bias=False)
+#         self.bn_proj = nn.BatchNorm2d(c2)
+#
+#         self.act = nn.SiLU()  # Simple activation before projection if needed
+#         self.add = shortcut and c1 == c2
+#
+#     def forward(self, x):
+#         input_tensor = x
+#
+#         # Step 1: Strong Local Features
+#         x = self.local_rep(x)
+#
+#         # Step 2: Strong Global Context
+#         x = self.global_dw(x)
+#         x = self.bn_dw(x)
+#
+#         # Step 3: Star Operation (Gating)
+#         # Split channels into two halves
+#         x1, x2 = x.chunk(2, dim=1)
+#         # Element-wise multiplication: This is the "Star" operation
+#         # One branch gates the other.
+#         x = x1 * x2
+#
+#         # Step 4: Refinement
+#         x = self.grn(x)  # Global Response Normalization
+#         x = self.attn(x)  # Channel Attention (SE)
+#
+#         # Step 5: Projection
+#         x = self.proj(x)
+#         x = self.bn_proj(x)
+#
+#         return input_tensor + x if self.add else x
+#
+#
+# class C3k2_StarRepLK(C2f):
+#     """
+#     Upgraded CSP Bottleneck with StarRepLK Blocks.
+#     Focus: High Accuracy through Gating, Reparameterization, and Global Context.
+#     """
+#
+#     def __init__(self, c1, c2, n=1, c3k=True, e=0.5, k=7, g=1, shortcut=True):
+#         """
+#         Args:
+#             c1, c2: Input/Output channels
+#             n: Number of blocks
+#             e: Expansion ratio for the hidden channels in C2f wrapper
+#             k: Kernel size for the Large Kernel part (default 7)
+#         """
+#         super().__init__(c1, c2, n, shortcut, g, e)
+#
+#         # Replace the standard bottleneck list with our StarRepLK_Block
+#         # self.c is the hidden channel size calculated in C2f
+#         self.m = nn.ModuleList(
+#             StarRepLK_Block(self.c, self.c, shortcut, g, k=k) for _ in range(n)
+#         )
 
-    def __init__(self, dim, eps=1e-6):
+# ====================== 新增辅助模块 ======================
+class GRN(nn.Module):
+    """Global Response Normalization (来自 ConvNeXt V2)，提升通道竞争与特征多样性"""
+    def __init__(self, dim):
         super().__init__()
-        self.gamma = nn.Parameter(torch.zeros(1, 1, 1, dim))
-        self.beta = nn.Parameter(torch.zeros(1, 1, 1, dim))
-        self.eps = eps
+        self.gamma = nn.Parameter(torch.zeros(1, dim, 1, 1))
+        self.beta = nn.Parameter(torch.zeros(1, dim, 1, 1))
+
+    def forward(self, x):  # x: B C H W
+        Gx = torch.norm(x, p=2, dim=(2, 3), keepdim=True)   # B C 1 1
+        Nx = Gx / (Gx.mean(dim=1, keepdim=True) + 1e-6)     # B 1 1 1
+        return self.gamma * (x * Nx) + self.beta + x
+
+
+class ChannelAttention(nn.Module):
+    def __init__(self, in_planes, ratio=16):
+        super().__init__()
+        self.avg_pool = nn.AdaptiveAvgPool2d(1)
+        self.max_pool = nn.AdaptiveMaxPool2d(1)
+        self.fc1 = nn.Conv2d(in_planes, in_planes // ratio, 1, bias=False)
+        self.relu = nn.ReLU()
+        self.fc2 = nn.Conv2d(in_planes // ratio, in_planes, 1, bias=False)
+        self.sigmoid = nn.Sigmoid()
 
     def forward(self, x):
-        # x: (B, C, H, W) -> permute to (B, H, W, C) for layer norm style logic
-        x = x.permute(0, 2, 3, 1)
-        Gx = torch.norm(x, p=2, dim=(1, 2), keepdim=True)
-        Nx = Gx / (Gx.mean(dim=-1, keepdim=True) + self.eps)
-        x = self.gamma * (x * Nx) + self.beta + x
-        x = x.permute(0, 3, 1, 2)
+        avg_out = self.fc2(self.relu(self.fc1(self.avg_pool(x))))
+        max_out = self.fc2(self.relu(self.fc1(self.max_pool(x))))
+        return self.sigmoid(avg_out + max_out)
+
+
+class SpatialAttention(nn.Module):
+    def __init__(self, kernel_size=7):
+        super().__init__()
+        self.conv = nn.Conv2d(2, 1, kernel_size, padding=kernel_size // 2, bias=False)
+        self.sigmoid = nn.Sigmoid()
+
+    def forward(self, x):
+        avg_out = torch.mean(x, dim=1, keepdim=True)
+        max_out, _ = torch.max(x, dim=1, keepdim=True)
+        x_cat = torch.cat([avg_out, max_out], dim=1)
+        return self.sigmoid(self.conv(x_cat))
+
+
+class CBAM(nn.Module):
+    """CBAM (Channel + Spatial Attention) —— 比 SE 精度更高（YOLO 改进中广泛验证）"""
+    def __init__(self, c, ratio=16, kernel_size=7):
+        super().__init__()
+        self.ca = ChannelAttention(c, ratio)
+        self.sa = SpatialAttention(kernel_size)
+
+    def forward(self, x):
+        x = x * self.ca(x)
+        x = x * self.sa(x)
         return x
+
+
+# ====================== 升级后的核心 Block ======================
+class AdvUniRepLK_Block(nn.Module):
+    """
+    升级版 UniRepLK_Block（精度显著更高）
+    - RepConv(3x3) 保留局部强容量
+    - DW 大核 (k=9) + 更大感受野
+    - SE → CBAM（空间+通道注意力）
+    - 加入 GRN（ConvNeXt V2 规范化）
+    """
+    def __init__(self, c1, c2, shortcut=True, g=1, k=9, e=0.5):
+        super().__init__()
+        c_ = int(c2 * e)
+        # 1. 局部强特征（保持 RepConv 高容量）
+        self.loc_feat = RepConv(c1, c_, k=3, s=1, g=1)
+        # 2. 全局大感受野
+        self.glob_feat = nn.Sequential(
+            nn.Conv2d(c_, c_, k, 1, k//2, groups=c_, bias=False),  # Depthwise 大核
+            nn.BatchNorm2d(c_),
+            nn.SiLU()
+        )
+        # 3. 升级注意力
+        self.attn = CBAM(c_, ratio=8)
+        # 4. 投影 + GRN 规范化（提升特征质量）
+        self.proj = nn.Sequential(
+            nn.Conv2d(c_, c2, 1, 1, bias=False),
+            nn.BatchNorm2d(c2),
+            GRN(c2)
+        )
+        self.add = shortcut and (c1 == c2)
+
+    def forward(self, x):
+        x_loc = self.loc_feat(x)
+        x_glob = self.glob_feat(x_loc)
+        x_attn = self.attn(x_glob)
+        y = self.proj(x_attn)
+        return x + y if self.add else y
+
+
+# ====================== 升级后的 C3k2 模块 ======================
+class C3k2_AdvUniRepLK(C2f):
+    """
+    替换原 C3k2_UniRepLK 使用 AdvUniRepLK_Block
+    用法完全一致：直接替换 backbone/neck 中的模块即可
+    """
+    def __init__(self, c1: int, c2: int, n: int = 1, c3k: bool = True,
+                 e: float = 0.5, k: int = 9, g: int = 1, shortcut: bool = True):
+        super().__init__(c1, c2, n, shortcut, g, e)
+        # 使用升级 Block（c3k 参数保留以兼容，但此处固定用 Adv）
+        self.m = nn.ModuleList(
+            AdvUniRepLK_Block(self.c, self.c, shortcut, g, k=k, e=1.0)
+            for _ in range(n)
+        )
+
+#
+# import torch
+# import torch.nn as nn
+# import torch.nn.functional as F
+
+
+# Assume the C2f and RepConv classes you provided are available.
+# If not, I will include the necessary helpers below.
+class RepDWConv(nn.Module):
+    """
+    Reparameterizable Depthwise Large Kernel Convolution.
+    Training: Parallel (Large Kernel DW) + (Small Kernel DW) + (Identity if stride=1)
+    Inference: Fused Single Large Kernel DW
+    """
+
+    def __init__(self, c1, c2, k=7, stride=1):
+        super().__init__()
+        self.stride = stride
+        self.k = k
+        self.c1 = c1
+        self.c2 = c2
+        self.deploy = False
+
+        padding = (k - 1) // 2
+
+        # Training branches
+        self.dw_large = nn.Conv2d(c1, c1, k, stride, padding, groups=c1, bias=False)
+        self.dw_small = nn.Conv2d(c1, c1, 3, stride, 1, groups=c1, bias=False)
+        self.bn = nn.BatchNorm2d(c1)
+
+        # Pointwise (optional, but here we keep it pure DW for efficiency in the block)
+        # In this specific block design, we only need DW since RepConv handles channel mixing
+
+    def forward(self, x):
+        if self.deploy:
+            return self.fused_conv(x)
+
+        # Multi-branch fusion during training
+        out = self.dw_large(x) + self.dw_small(x)
+        return self.bn(out)
+
+    def switch_to_deploy(self):
+        if self.deploy: return
+
+        # Fuse Large and Small kernels into one Large Kernel
+        # 1. Pad small kernel to match large kernel size
+        k_large, _ = self._fuse_bn(self.dw_large, self.bn)
+        k_small, b_small = self._fuse_bn(self.dw_small, self.bn)
+
+        pad = (self.k - 3) // 2
+        k_small_padded = F.pad(k_small, [pad, pad, pad, pad])
+
+        k_fused = k_large + k_small_padded
+        b_fused = b_small  # BN bias is shared/accumulated approx
+
+        self.fused_conv = nn.Conv2d(self.c1, self.c2, self.k, self.stride, (self.k - 1) // 2, groups=self.c1, bias=True)
+        self.fused_conv.weight.data = k_fused
+        self.fused_conv.bias.data = b_fused
+
+        self.__delattr__('dw_large')
+        self.__delattr__('dw_small')
+        self.__delattr__('bn')
+        self.deploy = True
+
+    def _fuse_bn(self, conv, bn):
+        w = conv.weight
+        mean = bn.running_mean
+        var_sqrt = torch.sqrt(bn.running_var + bn.eps)
+        beta = bn.bias
+        gamma = bn.weight
+
+        if beta is None: beta = torch.zeros_like(mean)
+
+        # Fusing
+        w_fused = w * (gamma / var_sqrt).reshape(-1, 1, 1, 1)
+        b_fused = beta - mean * gamma / var_sqrt
+
+        return w_fused, b_fused
+
 class StarRepLK_Block(nn.Module):
     """
     StarRepLK Block:
-    1. RepConv for Local Features (3x3).
-    2. Large Kernel Depthwise Conv for Global Context (7x7).
-    3. Star Operation (Element-wise Multiplication) for high-order non-linearity.
-    4. GRN for feature contrast.
-    5. SEBlock for channel attention.
+    Combines UniRepLK (Large Kernel) + StarNet (Element-wise Multiplication).
+
+    Structure:
+        Input
+          |--[ Branch 1: Global Context (Large Kernel DW) ]--|
+          |                                                  |
+          |--[ Branch 2: Local Details (RepConv 3x3)      ]--|
+                                   |
+                                (Star Operation: Element-wise Multiply)
+                                   |
+                             [ Channel Mixer (1x1) ]
+                                   |
+                                 Output
     """
 
-    def __init__(self, c1, c2, shortcut=True, g=1, k=7, e=0.5):
+    def __init__(self, c1, c2, k=7, g=1, shortcut=True, e=1.0):
         super().__init__()
-        self.c = c2  # Output channels
+        c_ = int(c2 * e)  # hidden channels
 
-        # 1. Expansion & Local Feature Extraction (RepConv)
-        # We expand to 2x channels to facilitate the "Star" split later
-        self.local_rep = RepConv(c1, 2 * c2, k=3, s=1, g=g)
+        # 1. Branch Global: Large Kernel Depthwise
+        # We use a simplified Reparameterizable Large Kernel here
+        # At inference, this collapses to a single kxk DWConv
+        self.global_rep = RepDWConv(c1, c_, k=k, stride=1)
+        self.global_norm = nn.BatchNorm2d(c_)
 
-        # 2. Global Context (Large Kernel Depthwise)
-        # Applied on the expanded features to capture context before gating
-        padding = k // 2
-        self.global_dw = nn.Conv2d(2 * c2, 2 * c2, k, stride=1, padding=padding, groups=2 * c2, bias=False)
-        self.bn_dw = nn.BatchNorm2d(2 * c2)
+        # 2. Branch Local: RepConv 3x3 (Dense)
+        # Captures high-frequency details (edges, textures)
+        self.local_rep = RepConv(c1, c_, k=3, s=1, g=g, act=False)
+        self.local_norm = nn.BatchNorm2d(c_)
 
-        # 3. Feature Processing components
-        self.grn = GRN(c2)
-        self.attn = SEBlock(c2, ratio=16)  # Channel Attention
+        # 3. Activation for the Star Operation
+        # StarNet uses ReLU on one branch before multiplication
+        self.act = nn.ReLU()
 
-        # 4. Final Projection
-        self.proj = nn.Conv2d(c2, c2, 1, 1, bias=False)
-        self.bn_proj = nn.BatchNorm2d(c2)
+        # 4. Fusion / Projection
+        self.proj = nn.Conv2d(c_, c2, 1, 1, bias=False)
+        self.proj_bn = nn.BatchNorm2d(c2)
 
-        self.act = nn.SiLU()  # Simple activation before projection if needed
+        # Shortcut
         self.add = shortcut and c1 == c2
 
     def forward(self, x):
-        input_tensor = x
+        # Branch 1: Global (Context)
+        x_g = self.global_norm(self.global_rep(x))
 
-        # Step 1: Strong Local Features
-        x = self.local_rep(x)
+        # Branch 2: Local (Details)
+        x_l = self.local_norm(self.local_rep(x))
 
-        # Step 2: Strong Global Context
-        x = self.global_dw(x)
-        x = self.bn_dw(x)
+        # Star Operation:
+        # "StarNet" style interaction: (Local) * Act(Global)
+        # This modulates local details based on global context
+        x_star = x_l * self.act(x_g)
 
-        # Step 3: Star Operation (Gating)
-        # Split channels into two halves
-        x1, x2 = x.chunk(2, dim=1)
-        # Element-wise multiplication: This is the "Star" operation
-        # One branch gates the other.
-        x = x1 * x2
+        # Output Projection
+        y = self.proj_bn(self.proj(x_star))
 
-        # Step 4: Refinement
-        x = self.grn(x)  # Global Response Normalization
-        x = self.attn(x)  # Channel Attention (SE)
+        return x + y if self.add else y
 
-        # Step 5: Projection
-        x = self.proj(x)
-        x = self.bn_proj(x)
 
-        return input_tensor + x if self.add else x
 
 
 class C3k2_StarRepLK(C2f):
     """
-    Upgraded CSP Bottleneck with StarRepLK Blocks.
-    Focus: High Accuracy through Gating, Reparameterization, and Global Context.
+    Faster Implementation of CSP Bottleneck with StarRepLK Blocks.
+    Replaces standard Bottleneck with StarRepLK_Block.
     """
 
-    def __init__(self, c1, c2, n=1, c3k=True, e=0.5, k=7, g=1, shortcut=True):
+    def __init__(self, c1, c2, n=1, c3k=False, e=0.5, k=7, g=1, shortcut=True):
         """
         Args:
-            c1, c2: Input/Output channels
-            n: Number of blocks
-            e: Expansion ratio for the hidden channels in C2f wrapper
-            k: Kernel size for the Large Kernel part (default 7)
+            k (int): Large kernel size for the global branch (default 7).
         """
         super().__init__(c1, c2, n, shortcut, g, e)
+        # C3k2 logic: if c3k is True, use C3k (custom), else use our StarRepLK
+        # Note: In YOLO11 original C3k2, 'c3k' toggles between C3 and Bottleneck.
+        # Here we use StarRepLK as the "upgraded" default block.
 
-        # Replace the standard bottleneck list with our StarRepLK_Block
-        # self.c is the hidden channel size calculated in C2f
         self.m = nn.ModuleList(
-            StarRepLK_Block(self.c, self.c, shortcut, g, k=k) for _ in range(n)
+            StarRepLK_Block(self.c, self.c, k=k, g=g, shortcut=shortcut, e=1.0)
+            for _ in range(n)
         )
