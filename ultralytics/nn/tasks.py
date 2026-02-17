@@ -126,7 +126,8 @@ from .modules.block import ShuffleV1Block, ShuffleV2Block, C3RepGhost2, C2faster
     C3k2_GEMA, C3k2_Sema, C2f_LiteRepMixer, C2f_PSC, C3k2_LiteRepMixer, GSConv, VoVGSCSPC, GSBottleneckC, GSBottleneck, \
     GSConvns, VoVGSCSPC, VoVGSCSP, C2f_FFC, FD_C3k2, C3k2_MogaBlock, C3k2_UniRepLKNetBlock, C3k2_iRMB, \
     C3k2_MambaOut, C3k2_Faster_EMA, C3k2_Star, C3k2_Star_CAA, C3k2_LSBlock, C3k2_Star_Gemini, C3k2_PKI, \
-    C3k2_SC, C3k2_StarLK, C3k2_StarDynamic, C3k2_HIE, C3k2_UniStar, C3k2_SGLK, C3k2_DBSGLK  # C2f_DCNv4
+    C3k2_SC, C3k2_StarLK, C3k2_StarDynamic, C3k2_HIE, C3k2_UniStar, C3k2_SGLK, C3k2_DBSGLK, C3k2_HSG, \
+    C3k2_SGLK_v5, C3k2_MSDA, C3k2_UniRep, C3k2_UniStar1, C3k_ESGLK, C3k2_ESGLK  # C2f_DCNv4
 from .modules.mafyolo import RepHMS, AVG, RepHMSv2, RepHMS_Pro, RepHMA, RepDGM, RepDGM_V2, RepGMS, RepGVA_ELAN, RepSFA
 
 
@@ -1903,6 +1904,7 @@ def parse_model(d, ch, verbose=True):
 
 
 
+
             C3k2_Star_Gemini,
             C3k2_PKI,
             C3k2_SC,
@@ -1912,6 +1914,12 @@ def parse_model(d, ch, verbose=True):
             C3k2_UniStar,
             C3k2_SGLK,
             C3k2_DBSGLK,
+            C3k2_HSG,
+            C3k2_SGLK_v5,
+            C3k2_MSDA,
+            C3k2_UniRep,
+            C3k2_UniStar1,
+            C3k2_ESGLK,
             # C3k2Mamba,
             # ShuffleV1Block,
         }
@@ -1950,6 +1958,12 @@ def parse_model(d, ch, verbose=True):
             C3k2_UniStar,
             C3k2_SGLK,
             C3k2_DBSGLK,
+            C3k2_HSG,
+            C3k2_SGLK_v5,
+            C3k2_MSDA,
+            C3k2_UniRep,
+            C3k2_UniStar1,
+            C3k2_ESGLK,
 
         }
     )

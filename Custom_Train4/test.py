@@ -119,8 +119,15 @@ model_yaml_paths = [
     # "Custom_Model_cfg_12/yolo11_C3k2_HIE.yaml"
     # "Custom_Model_cfg_12/yolo11_UniStar.yaml",
     # "Custom_Model_cfg_12/yolo11_SGLK.yaml"
-    "Custom_Model_cfg_12/yolo11_DBSGLK.yaml"
+    # "Custom_Model_cfg_12/yolo11_DBSGLK.yaml"
+    # "Custom_Model_cfg_12/yolo11_HSG.yaml"
+    # "Custom_Model_cfg_12/yolo11_SGLK_V5.yaml"
+    # "Custom_Model_cfg_12/yolo11_MSDA.yaml"
+    "Custom_Model_cfg_12/yolo11_UniRep.yaml"
 ]
+
+
+
 
 
 data="coco8.yaml"
