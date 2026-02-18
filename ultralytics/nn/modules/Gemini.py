@@ -185,6 +185,7 @@ class C3k2_UniRepLK(C2f):
     """
 
     def __init__(self, c1, c2, n=1, c3k=True, e=0.5, k=7, g=1, shortcut=True):
+        e=0.5
         super().__init__(c1, c2, n, shortcut, g, e)
         # 注意：这里 e 是 hidden channel 的比例。
         # 由于我们使用了 RepConv(3x3)，参数量本身已经很大。
