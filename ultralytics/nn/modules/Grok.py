@@ -1,9 +1,8 @@
 # ==================== 必需的 helper 函数（UniRepLKNet 官方融合逻辑） ====================
 import torch
 import torch.nn.functional as F
-from ultralytics import nn
 from ultralytics.nn.modules import RepConv, C3, C2f, Conv
-
+import torch.nn as nn
 
 def fuse_bn(conv, bn):
     """Fuse BN into Conv"""
