@@ -785,3 +785,100 @@ class C3k2_SuperUniRepLK_CA(C2f):
             SuperUniRepLK_CA_Block(self.c, self.c, shortcut, g, k=k, e=1.0)
             for _ in range(n)
         )
+
+
+class EMA(nn.Module):
+    """ Efficient Multi-Scale Attention - 跨空间与通道的联合注意力 """
+    def __init__(self, channels, factor=8):
+        super(EMA, self).__init__()
+        self.groups = factor
+        self.avg_pool = nn.AdaptiveAvgPool2d(1)
+        self.gn = nn.GroupNorm(channels // self.groups, channels // self.groups)
+        self.conv1x1 = nn.Conv2d(channels // self.groups, channels // self.groups, kernel_size=1)
+        self.conv3x3 = nn.Conv2d(channels // self.groups, channels // self.groups, kernel_size=3, padding=1)
+
+    def forward(self, x):
+        b, c, h, w = x.size()
+        group_x = x.view(b * self.groups, -1, h, w)
+        x_h = self.avg_pool(group_x)
+        a1 = self.gn(self.conv1x1(x_h))
+        a2 = self.gn(self.conv3x3(group_x))
+        out = (a1.sigmoid() * a2.sigmoid() * group_x).view(b, c, h, w)
+        return out
+
+class MultiScaleLargeKernel(nn.Module):
+    """ MSCA (Multi-Scale Convolutional Attention) - 模拟超大感受野特征捕获 """
+    def __init__(self, dim):
+        super().__init__()
+        self.conv0 = nn.Conv2d(dim, dim, 5, padding=2, groups=dim)
+        self.conv_l1 = nn.Conv2d(dim, dim, (1, 7), padding=(0, 3), groups=dim)
+        self.conv_l2 = nn.Conv2d(dim, dim, (7, 1), padding=(3, 0), groups=dim)
+        self.conv_l3 = nn.Conv2d(dim, dim, (1, 11), padding=(0, 5), groups=dim)
+        self.conv_l4 = nn.Conv2d(dim, dim, (11, 1), padding=(5, 0), groups=dim)
+        self.conv1 = nn.Conv2d(dim, dim, 1)
+
+    def forward(self, x):
+        u = x.clone()
+        attn = self.conv0(x)
+        attn = self.conv_l1(attn)
+        attn = self.conv_l2(attn)
+        attn = self.conv_l3(attn)
+        attn = self.conv_l4(attn)
+        attn = self.conv1(attn)
+        return u * attn
+
+class UltraApex_Bottleneck(nn.Module):
+    """
+    最强原子单元：RepConv(局部) + MSCA(全局) + GRN(去冗) + EMA(筛选)
+    """
+    def __init__(self, c1, c2, shortcut=True, g=1, k=(3, 3), e=0.5):
+        super().__init__()
+        e=1.0
+        c_ = int(c2 * e)
+        # 1. 局部高频提取：使用 RepConv 替代普通 Conv
+        self.cv1 = RepConv(c1, c_, k[0], 1, g=g)
+        # 2. 全局/大感受野建模：MSCA
+        self.msca = MultiScaleLargeKernel(c_)
+        # 3. 特征响应增强：GRN
+        self.grn = GRN(c_)
+        # 4. 联合注意力筛选：EMA
+        self.ema = EMA(c_)
+        # 5. 投影输出
+        self.cv2 = Conv(c_, c2, k[1], 1, g=g)
+        self.add = shortcut and c1 == c2
+
+    def forward(self, x):
+        y = self.cv1(x)
+        y = self.msca(y)
+        y = self.grn(y)
+        y = self.ema(y)
+        y = self.cv2(y)
+        return x + y if self.add else y
+class C3k_UltraApex(C3k):
+    """
+    C3k_UltraApex 继承自 C3。
+    内部 self.m 是由 n 个 UltraApex_Bottleneck 组成的 Sequential。
+    """
+    def __init__(self, c1, c2, n=1, shortcut=True, g=1, e=0.5, k=3):
+        super().__init__(c1, c2, n, shortcut, g, e)
+        c_ = int(c2 * e)
+        # 核心修改：将原本的 Bottleneck 替换为 UltraApex_Bottleneck
+        self.m = nn.Sequential(*(UltraApex_Bottleneck(c_, c_, shortcut, g, k=(k, k), e=1.0) for _ in range(n)))
+
+class C3k2_UltraApex(C2f):
+    """
+    C3k2_UltraApex 继承自 C2f。
+    它根据 c3k 参数决定是否调用极致版的 C3k 模块。
+    """
+    def __init__(self, c1, c2, n=1, c3k=True, e=0.5, g=1, shortcut=True):
+        """
+        Args:
+            c3k (bool): 若为 True，则加载具有极致精度的 C3k_UltraApex。
+        """
+        super().__init__(c1, c2, n, shortcut, g, e)
+        # 覆盖父类的 self.m
+        self.m = nn.ModuleList(
+            C3k_UltraApex(self.c, self.c, 1, shortcut, g,1.0) if c3k else
+            UltraApex_Bottleneck(self.c, self.c, shortcut, g)
+            for _ in range(n)
+        )
