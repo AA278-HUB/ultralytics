@@ -119,7 +119,7 @@ from .modules.DCNv4.mafyolo import RepHMSPlus, RepHMS_Gemini, RepHMSPlus_Grok, R
     RepHMS_Omni, RepHMSUltra_Grok
 from .modules.Gemini import C3k2_UniRepLK, C3k2_DenseGLK, C3k2_StarRepLK, C3k2_AdvUniRepLK, C3k2_SuperUniRepLK_CA, \
     C3k2_UltraApex
-from .modules.GeminiV2 import C3k2_UniRepLKv2
+from .modules.GeminiV2 import C3k2_UniRepLKv2, C3k2_UniRepLKv3, C3k2_StarLSK, C3k_StarLSK
 # from .modules.C3k2_MobileMamba import C3k2_MobileMamba, C3k2_MambaVision
 # from .modules.C3k2_MobileMamba import C3k2Mamba
 # from .Extramodule.Neck.Gold import RepGDNeck
@@ -1926,11 +1926,13 @@ def parse_model(d, ch, verbose=True):
             C3k2_AGLK,
             C3k2_UniRepLK,
             C3k2_UniRepLKv2,
+            C3k2_UniRepLKv3,
             C3k2_DenseGLK,
             C3k2_StarRepLK,
             C3k2_AdvUniRepLK,
             C3k2_SuperUniRepLK_CA,
             C3k2_UltraApex,
+            C3k2_StarLSK,
             # C3k2Mamba,
             # ShuffleV1Block,
         }
@@ -1978,11 +1980,13 @@ def parse_model(d, ch, verbose=True):
             C3k2_AGLK,
             C3k2_UniRepLK,
             C3k2_UniRepLKv2,
+            C3k2_UniRepLKv3,
             C3k2_DenseGLK,
             C3k2_StarRepLK,
             C3k2_AdvUniRepLK,
             C3k2_SuperUniRepLK_CA,
             C3k2_UltraApex,
+            C3k2_StarLSK,
 
         }
     )
