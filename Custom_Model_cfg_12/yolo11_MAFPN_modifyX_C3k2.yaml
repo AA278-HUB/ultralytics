@@ -13,7 +13,7 @@ backbone:
   # [from, repeats, module, args]
   - [-1, 1, Conv, [64, 3, 2]] # 0-P1/2
   - [-1, 1, Conv, [128, 3, 2]] # 1-P2/4
-  - [-1, 2, C3k2, [256, False, 0.25]] # 2-P3/8 (浅层保持轻量，保高频率几何特征)
+  - [-1, 2, C3k2_UniRepLK, [256, False, 0.25,7]] # 2-P3/8 (浅层保持轻量，保高频率几何特征)
   - [-1, 1, Conv, [256, 3, 2]] # 3-P3/8
   - [-1, 2, C3k2_UniRepLK, [512, False, 0.25, 7]] # 4-P4/16 (中深层开始接入 7x7 大核)
   - [-1, 1, Conv, [512, 3, 2]] # 5-P4/16
@@ -33,14 +33,14 @@ head:
   # branch3 : P5 ↔ P4
   - [13, 1, AVG, []] # 15 P4 ↓
   - [[15, 14], 1, BiFPN_SumX, [2]] # 16
-  - [-1, 1, C3k2, [512, False]] # 17 branch3 (中间分支保持 C3k2 维持速度)
+  - [-1, 2, C3k2_UniRepLK, [512, True, 0.5, 7]] # 6-P4/16 (语义加强层)
 
   # branch2 : P3 / P4 / P5
   - [17, 1, nn.Upsample, [None, 2, "nearest"]] # 18
   - [14, 1, nn.Upsample, [None, 2, "nearest"]] # 19
   - [12, 1, AVG, []] # 20
   - [[20, 13, 19, 18], 1, BiFPN_SumX, [4]] # 21
-  - [-1, 1, C3k2, [512, False]] # 22 branch2
+  - [-1, 2, C3k2_UniRepLK, [512, True, 0.5, 7]] # 6-P4/16 (语义加强层)
 
   # branch1 : P2 / P3 / P4
   - [22, 1, nn.Upsample, [None, 2, "nearest"]] # 23
