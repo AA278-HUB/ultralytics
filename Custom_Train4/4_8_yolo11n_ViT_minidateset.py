@@ -144,7 +144,7 @@ model_yaml_paths = [
     # "Custom_Model_cfg_12/yolo11n_unirep4.yaml",
     # "Custom_Model_cfg_12/yolo11n_StarLSK.yaml",
 
-    "Custom_Model_cfg_12/yolo11n_UniRepLKv4.yaml"
+    "Custom_Model_cfg_12/yolo11n_UniRepLKv5.yaml"
 
 ]
 data = "Custom_dataset_cfg/vehicle_orientation_mini.yaml"
