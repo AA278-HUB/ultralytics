@@ -1,31 +1,33 @@
 # Parameters
 nc: 80 # number of classes
-scales:
+scale:
+  n
+scales: # model compound scaling constants, i.e. 'model=yolo11n.yaml' will call yolo11.yaml with scale 'n'
   # [depth, width, max_channels]
-  n: [0.50, 0.25, 1024]
-  s: [0.50, 0.50, 1024]
-  m: [0.50, 1.00, 512]
-  l: [1.00, 1.00, 512]
-  x: [1.00, 1.50, 512]
+  n: [0.50, 0.25, 1024] # summary: 181 layers, 2624080 parameters, 2624064 gradients, 6.6 GFLOPs
+  s: [0.50, 0.50, 1024] # summary: 181 layers, 9458752 parameters, 9458736 gradients, 21.7 GFLOPs
+  m: [0.50, 1.00, 512] # summary: 231 layers, 20114688 parameters, 20114672 gradients, 68.5 GFLOPs
+  l: [1.00, 1.00, 512] # summary: 357 layers, 25372160 parameters, 25372144 gradients, 87.6 GFLOPs
+  x: [1.00, 1.50, 512] # summary: 357 layers, 56966176 parameters, 56966160 gradients, 196.0 GFLOPs
 
-# YOLO11 Backbone (感受野逐级递增：7 -> 9 -> 11)
+# YOLO11-UniRepLKv4 backbone
 backbone:
   # [from, repeats, module, args]
   - [-1, 1, Conv, [64, 3, 2]] # 0-P1/2
   - [-1, 1, Conv, [128, 3, 2]] # 1-P2/4
-  - [-1, 2, C3k2, [256, False, 0.25]] # 2-P3/8
+  - [-1, 2, C3k2_UniRepLKv4, [256, False, 0.25]]
   - [-1, 1, Conv, [256, 3, 2]] # 3-P3/8
-  - [-1, 2, C3k2_UniRepLK, [512, False, 0.25, 7]] # 4-P4/16 (k=7)
+  - [-1, 2, C3k2_UniRepLKv4, [512, False, 0.25]]
   - [-1, 1, Conv, [512, 3, 2]] # 5-P4/16
-  - [-1, 4, C3k2_UniRepLK, [512, True, 0.5, 9]]  # 6-P4/16 (k=9)
+  - [-1, 4, C3k2_UniRepLKv4, [512, True]]
   - [-1, 1, Conv, [1024, 3, 2]] # 7-P5/32
-  - [-1, 4, C3k2_UniRepLK, [1024, True, 0.5, 11]] # 8-P5/32 (k=11)
+  - [-1, 4, C3k2_UniRepLKv4, [1024, True]]
   - [-1, 1, SPPF, [1024, 5]] # 9
   - [-1, 2, C2PSA, [1024]] # 10
 
-# YOLO11 Head (BiFPN + 大核精炼)
+# YOLO11-UniRepLKv4 head (BiFPN)
 head:
-  # Neck Input Adapters
+  # Neck Input Adapters (统一 512)
   - [2, 1, Conv, [512, 1, 1]] # 11 P2_in
   - [4, 1, Conv, [512, 1, 1]] # 12 P3_in
   - [6, 1, Conv, [512, 1, 1]] # 13 P4_in
@@ -34,34 +36,34 @@ head:
   # branch3 : P5 ↔ P4
   - [13, 1, AVG, []] # 15 P4 ↓
   - [[15, 14], 1, BiFPN_SumX, [2]] # 16
-  - [-1, 1, C3k2, [512, False, 0.25]] # 17
+  - [-1, 1, C3k2_UniRepLKv4, [512, False, 0.25]] # 17 branch3
 
   # branch2 : P3 / P4 / P5
   - [17, 1, nn.Upsample, [None, 2, "nearest"]] # 18
   - [14, 1, nn.Upsample, [None, 2, "nearest"]] # 19
   - [12, 1, AVG, []] # 20
   - [[20, 13, 19, 18], 1, BiFPN_SumX, [4]] # 21
-  - [-1, 1, C3k2, [512, False, 0.25]] # 22
+  - [-1, 1, C3k2_UniRepLKv4, [512, False, 0.25]] # 22 branch2
 
   # branch1 : P2 / P3 / P4
   - [22, 1, nn.Upsample, [None, 2, "nearest"]] # 23
   - [13, 1, nn.Upsample, [None, 2, "nearest"]] # 24
   - [11, 1, AVG, []] # 25
   - [[25, 12, 24, 23], 1, BiFPN_SumX, [4]] # 26
-  - [-1, 1, C3k2, [512, False, 0.25]] # 27
+  - [-1, 1, C3k2_UniRepLKv4, [512, False, 0.25]] # 27 branch1
 
-  # Detect Heads (极致精炼：7, 9, 13)
+  # Detect Heads
   - [22, 1, nn.Upsample, [None, 2, "nearest"]] # 28
   - [[27, 28], 1, BiFPN_SumX, [2]] # 29
-  - [-1, 4, C3k2_UniRepLK, [512, True, 0.5, 7]] # 30 P3预测层 (小目标用k=7)
+  - [-1, 4, C3k2_UniRepLKv4, [512, True]] # 30 P3
 
   - [30, 1, AVG, []] # 31
   - [17, 1, nn.Upsample, [None, 2, "nearest"]] # 32
   - [[31, 22, 32], 1, BiFPN_SumX, [3]] # 33
-  - [-1, 4, C3k2_UniRepLK, [512, True, 0.5, 9]] # 34 P4预测层 (中目标用k=9)
+  - [-1, 4, C3k2_UniRepLKv4, [512, True]] # 34 P4
 
   - [34, 1, AVG, []] # 35
   - [[35, 17], 1, BiFPN_SumX, [2]] # 36
-  - [-1, 4, C3k2_UniRepLK, [512, True, 0.5, 13]] # 37 P5预测层 (大目标极致大核k=13)
+  - [-1, 4, C3k2_UniRepLKv4, [512, True]] # 37 P5
 
   - [[30, 34, 37], 1, Detect, [nc]]
