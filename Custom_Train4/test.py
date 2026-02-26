@@ -133,7 +133,15 @@ model_yaml_paths = [
     # "Custom_Model_cfg_12/yolo11n_StarLSK.yaml"
     # "Custom_Model_cfg_12/yolo11n_UniRepLKv4.yaml"
     # "Custom_Model_cfg_12/yolo11_MAFPN_modifyX_C3k2.yaml"
-    "Custom_Model_cfg_12/yolo11n_UniRepLKv5.yaml"
+    # "Custom_Model_cfg_12/yolo11n_UniRepLKv5.yaml"
+
+    # "Custom_Model_cfg_13/yolo11_C3k2_HIE.yaml"
+    # "Custom_Model_cfg_13/yolo11_UniRep.yaml"
+    # "Custom_Model_cfg_13/yolo11n_UniRepLKv5.yaml"
+
+    # "Custom_Model_cfg_13/yolo11_MAFPN_modifyX_uniRepLK.yaml"
+
+    "Custom_Model_cfg_13/yolo11_MAFPN_modifyX_uniRepLK_v1.yaml"
 ]
 
 

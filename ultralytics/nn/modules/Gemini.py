@@ -194,6 +194,18 @@ class C3k2_UniRepLK(C2f):
             UniRepLK_Block(self.c, self.c, shortcut, g, k=k, e=1.0) for _ in range(n)
         )
 
+    def fuse(self):
+        """
+        遍歷所有子模塊，將 RepConv 從訓練模式切換到部署模式。
+        這會將 3x3 Conv + 1x1 Conv + BN 融合為單個帶 Bias 的 3x3 Conv。
+        """
+        # print(f"Fusing {self.__class__.__name__}...")
+        for m in self.m:
+            if hasattr(m.loc_feat, 'switch_to_deploy'):
+                m.loc_feat.switch_to_deploy()
+
+        # 如果你的 glob_feat 也使用了 RepConv 或可融合結構，也應在此處理
+        # 目前代碼中 glob_feat 是 nn.Sequential，通常由通用推理引擎處理 BN 融合
 
 class Dense_GLK_Block(nn.Module):
     """

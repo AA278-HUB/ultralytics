@@ -387,6 +387,10 @@ class BaseModel(torch.nn.Module):
                     # m.switch_to_deploy()
                     # print("打印")
                      m.switch_to_deploy()
+                if isinstance(m,C3k2_UniRepLK):
+                    m.fuse()
+                if isinstance(m, C3k2_UniRepLKv5):
+                    m.fuse()
                 if isinstance(m, RepGhostBottleneck):
                     # m.fuse_convs()
                     # print("融合")
