@@ -157,7 +157,7 @@ if __name__ == '__main__':
         print(f"\n==== Training model: {model_name} ====\n")
         model = YOLO(model_yaml_path)
         # model.train(resume=True)
-
+        Loss="WiseIouLoss"
 # =======
         model.train(
             data=data,
@@ -171,7 +171,7 @@ if __name__ == '__main__':
             save=True,
             device=-1,
             # amp=False,
-            name=f"{model_name}_{datetime.now().strftime('%Y%m%d_%H_%M')}"
+            name=f"{model_name}_{datetime.now().strftime('%Y%m%d_%H_%M')}_loss:{Loss}"
         )
 # >>>>>>> fe705cf0be66db3253a39dab4347b0f99ce842c5
 
