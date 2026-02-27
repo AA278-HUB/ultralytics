@@ -171,7 +171,7 @@ if __name__ == '__main__':
             save=True,
             device=-1,
             # amp=False,
-            name=f"{model_name}_{datetime.now().strftime('%Y%m%d_%H_%M')}_loss:{Loss}"
+            name=f"{model_name}_{datetime.now().strftime('%Y%m%d_%H_%M')}_loss_{Loss}"
         )
 # >>>>>>> fe705cf0be66db3253a39dab4347b0f99ce842c5
 
