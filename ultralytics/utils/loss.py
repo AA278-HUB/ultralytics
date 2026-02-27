@@ -121,7 +121,7 @@ class BboxLoss(nn.Module):
         self.iou_ratio = 0.5  # total_iou_loss = self.iou_ratio * iou_loss + (1 - self.iou_ratio) * nwd_loss
 
         # WiseIOU
-        self.use_wiseiou = True
+        self.use_wiseiou = False
         if self.use_wiseiou:
             self.wiou_loss = WiseIouLoss(ltype='WIoU', monotonous=False, inner_iou=False, focaler_iou=False)
 
@@ -136,7 +136,13 @@ class BboxLoss(nn.Module):
             # wiou = self.wiou_loss(pred_bboxes[fg_mask], target_bboxes[fg_mask], ret_iou=False, ratio=0.7, d=0.0, u=0.95, **{'mpdiou_hw':mpdiou_hw[fg_mask]}).unsqueeze(-1) # Wise-MPDIoU,Wise-Inner-MPDIoU,Wise-Focaler-MPDIoU
             loss_iou = (wiou * weight).sum() / target_scores_sum
         else:
-            iou = bbox_iou(pred_bboxes[fg_mask], target_bboxes[fg_mask], xywh=False, CIoU=True)
+            # iou = bbox_iou(pred_bboxes[fg_mask], target_bboxes[fg_mask], xywh=False, CIoU=True)
+            iou = bbox_iou(
+                    pred_bboxes[fg_mask],
+                    target_bboxes[fg_mask],
+                    xywh=False,
+                    ShapeIoU=True
+                )
             # iou = bbox_inner_iou(pred_bboxes[fg_mask], target_bboxes[fg_mask], xywh=False, CIoU=True, ratio=0.7)
             # iou = bbox_mpdiou(pred_bboxes[fg_mask], target_bboxes[fg_mask], xywh=False, mpdiou_hw=mpdiou_hw[fg_mask])
             # iou = bbox_inner_mpdiou(pred_bboxes[fg_mask], target_bboxes[fg_mask], xywh=False, mpdiou_hw=mpdiou_hw[fg_mask], ratio=0.7)
