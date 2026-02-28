@@ -114,7 +114,7 @@ def bbox_iou(
     """
     # Get the coordinates of bounding boxes
     if ShapeIoU :
-       Iou= shape_iou(box1,box2,xywh=True, scale=0.8, eps=1e-7)
+       Iou= shape_iou(box1,box2,xywh=True, scale=0.2, eps=1e-7)
        return Iou
 
     if xywh:  # transform from xywh to xyxy
