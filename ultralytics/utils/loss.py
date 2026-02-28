@@ -8,7 +8,7 @@ import torch
 import torch.nn as nn
 import torch.nn.functional as F
 
-from ultralytics.utils.metrics import OKS_SIGMA
+from ultralytics.utils.metrics import OKS_SIGMA, calculate_siou
 from ultralytics.utils.ops import crop_mask, xywh2xyxy, xyxy2xywh
 from ultralytics.utils.tal import RotatedTaskAlignedAssigner, TaskAlignedAssigner, dist2bbox, dist2rbox, make_anchors
 from ultralytics.utils.torch_utils import autocast
@@ -136,13 +136,18 @@ class BboxLoss(nn.Module):
             # wiou = self.wiou_loss(pred_bboxes[fg_mask], target_bboxes[fg_mask], ret_iou=False, ratio=0.7, d=0.0, u=0.95, **{'mpdiou_hw':mpdiou_hw[fg_mask]}).unsqueeze(-1) # Wise-MPDIoU,Wise-Inner-MPDIoU,Wise-Focaler-MPDIoU
             loss_iou = (wiou * weight).sum() / target_scores_sum
         else:
+
+            # 调用封装好的 SIoU 函数
+            iou = calculate_siou(pred_bboxes[fg_mask], target_bboxes[fg_mask])
+
+
             # iou = bbox_iou(pred_bboxes[fg_mask], target_bboxes[fg_mask], xywh=False, CIoU=True)
-            iou = bbox_iou(
-                    pred_bboxes[fg_mask],
-                    target_bboxes[fg_mask],
-                    xywh=False,
-                    ShapeIoU=True
-                )
+            # iou = bbox_iou(
+            #         pred_bboxes[fg_mask],
+            #         target_bboxes[fg_mask],
+            #         xywh=False,
+            #         ShapeIoU=True
+            #     )
             # iou = bbox_inner_iou(pred_bboxes[fg_mask], target_bboxes[fg_mask], xywh=False, CIoU=True, ratio=0.7)
             # iou = bbox_mpdiou(pred_bboxes[fg_mask], target_bboxes[fg_mask], xywh=False, mpdiou_hw=mpdiou_hw[fg_mask])
             # iou = bbox_inner_mpdiou(pred_bboxes[fg_mask], target_bboxes[fg_mask], xywh=False, mpdiou_hw=mpdiou_hw[fg_mask], ratio=0.7)

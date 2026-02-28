@@ -210,6 +210,57 @@ def shape_iou(box1, box2, xywh=True, scale=0, eps=1e-7):
     iou = iou - distance - 0.5 * (shape_cost)
     return iou  # IoU
 
+
+def calculate_siou(box1, box2, eps=1e-7):
+    """
+    计算 SIoU Loss
+    :param box1: 预测框, 格式 [N, 4] (x1, y1, x2, y2)
+    :param box2: 真实框, 格式 [N, 4] (x1, y1, x2, y2)
+    :return: siou score
+    """
+    # 拆解坐标
+    b1_x1, b1_y1, b1_x2, b1_y2 = box1.chunk(4, -1)
+    b2_x1, b2_y1, b2_x2, b2_y2 = box2.chunk(4, -1)
+
+    # 计算宽高
+    w1, h1 = b1_x2 - b1_x1, b1_y2 - b1_y1
+    w2, h2 = b2_x2 - b2_x1, b2_y2 - b2_y1
+
+    # 1. 计算基础 IoU
+    inter = (torch.min(b1_x2, b2_x2) - torch.max(b1_x1, b2_x1)).clamp(0) * \
+            (torch.min(b1_y2, b2_y2) - torch.max(b1_y1, b2_y1)).clamp(0)
+    union = w1 * h1 + w2 * h2 - inter + eps
+    iou = inter / union
+
+    # 2. 最小外接矩形 (Convex) 的宽高
+    cw = torch.max(b1_x2, b2_x2) - torch.min(b1_x1, b2_x1)
+    ch = torch.max(b1_y2, b2_y2) - torch.min(b1_y1, b2_y1)
+
+    # 3. 中心点相关计算
+    s_cw = (b2_x1 + b2_x2 - b1_x1 - b1_x2) * 0.5
+    s_ch = (b2_y1 + b2_y2 - b1_y1 - b1_y2) * 0.5
+    sigma = torch.pow(s_cw ** 2 + s_ch ** 2, 0.5) + eps
+
+    # 4. 角度代价 (Angle Cost)
+    sin_alpha_1 = torch.abs(s_cw) / sigma
+    sin_alpha_2 = torch.abs(s_ch) / sigma
+    threshold = pow(2, 0.5) / 2
+    sin_alpha = torch.where(sin_alpha_1 > threshold, sin_alpha_2, sin_alpha_1)
+    # Angle cost = 1 - 2 * sin^2(arcsin(x) - pi/4) 的简化形式
+    angle_cost = torch.cos(torch.arcsin(sin_alpha) * 2 - math.pi / 2)
+
+    # 5. 距离代价 (Distance Cost)
+    rho_x = (s_cw / (cw + eps)) ** 2
+    rho_y = (s_ch / (ch + eps)) ** 2
+    gamma = angle_cost - 2
+    distance_cost = 2 - torch.exp(gamma * rho_x) - torch.exp(gamma * rho_y)
+
+    # 6. 形状代价 (Shape Cost)
+    omiga_w = torch.abs(w1 - w2) / torch.max(w1, w2).clamp(min=eps)
+    omiga_h = torch.abs(h1 - h2) / torch.max(h1, h2).clamp(min=eps)
+    shape_cost = torch.pow(1 - torch.exp(-1 * omiga_w), 4) + torch.pow(1 - torch.exp(-1 * omiga_h), 4)
+
+    return iou - 0.5 * (distance_cost + shape_cost)
 def mask_iou(mask1: torch.Tensor, mask2: torch.Tensor, eps: float = 1e-7) -> torch.Tensor:
     """
     Calculate masks IoU.
