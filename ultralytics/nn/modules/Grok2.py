@@ -627,4 +627,92 @@ class RepOmniSPPF(nn.Module):
         z = torch.cat(y, 1)
         z = self.rep_fusion(z)
 
-        return self.cv2(z)
+        return self.cv2(z)\
+
+class GCBlock(nn.Module):
+    """Global Context Block: 捕获全局长程依赖，增强对比度"""
+
+    def __init__(self, in_channels, ratio=0.25):
+        super(GCBlock, self).__init__()
+        self.in_channels = in_channels
+        self.out_channels = int(in_channels * ratio)
+        self.conv_mask = nn.Conv2d(in_channels, 1, kernel_size=1)
+        self.softmax = nn.Softmax(dim=2)
+        self.channel_add_conv = nn.Sequential(
+            nn.Conv2d(in_channels, self.out_channels, kernel_size=1),
+            nn.LayerNorm([self.out_channels, 1, 1]),
+            nn.ReLU(inplace=True),
+            nn.Conv2d(self.out_channels, in_channels, kernel_size=1)
+        )
+
+    def forward(self, x):
+        batch, channel, height, width = x.size()
+        input_x = x
+        # Context Modeling
+        input_x = input_x.view(batch, channel, height * width)  # [B, C, N]
+        mask = self.conv_mask(x).view(batch, 1, height * width)  # [B, 1, N]
+        mask = self.softmax(mask)
+        context = torch.matmul(input_x, mask.transpose(1, 2))  # [B, C, 1]
+        context = context.view(batch, channel, 1, 1)
+        # Transform & Fusion
+        out = self.channel_add_conv(context)
+        return x + out
+
+
+class HCD_SPPF(nn.Module):
+    """
+    Hyper-Contextual Dynamic SPPF (HCD-SPPF)
+    终极精度版：结合大核重参、全局上下文与跨维度注意力
+    """
+
+    def __init__(self, c1, c2, k=5):
+        super().__init__()
+        c_ = c1 // 2
+        self.cv1 = nn.Sequential(nn.Conv2d(c1, c_, 1, 1), nn.BatchNorm2d(c_), nn.SiLU())
+
+        # 1. 传统多尺度池化路径 (保留基础纹理)
+        self.m = nn.MaxPool2d(kernel_size=k, stride=1, padding=k // 2)
+
+        # 2. 深度大核重参数化路径 (Rep-Large-Kernel)
+        # 训练时使用大核增强感受野，推理时可融合
+        self.large_kernel = nn.Sequential(
+            nn.Conv2d(c_, c_, kernel_size=7, padding=3, groups=c_, bias=False),
+            nn.BatchNorm2d(c_),
+            nn.Conv2d(c_, c_, kernel_size=1, bias=False),
+            nn.BatchNorm2d(c_),
+            nn.SiLU()
+        )
+
+        # 3. 全局上下文路径
+        self.gc_block = GCBlock(c_)
+
+        # 4. 融合后的特征精炼：使用 EMA 或 SimAM 增强
+        self.cv2 = nn.Sequential(
+            nn.Conv2d(c_ * 4, c2, 1, 1),
+            nn.BatchNorm2d(c2),
+            nn.SiLU()
+        )
+
+        # 空间注意力加持
+        self.spatial_att = nn.Sequential(
+            nn.Conv2d(c_ * 4, 1, kernel_size=7, padding=3, bias=False),
+            nn.Sigmoid()
+        )
+
+    def forward(self, x):
+        x = self.cv1(x)
+
+        # 多支路特征并行提取
+        y1 = self.m(x)
+        y2 = self.m(y1)
+        y3 = self.large_kernel(x)  # 大核特征
+        y4 = self.gc_block(x)  # 全局上下文特征
+
+        # 特征拼接 [x, y1, y2, y3, y4] 这里我们选择混合四支路
+        feat = torch.cat([y1, y2, y3, y4], 1)
+
+        # 空间权重精炼 (根据重要性重新分配特征权重)
+        att = self.spatial_att(feat)
+        feat = feat * att
+
+        return self.cv2(feat)
