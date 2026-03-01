@@ -17,12 +17,12 @@ if __name__ == '__main__':
         print(f"\n==== Training model: {model_name} ====\n")
         model = YOLO(model_yaml_path)
         # model.train(resume=True)
-        Loss="bbox_mpdiou"
+        Loss="CIOU"
 # =======
         model.train(
             data=data,
             epochs=200,
-            batch=32,
+            batch=64,
             imgsz=640,  # 保持不变
             cos_lr=True,
             lr0=0.005,  # ↑ 初始学习率
