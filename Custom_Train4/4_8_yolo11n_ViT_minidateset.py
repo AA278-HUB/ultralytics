@@ -157,7 +157,7 @@ if __name__ == '__main__':
         print(f"\n==== Training model: {model_name} ====\n")
         model = YOLO(model_yaml_path)
         # model.train(resume=True)
-        Loss="bbox_inner_iou"
+        Loss="bbox_focaler_iou"
 # =======
         model.train(
             data=data,
