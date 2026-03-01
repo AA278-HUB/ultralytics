@@ -2,6 +2,8 @@ import torch
 import torch.nn as nn
 import torch.nn.functional as F
 from ultralytics.nn.modules import C2f, Conv, C3, RepConv
+from ultralytics.nn.modules.conv import autopad
+
 
 # ==================== 融合辅助函数（必须有，用于 switch_to_deploy） ====================
 def fuse_bn(conv, bn):
@@ -298,11 +300,6 @@ class C3k2_UniRepLKv5(C2f):
         print(f"{self.__class__.__name__} fusion complete.")
 
 
-import torch
-import torch.nn as nn
-import torch.nn.functional as F
-from ultralytics.nn.modules.conv import Conv
-
 
 class EMA_Attention(nn.Module):
     """
@@ -409,3 +406,51 @@ class C3k2_Dynamic_RSB(nn.Module):
         y = list(self.cv1(x).chunk(2, 1))
         y.extend(m(y[-1]) for m in self.m)
         return self.cv2(torch.cat(y, 1))
+
+
+class ConvReLU(nn.Module):
+    """自定义 Conv-BN-ReLU 层，替换 SiLU 以提高效率。"""
+    def __init__(self, c1: int, c2: int, k: int = 1, s: int = 1, p: int = None, g: int = 1):
+        super().__init__()
+        self.conv = nn.Conv2d(c1, c2, k, s, autopad(k, p), groups=g, bias=False)
+        self.bn = nn.BatchNorm2d(c2)
+        self.act = nn.ReLU(inplace=True)
+
+    def forward(self, x: torch.Tensor) -> torch.Tensor:
+        return self.act(self.bn(self.conv(x)))
+
+class HybridSPPF(nn.Module):
+    """重新设计的 Spatial Pyramid Pooling - Fast，包含混合池化、ReLU 和 shortcut。"""
+
+    def __init__(self, c1: int, c2: int, k: int = 5):
+        """
+        初始化 HybridSPPF 层。
+
+        Args:
+            c1 (int): 输入通道。
+            c2 (int): 输出通道（通常 c2 == c1）。
+            k (int): 池化核大小。
+
+        Notes:
+            等价于 SPP(k=(5, 9, 13))，但使用混合（max + avg）池化以获得更好特征、
+            ReLU 以加速计算，以及残差 shortcut 以改善训练。
+        """
+        super().__init__()
+        c_ = c1 // 2  # 隐藏通道
+        self.cv1 = ConvReLU(c1, c_, 1, 1)
+        self.cv2 = ConvReLU(c_ * 4, c2, 1, 1)
+        self.m_max = nn.MaxPool2d(kernel_size=k, stride=1, padding=k // 2)
+        self.m_avg = nn.AvgPool2d(kernel_size=k, stride=1, padding=k // 2)
+
+    def forward(self, x: torch.Tensor) -> torch.Tensor:
+        """应用混合池化操作，返回拼接的特征图并添加 shortcut。"""
+        y = [self.cv1(x)]  # 从 cv1 输出开始
+        for _ in range(3):  # 三级链式混合池化
+            last = y[-1]
+            max_p = self.m_max(last)
+            avg_p = self.m_avg(last)
+            hybrid = max_p + avg_p  # 混合：添加 max 和 avg 以获得鲁棒特征
+            y.append(hybrid)
+        cat_features = torch.cat(y, 1)  # 拼接：形状兼容 (c_ * 4)
+        output = self.cv2(cat_features)
+        return output + x  # 残差 shortcut（假设 c2 == c1）
