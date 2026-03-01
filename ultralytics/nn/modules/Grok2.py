@@ -454,3 +454,53 @@ class HybridSPPF(nn.Module):
         cat_features = torch.cat(y, 1)  # 拼接：形状兼容 (c_ * 4)
         output = self.cv2(cat_features)
         return output + x  # 残差 shortcut（假设 c2 == c1）
+class SEAttention(nn.Module):
+    """简单通道注意力模块（SE Block）。"""
+    def __init__(self, channels: int, reduction: int = 16):
+        super().__init__()
+        self.avg_pool = nn.AdaptiveAvgPool2d(1)
+        self.fc = nn.Sequential(
+            nn.Linear(channels, channels // reduction, bias=False),
+            nn.ReLU(inplace=True),
+            nn.Linear(channels // reduction, channels, bias=False),
+            nn.Sigmoid()
+        )
+
+    def forward(self, x: torch.Tensor) -> torch.Tensor:
+        b, c, _, _ = x.size()
+        y = self.avg_pool(x).view(b, c)
+        y = self.fc(y).view(b, c, 1, 1)
+        return x * y.expand_as(x)
+
+class AttentiveSPPF(nn.Module):
+    """重新设计的 SPPF，包含注意力、多核池化和 shortcut。"""
+
+    def __init__(self, c1: int, c2: int, kernels: tuple = (3, 5, 7)):
+        """
+        初始化 AttentiveSPPF 层。
+
+        Args:
+            c1 (int): 输入通道。
+            c2 (int): 输出通道（通常 c2 == c1）。
+            kernels (tuple): 多核池化大小。
+
+        Notes:
+            扩展 SPP(k=(3,5,7))，添加通道注意力以突出特征、多核以丰富细节，以及 shortcut 以改善流动。
+        """
+        super().__init__()
+        c_ = c1 // 2  # 隐藏通道
+        self.cv1 = ConvReLU(c1, c_, 1, 1)
+        self.cv2 = ConvReLU(c_ * (len(kernels) + 1), c2, 1, 1)  # +1 为 cv1 输出
+        self.pools = nn.ModuleList([nn.MaxPool2d(kernel_size=k, stride=1, padding=k // 2) for k in kernels])
+        self.attn = SEAttention(c_)
+
+    def forward(self, x: torch.Tensor) -> torch.Tensor:
+        """应用多核池化、注意力并返回拼接特征图与 shortcut。"""
+        y = [self.cv1(x)]  # 从 cv1 输出开始
+        for pool in self.pools:  # 多核链式池化
+            pooled = pool(y[-1])
+            attended = self.attn(pooled)  # 应用注意力
+            y.append(attended)
+        cat_features = torch.cat(y, 1)  # 拼接：形状兼容 (c_ * (len(kernels) + 1))
+        output = self.cv2(cat_features)
+        return output + x  # 残差 shortcut（假设 c2 == c1）

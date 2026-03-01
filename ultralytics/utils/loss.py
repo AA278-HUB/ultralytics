@@ -13,6 +13,7 @@ from ultralytics.utils.ops import crop_mask, xywh2xyxy, xyxy2xywh
 from ultralytics.utils.tal import RotatedTaskAlignedAssigner, TaskAlignedAssigner, dist2bbox, dist2rbox, make_anchors
 from ultralytics.utils.torch_utils import autocast
 from .Mymetrics import WiseIouLoss, wasserstein_loss, bbox_inner_iou, bbox_focaler_iou, bbox_mpdiou
+from .Mymetrics_1 import My_bbox_mpdiou
 
 from .metrics import bbox_iou, probiou
 from .tal import bbox2dist
@@ -103,8 +104,8 @@ class DFLoss(nn.Module):
         wl = tr - target  # weight left
         wr = 1 - wl  # weight right
         return (
-            F.cross_entropy(pred_dist, tl.view(-1), reduction="none").view(tl.shape) * wl
-            + F.cross_entropy(pred_dist, tr.view(-1), reduction="none").view(tl.shape) * wr
+                F.cross_entropy(pred_dist, tl.view(-1), reduction="none").view(tl.shape) * wl
+                + F.cross_entropy(pred_dist, tr.view(-1), reduction="none").view(tl.shape) * wr
         ).mean(-1, keepdim=True)
 
 
@@ -137,12 +138,7 @@ class BboxLoss(nn.Module):
             loss_iou = (wiou * weight).sum() / target_scores_sum
         else:
 
-
-
-
             iou = bbox_iou(pred_bboxes[fg_mask], target_bboxes[fg_mask], xywh=False, CIoU=True)
-
-
 
             # iou = bbox_iou(
             #         pred_bboxes[fg_mask],
@@ -154,6 +150,11 @@ class BboxLoss(nn.Module):
             # iou = calculate_siou(pred_bboxes[fg_mask], target_bboxes[fg_mask])
 
             # iou = bbox_inner_iou(pred_bboxes[fg_mask], target_bboxes[fg_mask], xywh=False, CIoU=True, ratio=0.7)
+            #
+            # iou = My_bbox_mpdiou(pred_bboxes[fg_mask],
+            #                      target_bboxes[fg_mask],
+            #                      xywh=False)
+
             # iou = bbox_mpdiou(pred_bboxes[fg_mask], target_bboxes[fg_mask], xywh=False, mpdiou_hw=mpdiou_hw[fg_mask])
             # iou = bbox_inner_mpdiou(pred_bboxes[fg_mask], target_bboxes[fg_mask], xywh=False, mpdiou_hw=mpdiou_hw[fg_mask], ratio=0.7)
             # iou = bbox_focaler_iou(pred_bboxes[fg_mask], target_bboxes[fg_mask], xywh=False, CIoU=True, d=0.0, u=0.95)
@@ -233,14 +234,14 @@ class RotatedBboxLoss(BboxLoss):
         super().__init__(reg_max)
 
     def forward(
-        self,
-        pred_dist: torch.Tensor,
-        pred_bboxes: torch.Tensor,
-        anchor_points: torch.Tensor,
-        target_bboxes: torch.Tensor,
-        target_scores: torch.Tensor,
-        target_scores_sum: torch.Tensor,
-        fg_mask: torch.Tensor,
+            self,
+            pred_dist: torch.Tensor,
+            pred_bboxes: torch.Tensor,
+            anchor_points: torch.Tensor,
+            target_bboxes: torch.Tensor,
+            target_scores: torch.Tensor,
+            target_scores_sum: torch.Tensor,
+            fg_mask: torch.Tensor,
     ) -> tuple[torch.Tensor, torch.Tensor]:
         """Compute IoU and DFL losses for rotated bounding boxes."""
         weight = target_scores.sum(-1)[fg_mask].unsqueeze(-1)
@@ -267,7 +268,7 @@ class KeypointLoss(nn.Module):
         self.sigmas = sigmas
 
     def forward(
-        self, pred_kpts: torch.Tensor, gt_kpts: torch.Tensor, kpt_mask: torch.Tensor, area: torch.Tensor
+            self, pred_kpts: torch.Tensor, gt_kpts: torch.Tensor, kpt_mask: torch.Tensor, area: torch.Tensor
     ) -> torch.Tensor:
         """Calculate keypoint loss factor and Euclidean distance loss for keypoints."""
         d = (pred_kpts[..., 0] - gt_kpts[..., 0]).pow(2) + (pred_kpts[..., 1] - gt_kpts[..., 1]).pow(2)
@@ -391,11 +392,11 @@ class v8DetectionLoss:
 class KDDetectionLoss(v8DetectionLoss):
 
     def __init__(
-        self,
-        model,
-        teacher,
-        tal_topk=10,
-        kd_weight=1.0,
+            self,
+            model,
+            teacher,
+            tal_topk=10,
+            kd_weight=1.0,
     ):
         super().__init__(model, tal_topk)
 
@@ -416,7 +417,7 @@ class KDDetectionLoss(v8DetectionLoss):
         self.teacher.eval()
 
     # ⚠️ 注意：签名必须和 v8DetectionLoss 完全一致
-    def  __call__(self, preds: Any, batch: dict[str, torch.Tensor]) -> tuple[torch.Tensor, torch.Tensor]:
+    def __call__(self, preds: Any, batch: dict[str, torch.Tensor]) -> tuple[torch.Tensor, torch.Tensor]:
         """
         preds: student forward output
         batch: dict
@@ -444,7 +445,6 @@ class KDDetectionLoss(v8DetectionLoss):
         total_loss = det_loss + self.kd_weight * kd_loss
 
         return total_loss, loss_items
-
 
 
 class v8SegmentationLoss(v8DetectionLoss):
@@ -540,7 +540,7 @@ class v8SegmentationLoss(v8DetectionLoss):
 
     @staticmethod
     def single_mask_loss(
-        gt_mask: torch.Tensor, pred: torch.Tensor, proto: torch.Tensor, xyxy: torch.Tensor, area: torch.Tensor
+            gt_mask: torch.Tensor, pred: torch.Tensor, proto: torch.Tensor, xyxy: torch.Tensor, area: torch.Tensor
     ) -> torch.Tensor:
         """
         Compute the instance segmentation loss for a single image.
@@ -564,16 +564,16 @@ class v8SegmentationLoss(v8DetectionLoss):
         return (crop_mask(loss, xyxy).mean(dim=(1, 2)) / area).sum()
 
     def calculate_segmentation_loss(
-        self,
-        fg_mask: torch.Tensor,
-        masks: torch.Tensor,
-        target_gt_idx: torch.Tensor,
-        target_bboxes: torch.Tensor,
-        batch_idx: torch.Tensor,
-        proto: torch.Tensor,
-        pred_masks: torch.Tensor,
-        imgsz: torch.Tensor,
-        overlap: bool,
+            self,
+            fg_mask: torch.Tensor,
+            masks: torch.Tensor,
+            target_gt_idx: torch.Tensor,
+            target_bboxes: torch.Tensor,
+            batch_idx: torch.Tensor,
+            proto: torch.Tensor,
+            pred_masks: torch.Tensor,
+            imgsz: torch.Tensor,
+            overlap: bool,
     ) -> torch.Tensor:
         """
         Calculate the loss for instance segmentation.
@@ -719,14 +719,14 @@ class v8PoseLoss(v8DetectionLoss):
         return y
 
     def calculate_keypoints_loss(
-        self,
-        masks: torch.Tensor,
-        target_gt_idx: torch.Tensor,
-        keypoints: torch.Tensor,
-        batch_idx: torch.Tensor,
-        stride_tensor: torch.Tensor,
-        target_bboxes: torch.Tensor,
-        pred_kpts: torch.Tensor,
+            self,
+            masks: torch.Tensor,
+            target_gt_idx: torch.Tensor,
+            keypoints: torch.Tensor,
+            batch_idx: torch.Tensor,
+            stride_tensor: torch.Tensor,
+            target_bboxes: torch.Tensor,
+            pred_kpts: torch.Tensor,
     ) -> tuple[torch.Tensor, torch.Tensor]:
         """
         Calculate the keypoints loss for the model.
@@ -901,7 +901,7 @@ class v8OBBLoss(v8DetectionLoss):
         return loss * batch_size, loss.detach()  # loss(box, cls, dfl)
 
     def bbox_decode(
-        self, anchor_points: torch.Tensor, pred_dist: torch.Tensor, pred_angle: torch.Tensor
+            self, anchor_points: torch.Tensor, pred_dist: torch.Tensor, pred_angle: torch.Tensor
     ) -> torch.Tensor:
         """
         Decode predicted object bounding box coordinates from anchor points and distribution.

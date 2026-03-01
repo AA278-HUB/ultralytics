@@ -142,7 +142,7 @@ model_yaml_paths = [
     # "Custom_Model_cfg_13/yolo11_MAFPN_modifyX_uniRepLK.yaml"
 
     # "Custom_Model_cfg_13/yolo11_MAFPN_modifyX_uniRepLK_v1.yaml"
-    "Custom_Model_cfg_13/yolo11_MAFPN_modifyX_uniRepLK_v1_HSPPF.yaml"
+    "Custom_Model_cfg_13/yolo11_MAFPN_modifyX_uniRepLK_v1_ASPPF.yaml"
 ]
 
 
