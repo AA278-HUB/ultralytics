@@ -6,7 +6,11 @@ import os
 # 模型配置文件
 model_yaml_paths = [
     # "Custom_Model_cfg_13/yolo11_MAFPN_modifyX_uniRepLK_v1.yaml"
-    "Custom_Model_cfg_13/yolo11_MAFPN_modifyX_uniRepLK_v1_GSPPF.yaml"
+    # "Custom_Model_cfg_13/yolo11_MAFPN_modifyX_uniRepLK_v1_GSPPF.yaml"
+    "Custom_Model_cfg_13/yolo11_MAFPN_modifyX_uniRepLK_v1_ESPPF.yaml",
+    "Custom_Model_cfg_13/yolo11_MAFPN_modifyX_uniRepLK_v1_SSPPF.yaml",
+    "Custom_Model_cfg_13/yolo11_MAFPN_modifyX_uniRepLK_v1_DSPPF.yaml",
+
 ]
 data = "Custom_dataset_cfg/vehicle_orientation_mini.yaml"
 

@@ -716,3 +716,234 @@ class HCD_SPPF(nn.Module):
         feat = feat * att
 
         return self.cv2(feat)
+
+
+class EA_SPPF(nn.Module):
+    """
+    Enhanced Attention Spatial Pyramid Pooling - Fast (EA-SPPF)
+    改进点：引入混合池化、坐标注意力(CA)以及残差结构。
+    """
+
+    def __init__(self, c1, c2, k=5):
+        super().__init__()
+        c_ = c1 // 2  # 隐藏通道
+        self.cv1 = Conv(c1, c_, 1, 1)
+        self.cv2 = Conv(c_ * 4, c2, 1, 1)
+
+        # 使用相同stride的池化层
+        self.m = nn.MaxPool2d(kernel_size=k, stride=1, padding=k // 2)
+
+        # 引入坐标注意力机制 (Coordinate Attention)
+        self.ca = CoordAtt(c_ * 4, c_ * 4)
+
+        # 如果输入输出通道一致，可以使用残差
+        self.add = c1 == c2
+
+    def forward(self, x):
+        x_in = self.cv1(x)
+        y1 = self.m(x_in)
+        y2 = self.m(y1)
+        y3 = self.m(y2)
+
+        # 拼接四个尺度的特征
+        y = torch.cat([x_in, y1, y2, y3], 1)
+
+        # 应用注意力机制增强关键特征
+        y = self.ca(y)
+
+        # 通道压缩与输出
+        out = self.cv2(y)
+
+        return out + x if self.add else out
+
+class AS_SPPF(nn.Module):
+    """
+    Adaptive Strip-Dilated SPPF (AS-SPPF)
+    旨在通过空洞卷积和条带池化提升 YOLO11 对复杂背景和多尺度目标的感知力。
+    """
+
+    def __init__(self, c1, c2, k=5):
+        super().__init__()
+        c_ = c1 // 2  # 隐藏通道
+        self.cv1 = nn.Conv2d(c1, c_, 1, 1, bias=False)
+        self.bn1 = nn.BatchNorm2d(c_)
+        self.act = nn.SiLU()
+
+        # 1. 传统池化分支 (捕捉局部多尺度)
+        self.maxpool = nn.MaxPool2d(kernel_size=k, stride=1, padding=k // 2)
+
+        # 2. 空洞卷积分支 (扩大感受野，不丢失空间分辨率)
+        self.dilated_conv = nn.Sequential(
+            nn.Conv2d(c_, c_, 3, padding=2, dilation=2, groups=c_, bias=False),
+            nn.BatchNorm2d(c_),
+            nn.SiLU()
+        )
+
+        # 3. 条带池化分支 (针对长条形目标优化)
+        self.strip_h = nn.AdaptiveAvgPool2d((None, 1))
+        self.strip_w = nn.AdaptiveAvgPool2d((1, None))
+        self.strip_conv = nn.Conv2d(c_, c_, 1, 1, bias=False)
+
+        # 4. 动态权重融合
+        self.weight_conv = nn.Sequential(
+            nn.AdaptiveAvgPool2d(1),
+            nn.Conv2d(c_ * 4, 4, 1, 1, bias=False),  # 4个分支的权重
+            nn.Softmax(dim=1)
+        )
+
+        self.cv2 = nn.Conv2d(c_ * 4, c2, 1, 1, bias=False)
+        self.bn2 = nn.BatchNorm2d(c2)
+
+    def forward(self, x):
+        x = self.act(self.bn1(self.cv1(x)))
+
+        # 串行池化
+        y1 = self.maxpool(x)
+        y2 = self.maxpool(y1)
+
+        # 稀疏特征提取
+        y3 = self.dilated_conv(x)
+
+        # 条带上下文提取
+        h, w = x.shape[2:]
+        sh = self.strip_h(x).expand(-1, -1, h, w)
+        sw = self.strip_w(x).expand(-1, -1, h, w)
+        y4 = self.strip_conv(sh + sw)
+
+        # 拼接特征
+        feats = torch.cat([x, y2, y3, y4], dim=1)
+
+        # 计算动态权重并应用 (可选，如果追求极致性能可直接concat后接cv2)
+        # weights = self.weight_conv(feats)
+        # feats = feats * weights # 简单示意，实际需对齐维度
+
+        return self.act(self.bn2(self.cv2(feats)))
+
+
+class MixPool(nn.Module):
+    """混合池化层：融合 MaxPool 和 AvgPool 的信息"""
+
+    def __init__(self, k):
+        super().__init__()
+        self.max = nn.MaxPool2d(kernel_size=k, stride=1, padding=k // 2)
+        self.avg = nn.AvgPool2d(kernel_size=k, stride=1, padding=k // 2)
+
+    def forward(self, x):
+        return self.max(x) + self.avg(x)
+
+
+class LKA(nn.Module):
+    """
+    Large Kernel Attention (LKA) based on VAN:
+    通过卷积分解模拟超大感受野 (相当于 21x21)，精度极高。
+    """
+
+    def __init__(self, dim):
+        super().__init__()
+        # 1. 局部特征提取
+        self.conv0 = nn.Conv2d(dim, dim, 5, padding=2, groups=dim)
+        # 2. 空间长程依赖 (通过空洞卷积模拟超大核)
+        self.conv_spatial = nn.Conv2d(dim, dim, 7, stride=1, padding=9, groups=dim, dilation=3)
+        # 3. 通道交互
+        self.conv1 = nn.Conv2d(dim, dim, 1)
+
+    def forward(self, x):
+        u = x.clone()
+        attn = self.conv0(x)
+        attn = self.conv_spatial(attn)
+        attn = self.conv1(attn)
+        # 动态加权
+        return u * attn
+
+
+class GatedGCBlock(nn.Module):
+    """Gated Global Context Block: 加入门控机制的全局上下文"""
+
+    def __init__(self, in_channels, ratio=0.25):
+        super().__init__()
+        self.in_channels = in_channels
+        self.out_channels = int(in_channels * ratio)
+        self.conv_mask = nn.Conv2d(in_channels, 1, kernel_size=1)
+        self.softmax = nn.Softmax(dim=2)
+
+        # 门控分支
+        self.channel_add_conv = nn.Sequential(
+            nn.Conv2d(in_channels, self.out_channels, kernel_size=1),
+            nn.LayerNorm([self.out_channels, 1, 1]),
+            nn.ReLU(inplace=True),
+            nn.Conv2d(self.out_channels, in_channels, kernel_size=1)
+        )
+        # 动态门控
+        self.gate = nn.Sequential(
+            nn.Conv2d(in_channels, 1, 1),
+            nn.Sigmoid()
+        )
+
+    def forward(self, x):
+        batch, channel, height, width = x.size()
+        input_x = x
+        # Context Modeling
+        input_x = input_x.view(batch, channel, height * width)
+        mask = self.conv_mask(x).view(batch, 1, height * width)
+        mask = self.softmax(mask)
+        context = torch.matmul(input_x, mask.transpose(1, 2))  # [B, C, 1, 1]
+        context = context.view(batch, channel, 1, 1)
+
+        # Transform & Fusion with Gating
+        out = self.channel_add_conv(context)
+        # 门控筛选有用全局特征
+        g = self.gate(out)
+        return x + out * g
+
+
+class DC_SPPF(nn.Module):
+    """
+    Discriminative-Contextual SPPF (DC-SPPF)
+    基于 HCD_SPPF 的终极精度增强版。
+    """
+
+    def __init__(self, c1, c2, k=5):
+        super().__init__()
+        c_ = c1 // 2
+        self.cv1 = nn.Sequential(nn.Conv2d(c1, c_, 1, 1), nn.BatchNorm2d(c_), nn.SiLU())
+
+        # 1. 增强型多尺度池化路径 (MixPool)
+        self.m = MixPool(k)
+
+        # 2. LKA 注意力路径 (替代原始 $7\times 7$)
+        self.lka = LKA(c_)
+
+        # 3. Gated 全局上下文路径
+        self.gated_gc = GatedGCBlock(c_)
+
+        self.cv2 = nn.Sequential(
+            nn.Conv2d(c_ * 4, c2, 1, 1),
+            nn.BatchNorm2d(c2),
+            nn.SiLU()
+        )
+
+        # 4. 多尺度空间注意力精炼
+        self.multi_scale_att = nn.Sequential(
+            nn.Conv2d(c_ * 4, c_ * 4, kernel_size=3, padding=1, groups=c_ * 4),
+            nn.Conv2d(c_ * 4, c_ * 4, kernel_size=3, padding=2, dilation=2, groups=c_ * 4),
+            nn.Conv2d(c_ * 4, 1, kernel_size=1),
+            nn.Sigmoid()
+        )
+
+    def forward(self, x):
+        x = self.cv1(x)
+
+        # 判别式特征分支并行提取
+        y1 = self.m(x)  # 混合池化特征1
+        y2 = self.m(y1)  # 混合池化特征2
+        y3 = self.lka(x)  # LKA 形状特征
+        y4 = self.gated_gc(x)  # 筛选后的全局特征
+
+        # 特征拼接
+        feat = torch.cat([y1, y2, y3, y4], 1)
+
+        # 多尺度空间 Mask 精炼定位
+        att = self.multi_scale_att(feat)
+        feat = feat * att
+
+        return self.cv2(feat)
