@@ -12,7 +12,7 @@ from ultralytics.utils.metrics import OKS_SIGMA, calculate_siou
 from ultralytics.utils.ops import crop_mask, xywh2xyxy, xyxy2xywh
 from ultralytics.utils.tal import RotatedTaskAlignedAssigner, TaskAlignedAssigner, dist2bbox, dist2rbox, make_anchors
 from ultralytics.utils.torch_utils import autocast
-from .Mymetrics import WiseIouLoss, wasserstein_loss, bbox_inner_iou, bbox_focaler_iou
+from .Mymetrics import WiseIouLoss, wasserstein_loss, bbox_inner_iou, bbox_focaler_iou, bbox_mpdiou
 
 from .metrics import bbox_iou, probiou
 from .tal import bbox2dist
@@ -151,9 +151,9 @@ class BboxLoss(nn.Module):
             # iou = calculate_siou(pred_bboxes[fg_mask], target_bboxes[fg_mask])
 
             # iou = bbox_inner_iou(pred_bboxes[fg_mask], target_bboxes[fg_mask], xywh=False, CIoU=True, ratio=0.7)
-            # iou = bbox_mpdiou(pred_bboxes[fg_mask], target_bboxes[fg_mask], xywh=False, mpdiou_hw=mpdiou_hw[fg_mask])
+            iou = bbox_mpdiou(pred_bboxes[fg_mask], target_bboxes[fg_mask], xywh=False, mpdiou_hw=mpdiou_hw[fg_mask])
             # iou = bbox_inner_mpdiou(pred_bboxes[fg_mask], target_bboxes[fg_mask], xywh=False, mpdiou_hw=mpdiou_hw[fg_mask], ratio=0.7)
-            iou = bbox_focaler_iou(pred_bboxes[fg_mask], target_bboxes[fg_mask], xywh=False, CIoU=True, d=0.0, u=0.95)
+            # iou = bbox_focaler_iou(pred_bboxes[fg_mask], target_bboxes[fg_mask], xywh=False, CIoU=True, d=0.0, u=0.95)
             # iou = bbox_focaler_mpdiou(pred_bboxes[fg_mask], target_bboxes[fg_mask], xywh=False, mpdiou_hw=mpdiou_hw[fg_mask], d=0.0, u=0.95)
             loss_iou = ((1.0 - iou) * weight).sum() / target_scores_sum
 
