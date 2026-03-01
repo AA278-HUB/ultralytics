@@ -550,3 +550,81 @@ class CoordSPPF(nn.Module):
         # 注入空间坐标注意力
         out = self.att(combined)
         return self.cv2(out)
+
+
+import torch
+import torch.nn as nn
+import torch.nn.functional as F
+
+
+def conv_bn(in_channels, out_channels, kernel_size, stride, padding, groups=1):
+    """辅助函数：卷积 + BN"""
+    result = nn.Sequential()
+    result.add_module('conv',
+                      nn.Conv2d(in_channels, out_channels, kernel_size, stride, padding, groups=groups, bias=False))
+    result.add_module('bn', nn.BatchNorm2d(out_channels))
+    return result
+
+
+class RepBranch(nn.Module):
+    """训练时多分支，推理时单分支的重参数化模块"""
+
+    def __init__(self, c, k=3, deploy=False):
+        super().__init__()
+        self.deploy = deploy
+        if deploy:
+            self.rbr_reparam = nn.Conv2d(c, c, k, 1, k // 2, groups=c, bias=True)
+        else:
+            self.rbr_dense = conv_bn(c, c, k, 1, k // 2, groups=c)
+            self.rbr_1x1 = conv_bn(c, c, 1, 1, 0, groups=c)
+            self.rbr_identity = nn.BatchNorm2d(c) if k == 3 else None
+
+    def forward(self, x):
+        if self.deploy:
+            return self.rbr_reparam(x)
+
+        out = self.rbr_dense(x) + self.rbr_1x1(x)
+        if self.rbr_identity:
+            out += self.rbr_identity(x)
+        return out
+
+
+class RepOmniSPPF(nn.Module):
+    """
+    基于重参数化设计的高精度 SPPF
+    目标：利用训练时的冗余分支提升检测精度 (mAP)，推理时合并。
+    """
+
+    def __init__(self, c1, c2, k=5, deploy=False):
+        super().__init__()
+        c_ = c1 // 2  # hidden channels
+        self.cv1 = nn.Sequential(nn.Conv2d(c1, c_, 1, 1), nn.BatchNorm2d(c_), nn.SiLU())
+        self.cv2 = nn.Sequential(nn.Conv2d(c_ * 4, c2, 1, 1), nn.BatchNorm2d(c2), nn.SiLU())
+
+        # 核心改进：将普通的 MaxPool 包装在重参数化增强块中
+        self.m = nn.MaxPool2d(kernel_size=k, stride=1, padding=k // 2)
+
+        # 训练时为池化层增加并行的学习路径
+        self.rep_blocks = nn.ModuleList([
+            RepBranch(c_, k=3, deploy=deploy) for _ in range(3)
+        ])
+
+        # 最终特征融合后的超感受野增强
+        self.rep_fusion = RepBranch(c_ * 4, k=7, deploy=deploy)
+
+    def forward(self, x):
+        x = self.cv1(x)
+
+        # 串行池化结合重参数化分支
+        y = [x]
+        for i in range(3):
+            # 既有池化的纹理保留，又有卷积的学习能力
+            pool_out = self.m(y[-1])
+            rep_out = self.rep_blocks[i](y[-1])
+            y.append(pool_out + rep_out)  # 融合学习
+
+        # 拼接后的全局特征增强
+        z = torch.cat(y, 1)
+        z = self.rep_fusion(z)
+
+        return self.cv2(z)
