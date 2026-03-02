@@ -90,7 +90,7 @@ if __name__ == '__main__':
                 lrf=0.2,
                 close_mosaic=20,
                 save=True,
-                device="[0,1,2,3]",
+                device=[0,1,2,3],
                 # 动态命名：模型名 + 时间 + 损失组合
                 name=f"{model_name}_{datetime.now().strftime('%m%d%H%M')}_{loss_exp_name}",
                 # 以下是自定义传参（确保你的 loss.py 有解析逻辑）
