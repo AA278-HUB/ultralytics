@@ -131,3 +131,12 @@ tracker: botsort.yaml # (str) tracker config file: botsort.yaml or bytetrack.yam
 
 # Custom Loss Settings
 iou_type: 'none'  # 默认值设为 'none' 或 'ciou'
+cls_loss_type: 'none'
+nwd_loss: 'False'
+use_wise_framework: 'False'
+iou_ratio: '0.5'
+
+#                cls_loss_type=cls_type,  # 传给分类损失
+#                iou_type=full_iou_name,  # 传给 BboxLoss
+#                nwd_loss=nwd_on,  # 是否开启 NWD
+#                iou_ratio=0.5 if nwd_on else 1.0  # NWD 占比

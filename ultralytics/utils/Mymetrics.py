@@ -71,7 +71,7 @@ def box_iou(box1, box2, eps=1e-7):
     return inter / ((a2 - a1).prod(2) + (b2 - b1).prod(2) - inter + eps)
 
 
-def bbox_iou(box1, box2, xywh=True, GIoU=False, DIoU=False, CIoU=False, EIoU=False, SIoU=False, ShapeIoU=False, PIoU=False, PIoU2=False, eps=1e-7, scale=0.0, Lambda=1.3):
+def my_bbox_iou(box1, box2, xywh=True, GIoU=False, DIoU=False, CIoU=False, EIoU=False, SIoU=False, ShapeIoU=False, PIoU=False, PIoU2=False, eps=1e-7, scale=0.0, Lambda=1.3):
     """
     Calculate Intersection over Union (IoU) of box1(1, 4) to box2(n, 4).
 
@@ -470,7 +470,7 @@ def bbox_mpdiou(box1, box2, xywh=True, mpdiou_hw=1, eps=1e-7):
     iou = inter / union
     d1 = (b2_x1 - b1_x1) ** 2 + (b2_y1 - b1_y1) ** 2
     d2 = (b2_x2 - b1_x2) ** 2 + (b2_y2 - b1_y2) ** 2
-    return iou - d1 / mpdiou_hw.unsqueeze(1) - d2 / mpdiou_hw.unsqueeze(1)  # MPDIoU
+    return iou - d1 / mpdiou_hw - d2 / mpdiou_hw  # MPDIoU
 
 def bbox_inner_mpdiou(box1, box2, xywh=True, mpdiou_hw=1, ratio=0.7, eps=1e-7):
     """
@@ -502,7 +502,7 @@ def bbox_inner_mpdiou(box1, box2, xywh=True, mpdiou_hw=1, ratio=0.7, eps=1e-7):
     iou = inter / union
     d1 = (b2_x1 - b1_x1) ** 2 + (b2_y1 - b1_y1) ** 2
     d2 = (b2_x2 - b1_x2) ** 2 + (b2_y2 - b1_y2) ** 2
-    return innner_iou - d1 / mpdiou_hw.unsqueeze(1) - d2 / mpdiou_hw.unsqueeze(1)  # MPDIoU
+    return innner_iou - d1 / mpdiou_hw- d2 / mpdiou_hw  # MPDIoU
 
 def bbox_focaler_mpdiou(box1, box2, xywh=True, mpdiou_hw=1, eps=1e-7, d=0.0, u=0.95):
     """
@@ -534,7 +534,7 @@ def bbox_focaler_mpdiou(box1, box2, xywh=True, mpdiou_hw=1, eps=1e-7, d=0.0, u=0
     iou = ((iou - d) / (u - d)).clamp(0, 1)  # default d=0.00, u=0.95
     d1 = (b2_x1 - b1_x1) ** 2 + (b2_y1 - b1_y1) ** 2
     d2 = (b2_x2 - b1_x2) ** 2 + (b2_y2 - b1_y2) ** 2
-    return iou - d1 / mpdiou_hw.unsqueeze(1) - d2 / mpdiou_hw.unsqueeze(1)  # MPDIoU
+    return iou - d1 / mpdiou_hw - d2 / mpdiou_hw  # MPDIoU
 
 def wasserstein_loss(pred, target, eps=1e-7, constant=12.8):
     r"""`Implementation of paper `Enhancing Geometric Factors into
@@ -675,19 +675,19 @@ class WiseIouLoss(torch.nn.Module):
         h_shape = 1 - torch.exp(- d_shape[..., 1] / big_shape[..., 1])
         shape = w_shape ** theta + h_shape ** theta
         return self['iou'] + (dist + shape) / 2
-    
+
     def _MPDIoU(self, mpdiou_hw):
         d1 = (self['target'][..., 0] - self['pred'][..., 0]) ** 2 + (self['target'][..., 1] - self['pred'][..., 1]) ** 2
         d2 = (self['target'][..., 2] - self['pred'][..., 2]) ** 2 + (self['target'][..., 3] - self['pred'][..., 3]) ** 2
         return self['iou'] + d1 / mpdiou_hw + d2 / mpdiou_hw
-    
+
     def _ShapeIoU(self, scale=0.0):
         b1_x1, b1_y1, b1_x2, b1_y2 = self['pred'].chunk(4, -1)
         b2_x1, b2_y1, b2_x2, b2_y2 = self['target'].chunk(4, -1)
         w1, h1 = b1_x2 - b1_x1, b1_y2 - b1_y1 + 1e-7
         w2, h2 = b2_x2 - b2_x1, b2_y2 - b2_y1 + 1e-7
-        
-        #Shape-Distance    #Shape-Distance    #Shape-Distance    #Shape-Distance    #Shape-Distance    #Shape-Distance    #Shape-Distance  
+
+        #Shape-Distance    #Shape-Distance    #Shape-Distance    #Shape-Distance    #Shape-Distance    #Shape-Distance    #Shape-Distance
         ww = 2 * torch.pow(w2, scale) / (torch.pow(w2, scale) + torch.pow(h2, scale))
         hh = 2 * torch.pow(h2, scale) / (torch.pow(w2, scale) + torch.pow(h2, scale))
         cw = torch.max(b1_x2, b2_x2) - torch.min(b1_x1, b2_x1)  # convex width
@@ -698,18 +698,18 @@ class WiseIouLoss(torch.nn.Module):
         center_distance = hh * center_distance_x + ww * center_distance_y
         distance = center_distance / c2
 
-        #Shape-Shape    #Shape-Shape    #Shape-Shape    #Shape-Shape    #Shape-Shape    #Shape-Shape    #Shape-Shape    #Shape-Shape    
+        #Shape-Shape    #Shape-Shape    #Shape-Shape    #Shape-Shape    #Shape-Shape    #Shape-Shape    #Shape-Shape    #Shape-Shape
         omiga_w = hh * torch.abs(w1 - w2) / torch.max(w1, w2)
         omiga_h = ww * torch.abs(h1 - h2) / torch.max(h1, h2)
         shape_cost = torch.pow(1 - torch.exp(-1 * omiga_w), 4) + torch.pow(1 - torch.exp(-1 * omiga_h), 4)
         return self['iou'] + distance.squeeze() + 0.5 * shape_cost.squeeze()
-    
+
     def _PIoU(self):
         b1_x1, b1_y1, b1_x2, b1_y2 = self['pred'].chunk(4, -1)
         b2_x1, b2_y1, b2_x2, b2_y2 = self['target'].chunk(4, -1)
         w1, h1 = b1_x2 - b1_x1, b1_y2 - b1_y1 + 1e-7
         w2, h2 = b2_x2 - b2_x1, b2_y2 - b2_y1 + 1e-7
-        
+
         dw1 = torch.abs(b1_x2.minimum(b1_x1)-b2_x2.minimum(b2_x1))
         dw2 = torch.abs(b1_x2.maximum(b1_x1)-b2_x2.maximum(b2_x1))
         dh1 = torch.abs(b1_y2.minimum(b1_y1)-b2_y2.minimum(b2_y1))
@@ -717,13 +717,13 @@ class WiseIouLoss(torch.nn.Module):
         P = ((dw1+dw2)/torch.abs(w2)+(dh1+dh2)/torch.abs(h2))/4
         piou_v1 = self['iou'] - torch.exp(-P.squeeze()**2) + 1
         return piou_v1
-    
+
     def _PIoU2(self, Lambda=1.3):
         b1_x1, b1_y1, b1_x2, b1_y2 = self['pred'].chunk(4, -1)
         b2_x1, b2_y1, b2_x2, b2_y2 = self['target'].chunk(4, -1)
         w1, h1 = b1_x2 - b1_x1, b1_y2 - b1_y1 + 1e-7
         w2, h2 = b2_x2 - b2_x1, b2_y2 - b2_y1 + 1e-7
-        
+
         dw1 = torch.abs(b1_x2.minimum(b1_x1)-b2_x2.minimum(b2_x1))
         dw2 = torch.abs(b1_x2.maximum(b1_x1)-b2_x2.maximum(b2_x1))
         dh1 = torch.abs(b1_y2.minimum(b1_y1)-b2_y2.minimum(b2_y1))
