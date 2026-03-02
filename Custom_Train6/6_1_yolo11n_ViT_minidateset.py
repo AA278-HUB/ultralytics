@@ -61,9 +61,9 @@ if __name__ == '__main__':
                 enhance = "None"
                 if not use_wise_framework:
                     continue
-            if enhance == "None" and use_wise_framework == False:
-                if iou_base == "CIoU" or iou_base == "SIoU":
-                    continue
+            # if enhance == "None" and use_wise_framework == False:
+            #     if iou_base == "CIoU" or iou_base == "SIoU":
+            #         continue
 
             full_iou_name = iou_base if enhance == "None" else f"{enhance}_{iou_base}"
             nwd_suffix = "NWD_On" if nwd_on else "NWD_Off"
@@ -102,5 +102,5 @@ if __name__ == '__main__':
                 iou_ratio=0.5 if nwd_on else 1.0  # NWD 占比
             )
             # 写入日志文件（追加模式）
-            with open("LOG_FILE_Loss.txt", "a", encoding="utf-8") as f:
-                f.write(f"{loss_exp_name}\n")
+            # with open("LOG_FILE_Loss.txt", "a", encoding="utf-8") as f:
+            #     f.write(f"{loss_exp_name}\n")
