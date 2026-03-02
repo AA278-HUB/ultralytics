@@ -947,3 +947,184 @@ class DC_SPPF(nn.Module):
         feat = feat * att
 
         return self.cv2(feat)
+
+
+class ConvGELU(nn.Module):
+    """自定义 Conv-BN-GELU 层，替换 SiLU 以处理复杂特征。"""
+    def __init__(self, c1: int, c2: int, k: int = 1, s: int = 1, p: int = None, g: int = 1):
+        super().__init__()
+        self.conv = nn.Conv2d(c1, c2, k, s, autopad(k, p), groups=g, bias=False)
+        self.bn = nn.BatchNorm2d(c2)
+        self.act = nn.GELU()
+
+    def forward(self, x: torch.Tensor) -> torch.Tensor:
+        return self.act(self.bn(self.conv(x)))
+
+class FocalModulation(nn.Module):
+    """简单动态焦点调制注意力，受 Focal Modulation 启发。"""
+    def __init__(self, channels: int, reduction: int = 4):
+        super().__init__()
+        self.fc1 = nn.Linear(channels, channels // reduction, bias=False)
+        self.act = nn.GELU()
+        self.fc2 = nn.Linear(channels // reduction, channels, bias=False)
+        self.sigmoid = nn.Sigmoid()
+        self.avg_pool = nn.AdaptiveAvgPool2d(1)
+
+    def forward(self, x: torch.Tensor) -> torch.Tensor:
+        b, c, _, _ = x.size()
+        y = self.avg_pool(x).view(b, c)
+        y = self.fc1(y)
+        y = self.act(y)
+        y = self.fc2(y)
+        y = self.sigmoid(y).view(b, c, 1, 1)
+        return x * y.expand_as(x)  # 动态调制
+
+class C3TR(nn.Module):
+    """Cross-Stage Partial Transformer 模块，用于全局注意力。"""
+    def __init__(self, c1: int, c2: int):
+        super().__init__()
+        self.cv1 = ConvGELU(c1, c2 // 2, 1, 1)
+        self.cv2 = ConvGELU(c1, c2 // 2, 1, 1)
+        self.mha = nn.MultiheadAttention(c2 // 2, num_heads=4, batch_first=True)
+        self.cv3 = ConvGELU(c2, c2, 1, 1)
+
+    def forward(self, x: torch.Tensor) -> torch.Tensor:
+        y1 = self.cv1(x)
+        y2 = self.cv2(x)
+        b, c, h, w = y2.shape
+        y2 = y2.flatten(2).permute(0, 2, 1)  # 为 MHA 准备
+        y2, _ = self.mha(y2, y2, y2)
+        y2 = y2.permute(0, 2, 1).view(b, c, h, w)
+        return self.cv3(torch.cat([y1, y2], 1))
+
+class DynamicFocalSPPF(nn.Module):
+    """重新设计的 SPPF v2，修复通道匹配，包含动态焦点调制、多尺度扩张卷积、Transformer 和多级 shortcut。"""
+
+    def __init__(self, c1: int, c2: int, rates: tuple = (1, 2, 4)):
+        """
+        初始化 DynamicFocalSPPFv2 层。
+
+        Args:
+            c1 (int): 输入通道。
+            c2 (int): 输出通道（通常 c2 == c1）。
+            rates (tuple): 扩张卷积率。
+
+        Notes:
+            扩展 SPP(k=(3,5,7))，添加动态焦点调制以适应小目标、多尺度扩张卷积以丰富细节、C3TR 以捕获全局依赖，以及投影的多级 shortcut 以改善流动。
+        """
+        super().__init__()
+        c_ = c1 // 2  # 隐藏通道
+        self.cv1 = ConvGELU(c1, c_, 1, 1)
+        self.cv2 = ConvGELU(c_ * (len(rates) + 2), c2, 1, 1)  # +2 为 cv1 和 C3TR 输出
+        self.dilated_convs = nn.ModuleList([nn.Conv2d(c_, c_, 3, 1, dilation=r, padding=r, bias=False) for r in rates])
+        self.focal = FocalModulation(c_)
+        self.c3tr = C3TR(c_, c_)
+        self.mid_proj = ConvGELU(c_, c2, 1, 1) if c2 != c_ else nn.Identity()  # 投影 mid 到 c2
+
+    def forward(self, x: torch.Tensor) -> torch.Tensor:
+        """应用动态焦点调制、多尺度扩张卷积、Transformer 并返回拼接特征图与投影的多级 shortcut。"""
+        y = [self.cv1(x)]  # 从 cv1 输出开始
+        mid = y[-1]  # 中间 shortcut
+        for dc in self.dilated_convs:  # 多尺度扩张卷积
+            dilated = dc(mid)
+            focaled = self.focal(dilated)  # 动态焦点调制
+            y.append(focaled)
+        tr_out = self.c3tr(mid)  # Transformer 增强
+        y.append(tr_out)
+        cat_features = torch.cat(y, 1)  # 拼接：形状兼容 (c_ * (len(rates) + 2))
+        output = self.cv2(cat_features)
+        mid_proj = self.mid_proj(mid)  # 投影 mid
+        return output + mid_proj + x  # 多级残差 shortcut（现在通道匹配，假设 c2 == c1）
+class ViTPatchEmbed(nn.Module):
+    """ViT 风格的 Patch Embedding。"""
+    def __init__(self, c1: int, patch_size: int = 4, embed_dim: int = 256):
+        super().__init__()
+        self.proj = nn.Conv2d(c1, embed_dim, kernel_size=patch_size, stride=patch_size)
+        self.norm = nn.LayerNorm(embed_dim)
+
+    def forward(self, x: torch.Tensor) -> torch.Tensor:
+        b, c, h, w = x.shape
+        x = self.proj(x).flatten(2).transpose(1, 2)  # B, N, D
+        x = self.norm(x)
+        return x, (h // 4, w // 4)  # 返回嵌入和原始 H/W 以恢复
+
+class MultiHeadAttention(nn.Module):
+    """多头自注意力层。"""
+    def __init__(self, embed_dim: int, num_heads: int = 8):
+        super().__init__()
+        self.mha = nn.MultiheadAttention(embed_dim, num_heads, batch_first=True)
+        self.norm = nn.LayerNorm(embed_dim)
+
+    def forward(self, x: torch.Tensor) -> torch.Tensor:
+        res = x
+        x = self.norm(x)
+        x, _ = self.mha(x, x, x)
+        return x + res
+
+class CapsuleLayer(nn.Module):
+    """简单动态路由胶囊层。"""
+    def __init__(self, in_caps: int, out_caps: int, in_dim: int, out_dim: int, routings: int = 3):
+        super().__init__()
+        self.routings = routings
+        self.W = nn.Parameter(torch.randn(out_caps, in_caps, in_dim, out_dim))
+
+    def forward(self, u: torch.Tensor) -> torch.Tensor:
+        # u: B, in_caps, in_dim
+        b, in_caps, in_dim = u.shape
+        out_caps = self.W.size(0)
+        u_hat = torch.matmul(u[:, None, :, None, :], self.W[None, :, :, :, :])  # B, out_caps, in_caps, out_dim
+        b_ij = torch.zeros(b, out_caps, in_caps, 1, device=u.device)
+        for _ in range(self.routings):
+            c_ij = torch.softmax(b_ij, dim=1)
+            s_j = (c_ij * u_hat).sum(dim=2, keepdim=True)
+            v_j = self.squash(s_j)
+            if _ < self.routings - 1:
+                a_ij = (u_hat * v_j).sum(dim=-1, keepdim=True)
+                b_ij = b_ij + a_ij
+        return v_j.squeeze(2)
+
+    def squash(self, s: torch.Tensor) -> torch.Tensor:
+        sq = torch.sum(s ** 2, dim=-1, keepdim=True)
+        return (sq / (1 + sq)) * (s / torch.sqrt(sq + 1e-8))
+
+class ViTEnhancedSPPF(nn.Module):
+    """重新设计的 SPPF，包含 ViT patch embedding、多头注意力、动态胶囊和多级 shortcut。"""
+
+    def __init__(self, c1: int, c2: int, patch_size: int = 4, embed_dim: int = 256, num_heads: int = 8):
+        """
+        初始化 ViTEnhancedSPPF 层。
+
+        Args:
+            c1 (int): 输入通道。
+            c2 (int): 输出通道（通常 c2 == c1）。
+            patch_size (int): ViT patch 大小。
+            embed_dim (int): 嵌入维度。
+            num_heads (int): 注意力头数。
+
+        Notes:
+            整合 ViT embedding 以全局捕捉、多头注意力以长距离依赖、胶囊以动态路由，以及多级 shortcut 以改善流动。
+        """
+        super().__init__()
+        c_ = c1 // 2  # 隐藏通道
+        self.cv1 = ConvGELU(c1, c_, 1, 1)
+        self.patch_embed = ViTPatchEmbed(c_, patch_size, embed_dim)
+        self.mha = MultiHeadAttention(embed_dim, num_heads)
+        self.capsule = CapsuleLayer(1, 1, embed_dim, embed_dim)  # 简单胶囊用于聚合
+        self.cv2 = ConvGELU(embed_dim, c2, 1, 1)  # 恢复通道
+        self.norm = nn.LayerNorm(embed_dim)
+
+    def forward(self, x: torch.Tensor) -> torch.Tensor:
+        """应用 ViT embedding、注意力、胶囊并返回特征图与多级 shortcut。"""
+        cv1_out = self.cv1(x)  # 中间 shortcut 1
+        patches, (ph, pw) = self.patch_embed(cv1_out)
+        attn_out = self.mha(patches)  # 中间 shortcut 2
+        caps_out = self.capsule(attn_out[:, None, :])  # 动态路由 (B, 1, D) -> (B, D)
+        caps_out = self.norm(caps_out)
+        # 恢复空间维度
+        b, d = caps_out.shape
+        restored = caps_out.view(b, d, ph, pw)
+        output = self.cv2(restored)
+        return output + cv1_out + x  # 多级残差 shortcut（假设 c2 == c1）
+
+
+

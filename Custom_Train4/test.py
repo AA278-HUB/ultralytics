@@ -143,7 +143,11 @@ model_yaml_paths = [
 
     # "Custom_Model_cfg_13/yolo11_MAFPN_modifyX_uniRepLK_v1.yaml"
     # "Custom_Model_cfg_13/yolo11_MAFPN_modifyX_uniRepLK_v1_ESPPF.yaml",
-    "Custom_Model_cfg_13/yolo11_MAFPN_modifyX_uniRepLK_v1_DSPPF.yaml",
+    # "Custom_Model_cfg_13/yolo11_MAFPN_modifyX_uniRepLK_v1_DSPPF.yaml",
+    # "Custom_Model_cfg_13/yolo11_MAFPN_modifyX_uniRepLK_v1_Dy_SPPF.yaml",
+    "Custom_Model_cfg_13/yolo11_MAFPN_modifyX_uniRepLK_v1_L_SPPF.yaml",
+    # "Custom_Model_cfg_13/yolo11_MAFPN_modifyX_uniRepLK_v1_Vit_SPPF.yaml"
+
 ]
 
 
@@ -165,6 +169,7 @@ if __name__ == '__main__':
                               close_mosaic=50,
                               save= True,
                               device=-1,
+                              iou_type='test',
                               workers=16,
                               name="test"+datetime.now().strftime("%Y%m%d_%H_%M"))
 

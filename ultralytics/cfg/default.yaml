@@ -128,3 +128,6 @@ cfg: # (str, optional) path to a config.yaml that overrides defaults
 
 # Tracker settings ------------------------------------------------------------------------------------------------------
 tracker: botsort.yaml # (str) tracker config file: botsort.yaml or bytetrack.yaml
+
+# Custom Loss Settings
+iou_type: 'none'  # 默认值设为 'none' 或 'ciou'

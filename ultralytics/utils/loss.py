@@ -149,7 +149,7 @@ class BboxLoss(nn.Module):
             # 调用封装好的 SIoU 函数
             # iou = calculate_siou(pred_bboxes[fg_mask], target_bboxes[fg_mask])
 
-            # iou = bbox_inner_iou(pred_bboxes[fg_mask], target_bboxes[fg_mask], xywh=False, CIoU=True, ratio=0.7)
+            iou = bbox_inner_iou(pred_bboxes[fg_mask], target_bboxes[fg_mask], xywh=False, CIoU=True, ratio=0.7)
             #
             # iou = My_bbox_mpdiou(pred_bboxes[fg_mask],
             #                      target_bboxes[fg_mask],

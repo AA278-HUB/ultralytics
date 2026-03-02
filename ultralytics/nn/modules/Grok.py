@@ -4,6 +4,9 @@ import torch.nn.functional as F
 from ultralytics.nn.modules import RepConv, C3, C2f, Conv
 import torch.nn as nn
 
+from ultralytics.nn.modules.conv import autopad
+
+
 def fuse_bn(conv, bn):
     """Fuse BN into Conv"""
     conv_bias = 0 if conv.bias is None else conv.bias
@@ -208,5 +211,103 @@ class C3k2_UniRepLKv4(C2f):
             EnhancedUniRepLK_Bottleneck_v4(self.c, self.c, shortcut, g, k=k, k_attn=k_attn)
             for _ in range(n)
         )
+class ConvGELU(nn.Module):
+    """自定义 Conv-BN-GELU 层，处理复杂特征。"""
+    def __init__(self, c1: int, c2: int, k: int = 1, s: int = 1, p: int = None, g: int = 1):
+        super().__init__()
+        self.conv = nn.Conv2d(c1, c2, k, s, autopad(k, p), groups=g, bias=False)
+        self.bn = nn.BatchNorm2d(c2)
+        self.act = nn.GELU()
 
+    def forward(self, x: torch.Tensor) -> torch.Tensor:
+        return self.act(self.bn(self.conv(x)))
+
+class LSKA(nn.Module):
+    """Large-Scale Kernel Attention，受 RLRD-YOLO 启发。"""
+    def __init__(self, channels: int, k_size: int = 7):
+        super().__init__()
+        self.avg_pool = nn.AdaptiveAvgPool2d(1)
+        self.fc = nn.Sequential(
+            nn.Linear(channels, channels // 16),
+            nn.ReLU(inplace=True),
+            nn.Linear(channels // 16, channels),
+            nn.Sigmoid()
+        )
+        self.large_conv = nn.Conv2d(channels, channels, k_size, 1, k_size // 2, groups=channels, bias=False)
+
+    def forward(self, x: torch.Tensor) -> torch.Tensor:
+        y = self.avg_pool(x).squeeze(-1).squeeze(-1)
+        y = self.fc(y).unsqueeze(-1).unsqueeze(-1)
+        large = self.large_conv(x)
+        return x * y + large  # 融合大核注意力
+
+class MultiBranchAttn(nn.Module):
+    """多分支 SENetV2-like 注意力，受 ADSPPF 启发。"""
+    def __init__(self, channels: int, reduction: int = 4):
+        super().__init__()
+        self.branch1 = nn.Sequential(nn.AdaptiveAvgPool2d(1), nn.Conv2d(channels, channels // reduction, 1), nn.ReLU(), nn.Conv2d(channels // reduction, channels, 1), nn.Sigmoid())
+        self.branch2 = nn.Sequential(nn.AdaptiveMaxPool2d(1), nn.Conv2d(channels, channels // reduction, 1), nn.ReLU(), nn.Conv2d(channels // reduction, channels, 1), nn.Sigmoid())
+
+    def forward(self, x: torch.Tensor) -> torch.Tensor:
+        b1 = self.branch1(x)
+        b2 = self.branch2(x)
+        return x * (b1 + b2) / 2  # 平均多分支
+
+class C3TR(nn.Module):
+    """Cross-Stage Partial Transformer，受 SC3T 启发。"""
+    def __init__(self, c1: int, c2: int):
+        super().__init__()
+        self.cv1 = ConvGELU(c1, c2 // 2, 1, 1)
+        self.cv2 = ConvGELU(c1, c2 // 2, 1, 1)
+        self.mha = nn.MultiheadAttention(c2 // 2, num_heads=4, batch_first=True)
+        self.cv3 = ConvGELU(c2, c2, 1, 1)
+
+    def forward(self, x: torch.Tensor) -> torch.Tensor:
+        y1 = self.cv1(x)
+        y2 = self.cv2(x)
+        b, c, h, w = y2.shape
+        y2 = y2.flatten(2).permute(0, 2, 1)
+        y2, _ = self.mha(y2, y2, y2)
+        y2 = y2.permute(0, 2, 1).view(b, c, h, w)
+        return self.cv3(torch.cat([y1, y2], 1))
+
+class LSKA_ASPPF(nn.Module):
+    """重新设计的 SPPF，包含 LSKA、多尺度扩张卷积、多分支注意力、C3TR 和 shortcut。"""
+
+    def __init__(self, c1: int, c2: int, rates: tuple = (1, 3, 5)):
+        """
+        初始化 LSKA_ASPPF 层。
+
+        Args:
+            c1 (int): 输入通道。
+            c2 (int): 输出通道（通常 c2 == c1）。
+            rates (tuple): 扩张率。
+
+        Notes:
+            扩展 SPP(k=(5,9,13))，添加 LSKA 以大核注意力、多尺度扩张卷积以细节捕捉、多分支注意力以融合、C3TR 以全局依赖，以及投影 shortcut 以匹配通道。
+        """
+        super().__init__()
+        c_ = c1 // 2  # 隐藏通道
+        self.cv1 = ConvGELU(c1, c_, 1, 1)
+        self.cv2 = ConvGELU(c_ * (len(rates) + 2), c2, 1, 1)  # +2 为 LSKA 和 C3TR
+        self.aspp_convs = nn.ModuleList([nn.Conv2d(c_, c_, 3, 1, dilation=r, padding=r, bias=False) for r in rates])
+        self.lska = LSKA(c_)
+        self.mb_attn = MultiBranchAttn(c_)
+        self.c3tr = C3TR(c_, c_)
+        self.proj_mid = ConvGELU(c_, c2, 1, 1) if c_ != c2 else nn.Identity()  # 投影 mid 以匹配 c2
+        self.proj_x = ConvGELU(c1, c2, 1, 1) if c1 != c2 else nn.Identity()  # 投影 x
+
+    def forward(self, x: torch.Tensor) -> torch.Tensor:
+        """应用 LSKA、多尺度扩张卷积、多分支注意力、C3TR 并返回拼接特征图与投影 shortcut。"""
+        y = [self.cv1(x)]  # 从 cv1 输出开始 (c_)
+        mid = self.lska(y[-1])  # LSKA 后 mid (c_)
+        for ac in self.aspp_convs:  # 多尺度扩张卷积
+            aspp = ac(mid)
+            attended = self.mb_attn(aspp)  # 多分支注意力
+            y.append(attended)  # 每个 c_
+        tr_out = self.c3tr(mid)  # C3TR (c_)
+        y.append(tr_out)
+        cat_features = torch.cat(y, 1)  # 拼接：c_ * (len(rates) + 2)
+        output = self.cv2(cat_features)  # 到 c2
+        return output + self.proj_mid(mid) + self.proj_x(x)  # 投影后多级 shortcut
 # C3k_UniRepLK_Enhanced_v4 和 C3k2_UniRepLKv4 保持你上次的代码，只把里面的 EnhancedUniRepLK_Bottleneck_v4 改成上面的新版即可

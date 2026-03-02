@@ -120,9 +120,9 @@ from .modules.DCNv4.mafyolo import RepHMSPlus, RepHMS_Gemini, RepHMSPlus_Grok, R
 from .modules.Gemini import C3k2_UniRepLK, C3k2_DenseGLK, C3k2_StarRepLK, C3k2_AdvUniRepLK, C3k2_SuperUniRepLK_CA, \
     C3k2_UltraApex
 from .modules.GeminiV2 import C3k2_UniRepLKv2, C3k2_UniRepLKv3, C3k2_StarLSK, C3k_StarLSK
-from .modules.Grok import C3k2_UniRepLKv4
+from .modules.Grok import C3k2_UniRepLKv4, LSKA_ASPPF
 from .modules.Grok2 import C3k2_UniRepLKv5, HybridSPPF, AttentiveSPPF, CoordSPPF, RepOmniSPPF, HCD_SPPF, EA_SPPF, \
-    AS_SPPF, DC_SPPF
+    AS_SPPF, DC_SPPF, ViTEnhancedSPPF, DynamicFocalSPPF
 # from .modules.C3k2_MobileMamba import C3k2_MobileMamba, C3k2_MambaVision
 # from .modules.C3k2_MobileMamba import C3k2Mamba
 # from .Extramodule.Neck.Gold import RepGDNeck
@@ -1845,6 +1845,10 @@ def parse_model(d, ch, verbose=True):
             EA_SPPF,
             AS_SPPF,
             DC_SPPF,
+            ViTEnhancedSPPF,
+            DynamicFocalSPPF,
+            LSKA_ASPPF,
+
             C2fPSA,
             C2PSA,
             DWConv,
