@@ -7,9 +7,10 @@ import itertools
 # --- 1. 配置损失函数实验网格 ---
 # 分类损失映射 (Key: 传给Loss代码的参数, Value: 用于文件命名的缩写)
 CLS_MAP = {
-    "FocalLoss": "Focal",
+    "EMASlideLoss": "EMASlide",
     "SlideLoss": "Slide",
-    "EMASlideLoss": "EMASlide"
+    "FocalLoss": "Focal",
+
 }
 
 # 定位损失 (Base IoU)
@@ -27,7 +28,7 @@ use_wise_framework = [True, False]
 # =========实验==========
 
 IOU_TYPES = ["CIoU","SIoU", "EIoU","PIoU", "PIoU2", "WIoU", "Inner_MPDIoU", "MPDIoU", "Focaler_MPDIoU"] #
-use_wise_framework = [True, False]
+use_wise_framework = [ False,True]
 # 增强插件 (None: 保持原样, Inner: 内部辅助框, Focaler: 难样本聚焦)
 ENHANCE_TYPES = ["None", "Inner", "Focaler"]  #
 
