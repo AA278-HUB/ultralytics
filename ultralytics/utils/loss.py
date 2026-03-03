@@ -741,9 +741,9 @@ class v8DetectionLoss:
         elif cls_type == "EMASlideLoss":
             self.bce = EMASlideLoss(nn.BCEWithLogitsLoss(reduction='none'))
         elif cls_type == "FocalLoss":
-            self.bce = FocalLoss(gamma=1.5, alpha=0.25)
+            self.bce = FocalLoss_YOLO(gamma=1.5, alpha=0.25)
         elif cls_type == "VarifocalLoss":
-            self.bce = VarifocalLoss(gamma=2.0, alpha=0.75)
+            self.bce = VarifocalLoss_YOLO(gamma=2.0, alpha=0.75)
         elif cls_type == "QualityfocalLoss":
             self.bce = QualityfocalLoss_YOLO(beta=2.0)
         else:
