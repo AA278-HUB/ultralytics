@@ -118,7 +118,7 @@ from .modules.DCNv4.mafyolo import RepHMSPlus, RepHMS_Gemini, RepHMSPlus_Grok, R
     RepHMS_Gemini_V2, RepHMS_Gemini_LightStar, RepHMSPlus_Grock_V2, RepHMSPlusV3, RepHMS_Star, RepHMS_Ultra, \
     RepHMS_Omni, RepHMSUltra_Grok
 from .modules.Gemini import C3k2_UniRepLK, C3k2_DenseGLK, C3k2_StarRepLK, C3k2_AdvUniRepLK, C3k2_SuperUniRepLK_CA, \
-    C3k2_UltraApex
+    C3k2_UltraApex, C2f_UniRepLK
 from .modules.GeminiV2 import C3k2_UniRepLKv2, C3k2_UniRepLKv3, C3k2_StarLSK, C3k_StarLSK
 from .modules.Grok import C3k2_UniRepLKv4, LSKA_ASPPF
 from .modules.Grok2 import C3k2_UniRepLKv5, HybridSPPF, AttentiveSPPF, CoordSPPF, RepOmniSPPF, HCD_SPPF, EA_SPPF, \
@@ -1944,6 +1944,7 @@ def parse_model(d, ch, verbose=True):
             C3k2_ESGLK,
             C3k2_AGLK,
             C3k2_UniRepLK,
+            C2f_UniRepLK,
             C3k2_UniRepLKv2,
             C3k2_UniRepLKv3,
             C3k2_DenseGLK,
@@ -2000,6 +2001,7 @@ def parse_model(d, ch, verbose=True):
             C3k2_ESGLK,
             C3k2_AGLK,
             C3k2_UniRepLK,
+            C2f_UniRepLK,
             C3k2_UniRepLKv2,
             C3k2_UniRepLKv3,
             C3k2_DenseGLK,

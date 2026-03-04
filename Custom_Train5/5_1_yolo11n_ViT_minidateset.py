@@ -10,10 +10,18 @@ model_yaml_paths = [
     # "Custom_Model_cfg_13/yolo11_MAFPN_modifyX_uniRepLK_v1_ESPPF.yaml",
     # "Custom_Model_cfg_13/yolo11_MAFPN_modifyX_uniRepLK_v1_SSPPF.yaml",
     # "Custom_Model_cfg_13/yolo11_MAFPN_modifyX_uniRepLK_v1_DSPPF.yaml",
-    "Custom_Model_cfg_13/yolo11_MAFPN_modifyX_uniRepLK_v1_Dy_SPPF.yaml",
-    "Custom_Model_cfg_13/yolo11_MAFPN_modifyX_uniRepLK_v1_L_SPPF.yaml",
+    # "Custom_Model_cfg_13/yolo11_MAFPN_modifyX_uniRepLK_v1_Dy_SPPF.yaml",
+    # "Custom_Model_cfg_13/yolo11_MAFPN_modifyX_uniRepLK_v1_L_SPPF.yaml",
+    "Custom_Model_cfg_14/yolo11_MAFPN_modifyX_uniRepLK_v2.yaml",
+    "Custom_Model_cfg_14/yolo11_MAFPN_modifyX_uniRepLKv5_v1.yaml",
 
 ]
+cls_type="EMASlideLoss"
+full_iou_name="CIoU"
+nwd_on=False
+use_wise_framework=False
+
+
 data = "Custom_dataset_cfg/vehicle_orientation_mini.yaml"
 
 if __name__ == '__main__':
@@ -36,6 +44,11 @@ if __name__ == '__main__':
             close_mosaic=20,  # 提前关闭 mosaic
             save=True,
             device=[0,1,2,3],
+            cls_loss_type=cls_type,  # 传给分类损失
+            iou_type=full_iou_name,  # 传给 BboxLoss
+            nwd_loss=nwd_on,  # 是否开启 NWD
+            use_wise_framework=use_wise_framework,
+            iou_ratio=0.5 if nwd_on else 1.0,  # NWD 占比
             # amp=False,
             name=f"{model_name}_{datetime.now().strftime('%Y%m%d_%H_%M')}_loss_{Loss}"
         )

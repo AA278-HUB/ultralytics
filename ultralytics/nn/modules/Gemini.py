@@ -3,6 +3,7 @@ import torch.nn as nn
 import torch.nn.functional as F
 
 from ultralytics.nn.modules import C2f, Conv
+from ultralytics.nn.modules.UniRepLKNet import DilatedReparamBlock
 from ultralytics.nn.modules.block import C3k
 from ultralytics.nn.modules.conv import autopad
 
@@ -179,6 +180,49 @@ class UniRepLK_Block(nn.Module):
         return x + y if self.add else y
 
 
+class UniRepLK_Block_Upgrade(nn.Module):
+    """
+    最终推荐版：RepConv(3x3局部) + 原版DilatedReparamBlock(真正13~17大核重参数化)
+    训练时多分支dilated，部署时自动合并成单个超大核DWConv
+    """
+
+    def __init__(self, c1, c2, shortcut=True, g=1, k=13, e=0.5):
+        super().__init__()
+        c_ = int(c2 * e)
+
+        # 1. 局部强特征（吃参数大户）
+        self.loc_feat = RepConv(c1, c_, k=3, s=1, g=1)
+
+        # 2. 核心：原版UniRepLK大核（支持17x17！）
+        self.glob_feat = DilatedReparamBlock(
+            channels=c_,
+            kernel_size=k,  # ← 推荐改成13或15（yaml里控制）
+            deploy=False,
+            attempt_use_lk_impl=True
+        )
+
+        # 3. 通道注意力 + 投影
+        self.attn = SEBlock(c_, ratio=8)
+        self.proj = nn.Sequential(
+            nn.Conv2d(c_, c2, 1, bias=False),
+            nn.BatchNorm2d(c2)
+        )
+        self.add = shortcut and c1 == c2
+
+    def forward(self, x):
+        x_loc = self.loc_feat(x)
+        x_glob = self.glob_feat(x_loc)  # 自动走dilated多分支
+        x_attn = self.attn(x_glob)
+        y = self.proj(x_attn)
+        return x + y if self.add else y
+
+    # ==================== 部署融合（必须有！）====================
+    def switch_to_deploy(self):
+        """训练完后一键融合为单个大核（和原版完全一致）"""
+        if hasattr(self.glob_feat, 'merge_dilated_branches'):
+            self.glob_feat.merge_dilated_branches()
+        if hasattr(self.loc_feat, 'switch_to_deploy'):
+            self.loc_feat.switch_to_deploy()
 class C3k2_UniRepLK(C2f):
     """
     基于 UniRepLK_Block 的 C3k2 模块。
@@ -204,6 +248,30 @@ class C3k2_UniRepLK(C2f):
             if hasattr(m.loc_feat, 'switch_to_deploy'):
                 m.loc_feat.switch_to_deploy()
 
+        # 如果你的 glob_feat 也使用了 RepConv 或可融合結構，也應在此處理
+        # 目前代碼中 glob_feat 是 nn.Sequential，通常由通用推理引擎處理 BN 融合
+
+class C2f_UniRepLK(C2f):
+    """
+    基于 UniRepLK_Block 的 C3k2 模块。
+    """
+
+    def __init__(self, c1, c2, n=1, c3k=True, e=0.5, k=7, g=1, shortcut=True):
+        e=0.5
+        super().__init__(c1, c2, n, shortcut, g, e)
+        # 注意：这里 e 是 hidden channel 的比例。
+        # 由于我们使用了 RepConv(3x3)，参数量本身已经很大。
+        # 如果依然觉得参数增加不够，可以将 e 调整为 0.6 或 0.7
+        self.m = nn.ModuleList(
+            UniRepLK_Block_Upgrade(self.c, self.c, shortcut, g, k=k, e=1.0) for _ in range(n)
+        )
+
+    def fuse(self):
+            """遍历融合所有UniRepLK_Block_Upgrade"""
+            for m in self.m:
+                if hasattr(m, 'switch_to_deploy'):
+                    m.switch_to_deploy()
+            # print(f"✅ {self.__class__.__name__} fused successfully!")
         # 如果你的 glob_feat 也使用了 RepConv 或可融合結構，也應在此處理
         # 目前代碼中 glob_feat 是 nn.Sequential，通常由通用推理引擎處理 BN 融合
 
