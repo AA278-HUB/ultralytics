@@ -7,9 +7,11 @@ import itertools
 # --- 1. 配置损失函数实验网格 ---
 # 分类损失映射 (Key: 传给Loss代码的参数, Value: 用于文件命名的缩写)
 CLS_MAP = {
+    "VarifocalLoss":"Varifocal",
+    "FocalLoss": "Focal",
+    "QualityfocalLoss":"Qualityfocal",
     "EMASlideLoss": "EMASlide",
     "SlideLoss": "Slide",
-    "FocalLoss": "Focal",
 
 }
 
@@ -23,15 +25,15 @@ ENHANCE_TYPES = ["None", "Inner", "Focaler"]  #
 # NWD 小目标插件配置 (True/False)
 NWD_OPTIONS = [True, False]
 # Wise框架
-use_wise_framework = [True, False]
+use_wise_framework = [False]
 
 # =========实验==========
 
-IOU_TYPES = ["CIoU","SIoU", "EIoU","PIoU", "PIoU2", "WIoU", "Inner_MPDIoU", "MPDIoU", "Focaler_MPDIoU"] #
-use_wise_framework = [ False,True]
+IOU_TYPES = [ "CIoU", "SIoU", "EIoU", "PIoU", "PIoU2", "WIoU", "Inner_MPDIoU", "MPDIoU", "Focaler_MPDIoU"]  #
+use_wise_framework = [False]
 # 增强插件 (None: 保持原样, Inner: 内部辅助框, Focaler: 难样本聚焦)
-ENHANCE_TYPES = ["None", "Inner", "Focaler"]  #
-
+ENHANCE_TYPES = ["None"]  #, "Focaler"
+NWD_OPTIONS = [False]
 # 模型配置文件
 model_yaml_paths = ["Custom_Model_cfg_13/yolo11_MAFPN_modifyX_uniRepLK_v1.yaml"]
 data = "Custom_dataset_cfg/vehicle_orientation_mini.yaml"
@@ -62,6 +64,8 @@ if __name__ == '__main__':
                 enhance = "None"
                 if not use_wise_framework:
                     continue
+            if cls_type == "EMASlide" and iou_base == "CIoU":
+                continue
             # if enhance == "None" and use_wise_framework == False:
             #     if iou_base == "CIoU" or iou_base == "SIoU":
             #         continue
@@ -91,7 +95,7 @@ if __name__ == '__main__':
                 lrf=0.2,
                 close_mosaic=20,
                 save=True,
-                device=[0,1,2,3],
+                device=[0, 1, 2, 3],
                 # 动态命名：模型名 + 时间 + 损失组合
                 name=f"{model_name}_{datetime.now().strftime('%m%d%H%M')}_{loss_exp_name}",
                 # 以下是自定义传参（确保你的 loss.py 有解析逻辑）

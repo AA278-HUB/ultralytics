@@ -571,7 +571,7 @@ class BaseTrainer:
                 # ============Gemini改动内容开始============
                 # 检查精度是否在指定轮次达标
                 check_epoch_1 = 50  # 检查的轮次
-                min_map50_1 = 0.60  # 要求的最小 mAP50 阈值 (请根据需求修改)
+                min_map50_1 = 0.68  # 要求的最小 mAP50 阈值 (请根据需求修改)
 
                 if (epoch + 1) == check_epoch_1:
                     # 尝试从 metrics 字典获取 mAP50，不同版本 key 略有不同，通常为 'metrics/mAP50(B)'
@@ -580,10 +580,9 @@ class BaseTrainer:
                         LOGGER.warning(
                             f"\n训练终止: 第 {check_epoch_1} 轮 mAP50 为 {current_map50:.4f}, 未达到预设值 {min_map50_1}。")
                         self.stop = True
-
                         # 检查精度是否在指定轮次达标
                 check_epoch_2 = 100  # 检查的轮次
-                min_map50_2 = 0.71  # 要求的最小 mAP50 阈值 (请根据需求修改)
+                min_map50_2 = 0.717  # 要求的最小 mAP50 阈值 (请根据需求修改)
 
                 if (epoch + 1) == check_epoch_2:
                     current_map50 = self.metrics.get('metrics/mAP50(B)', 0)
