@@ -392,6 +392,8 @@ class BaseModel(torch.nn.Module):
                     m.fuse()
                 if isinstance(m, C3k2_UniRepLKv5):
                     m.fuse()
+                if isinstance(m,C2f_UniRepLK):
+                    m.fuse()
                 if isinstance(m, RepGhostBottleneck):
                     # m.fuse_convs()
                     # print("融合")
