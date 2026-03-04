@@ -12,8 +12,8 @@ model_yaml_paths = [
     # "Custom_Model_cfg_13/yolo11_MAFPN_modifyX_uniRepLK_v1_DSPPF.yaml",
     # "Custom_Model_cfg_13/yolo11_MAFPN_modifyX_uniRepLK_v1_Dy_SPPF.yaml",
     # "Custom_Model_cfg_13/yolo11_MAFPN_modifyX_uniRepLK_v1_L_SPPF.yaml",
-    # "Custom_Model_cfg_14/yolo11_MAFPN_modifyX_uniRepLK_v2.yaml",
-    "Custom_Model_cfg_14/yolo11_MAFPN_modifyX_uniRepLKv5_v1.yaml",
+    "Custom_Model_cfg_14/yolo11_MAFPN_modifyX_uniRepLK_v2.yaml",
+    # "Custom_Model_cfg_14/yolo11_MAFPN_modifyX_uniRepLKv5_v1.yaml",
 
 ]
 cls_type="EMASlideLoss"
