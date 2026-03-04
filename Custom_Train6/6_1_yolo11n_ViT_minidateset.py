@@ -7,13 +7,13 @@ import itertools
 # --- 1. 配置损失函数实验网格 ---
 # 分类损失映射 (Key: 传给Loss代码的参数, Value: 用于文件命名的缩写)
 CLS_MAP = {
-    "VarifocalLoss":"Varifocal",
-    "FocalLoss": "Focal",
-    "QualityfocalLoss":"Qualityfocal",
-    "EMASlideLoss": "EMASlide",
     "SlideLoss": "Slide",
+    "QualityfocalLoss": "Qualityfocal",
+    "EMASlideLoss": "EMASlide",
+    "FocalLoss": "Focal",
 
 }
+#"VarifocalLoss": "Varifocal",
 
 # 定位损失 (Base IoU)
 IOU_TYPES = ["CIoU", "GIoU", "DIoU", "EIoU", "SIoU", "ShapeIoU", "WIoU", "PIoU", "PIoU2", "Inner_MPDIoU", "MPDIoU",
@@ -29,13 +29,16 @@ use_wise_framework = [False]
 
 # =========实验==========
 
-IOU_TYPES = [ "CIoU", "SIoU", "EIoU", "PIoU", "PIoU2", "WIoU", "Inner_MPDIoU", "MPDIoU", "Focaler_MPDIoU"]  #
+IOU_TYPES = [ "CIoU",]  # "SIoU", "EIoU", "PIoU", "PIoU2", "WIoU", "Inner_MPDIoU", "MPDIoU", "Focaler_MPDIoU"
 use_wise_framework = [False]
 # 增强插件 (None: 保持原样, Inner: 内部辅助框, Focaler: 难样本聚焦)
 ENHANCE_TYPES = ["None"]  #, "Focaler"
 NWD_OPTIONS = [False]
 # 模型配置文件
-model_yaml_paths = ["Custom_Model_cfg_13/yolo11_MAFPN_modifyX_uniRepLK_v1.yaml"]
+model_yaml_paths = [
+                            "Custom_Model_cfg_14/yolo11_MAFPN_modifyX_uniRepLK_v2.yaml",
+                            # "Custom_Model_cfg_13/yolo11_MAFPN_modifyX_uniRepLK_v1.yaml",
+                    ]
 data = "Custom_dataset_cfg/vehicle_orientation_mini.yaml"
 # data = "coco8.yaml"
 
