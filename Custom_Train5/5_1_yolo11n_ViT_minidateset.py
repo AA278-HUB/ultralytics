@@ -16,7 +16,7 @@ model_yaml_paths = [
     # "Custom_Model_cfg_14/yolo11_MAFPN_modifyX_uniRepLKv5_v1.yaml",
 
 ]
-cls_type="EMASlideLoss"
+cls_type="None"
 full_iou_name="CIoU"
 nwd_on=False
 use_wise_framework=False
