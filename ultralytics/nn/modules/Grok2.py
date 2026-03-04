@@ -234,7 +234,7 @@ class DilatedReparamConv(nn.Module):
 class EnhancedUniRepLK_Bottleneck_v5(nn.Module):
     def __init__(self, c1, c2, shortcut=True, g=1, k=11, k_attn=7, e=0.5):
         super().__init__()
-        c_ = int(c2 * e*1)
+        c_ = int(c2 * e*1.5)
         self.cv1 = RepConv(c1, c_, k=3, s=1, g=g)          # 你原来的 RepConv
         self.large = DilatedReparamConv(c_, k=k, deploy=False)
         self.attn = LSKA(c_, k_size=k_attn)
