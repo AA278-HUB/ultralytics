@@ -9,10 +9,11 @@ test_image=r"C:\Users\AAAAA\Desktop\ultralytics\Custom_Val\17018bf07d4c620980d53
 test_image=r"C:\Users\AAAAA\Desktop\ultralytics\Custom_Val\06db2f27cc705f85f61eafbead89079b_720.jpg"
 test_image =r"C:\Users\AAAAA\Desktop\ultralytics\Custom_Val\1e596cc117da0abff85da08dcf39e9fe_720.jpg"
 test_image=r"C:\Users\AAAAA\Desktop\ultralytics\Custom_Val\f4ffd76e78336c3e3d79fe7a4582ccf2_720.jpg"
+test_image=r"C:\Users\AAAAA\Desktop\ultralytics\Custom_Val\img.png"
 model = YOLO(path)
 results = model.predict(
     source=test_image,  # 也可以是图片文件夹路径
     conf=0.5,  # 置信度阈值
     save=True,  # 保存预测结果图
-    visualize=True  # 关键！开启特征可视化
+    # visualize=True  # 关键！开启特征可视化
 )
