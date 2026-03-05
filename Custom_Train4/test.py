@@ -150,7 +150,8 @@ model_yaml_paths = [
 
     # "Custom_Model_cfg_14/yolo11_MAFPN_modifyX_uniRepLK_v2.yaml",
     # "Custom_Model_cfg_14/yolo11_MAFPN_modifyX_uniRepLKv5_v1.yaml",
-    "Custom_Model_cfg_14/yolo11_MAFPN_modifyX_uniRepLK_v2.yaml"
+    # "Custom_Model_cfg_14/yolo11_MAFPN_modifyX_uniRepLK_v2.yaml"
+    "Custom_Model_cfg_15/yolo11_MAFPN_modifyX_uniRepLKv5_v2.yaml"
 ]
 
 cls_type="EMASlideLoss"
@@ -163,12 +164,13 @@ use_wise_framework=False
 data="coco8.yaml"
 #data = "Custom_dataset_cfg/coco-vehicle.yaml"
 # 预训练模型
+test_image=r"C:\Users\AAAAA\Desktop\datasets\coco8\images\train\000000000009.jpg"
 if __name__ == '__main__':
 
     for path in model_yaml_paths:
         model = YOLO(path)
         results = model.train(data=data,
-                              epochs=3,
+                              epochs=1,
                               batch=8,
                               imgsz=640,
                               cos_lr=True,
@@ -184,6 +186,14 @@ if __name__ == '__main__':
                               name="test"+datetime.now().strftime("%Y%m%d_%H_%M"))
 
         print("训练完成后打印参数")
+
+        results = model.predict(
+            source=test_image,  # 也可以是图片文件夹路径
+            conf=0.5,  # 置信度阈值
+            save=True,  # 保存预测结果图
+            visualize=True  # 关键！开启特征可视化
+        )
+
 
         model.info()
         # 部署准备

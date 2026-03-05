@@ -98,17 +98,29 @@ class DilatedReparamConv(nn.Module):
         pad = k // 2
         self.lk_origin = nn.Conv2d(c, c, k, stride=1, padding=pad, groups=c, bias=deploy)
 
+        # --- 核心修复：先定义配置，确保任何模式下都能访问到属性 ---
+        if k == 13:
+            self.kernel_sizes = [11, 9, 7, 5, 3, 3, 3, 3, 3]
+            self.dilates      = [1,  1, 1, 1, 1, 2, 3, 4, 5]
+        elif k == 11:
+            self.kernel_sizes = [9, 7, 5, 3, 3, 3, 3]
+            self.dilates      = [1, 1, 1, 1, 2, 3, 4]
+        elif k == 9:
+            self.kernel_sizes = [7, 5, 3, 3, 3]
+            self.dilates      = [1, 1, 1, 2, 3]
+        elif k == 7:
+            self.kernel_sizes = [5, 3, 3]
+            self.dilates      = [1, 1, 2]
+        elif k == 5:
+            self.kernel_sizes = [3, 1]
+            self.dilates      = [1, 1]
+        elif k == 3:
+            self.kernel_sizes = [1]
+            self.dilates      = [1]
         if not deploy:
             self.origin_bn = nn.BatchNorm2d(c)
 
-            # 纳米友好分支配置（k=11 时自动选择）
-            if k >= 13:
-                self.kernel_sizes = [5, 7, 9, 5, 3, 3, 3]
-                self.dilates = [1, 1, 1, 2, 3, 5, 7]
-            else:
-                self.kernel_sizes = [5, 7, 5, 3, 3]
-                self.dilates = [1, 1, 2, 3, 5]
-
+            # 保持原有的 setattr 逻辑
             for ks, r in zip(self.kernel_sizes, self.dilates):
                 pad_b = r * (ks - 1) // 2
                 setattr(self, f'dil_conv_k{ks}_{r}',
@@ -234,7 +246,7 @@ class DilatedReparamConv(nn.Module):
 class EnhancedUniRepLK_Bottleneck_v5(nn.Module):
     def __init__(self, c1, c2, shortcut=True, g=1, k=11, k_attn=7, e=0.5):
         super().__init__()
-        c_ = int(c2 * e*1.5)
+        c_ = int(c2 * e*1)
         self.cv1 = RepConv(c1, c_, k=3, s=1, g=g)          # 你原来的 RepConv
         self.large = DilatedReparamConv(c_, k=k, deploy=False)
         self.attn = LSKA(c_, k_size=k_attn)
