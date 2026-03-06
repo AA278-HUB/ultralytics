@@ -376,7 +376,7 @@ class BboxLoss(nn.Module):
         if self.use_wiseiou:
             # WIoU 系列逻辑 (内部已集成 Inner/Focaler)
             wiou = self.wiou_loss(pred_bboxes[fg_mask], target_bboxes[fg_mask],
-                                  ret_iou=False, ratio=0.7, d=0.0, u=0.95).unsqueeze(-1)
+                                  ret_iou=False, ratio=0.6, d=0.0, u=0.96).unsqueeze(-1)
             loss_iou = (wiou * weight).sum() / target_scores_sum
         else:
             # --- B. 非 WIoU 系列 (CIoU, SIoU, MPDIoU 等) ---
