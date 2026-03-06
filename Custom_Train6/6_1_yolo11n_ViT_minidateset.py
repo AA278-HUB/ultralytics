@@ -27,7 +27,7 @@ use_wise_framework = [False]
 
 # =========实验==========
 
-IOU_TYPES = ["CIoU", "PIoU", "GIoU"] #"CIoU", "PIoU", "PIoU2", #  "PIoU", "PIoU2", "WIoU", "Inner_MPDIoU", "MPDIoU", "Focaler_MPDIoU"
+IOU_TYPES = ["PIoU2","ShapeIoU","DIoU", "EIoU",] #"CIoU", "PIoU", "PIoU2", #  "PIoU", "PIoU2", "WIoU", "Inner_MPDIoU", "MPDIoU", "Focaler_MPDIoU"
 use_wise_framework = [False]
 # 增强插件 (None: 保持原样, Inner: 内部辅助框, Focaler: 难样本聚焦)
 ENHANCE_TYPES = ["None"]  #, "Focaler"
