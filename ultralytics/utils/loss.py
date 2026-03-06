@@ -17,6 +17,7 @@ from .Mymetrics import WiseIouLoss, wasserstein_loss, bbox_inner_iou, bbox_focal
     bbox_focaler_mpdiou, my_bbox_iou
 from .Mymetrics_1 import My_bbox_mpdiou
 from .atss import ATSSAssigner, generate_anchors
+from .interpiou import d_interpiou, interpiou
 
 from .metrics import bbox_iou, probiou
 from .tal import bbox2dist
@@ -383,7 +384,7 @@ class BboxLoss(nn.Module):
             if self.enhance == "Inner":
                 # 使用内部辅助框计算 IoU
                 iou = bbox_inner_iou(pred_bboxes[fg_mask], target_bboxes[fg_mask],
-                                     xywh=False, ratio=0.7, **{self.iou_base: True})
+                                     xywh=False, ratio=0.5, **{self.iou_base: True})
             elif self.enhance == "Focaler":
                 # 使用难样本聚焦机制计算 IoU
                 iou = bbox_focaler_iou(pred_bboxes[fg_mask], target_bboxes[fg_mask],
@@ -398,6 +399,11 @@ class BboxLoss(nn.Module):
                     iou = bbox_inner_mpdiou(pred_bboxes[fg_mask], target_bboxes[fg_mask], xywh=False, mpdiou_hw=self.mpdiou_hw_square, ratio=0.7)
                 elif self.iou_base == "Focaler_MPDIoU":
                      iou = bbox_focaler_mpdiou(pred_bboxes[fg_mask], target_bboxes[fg_mask], xywh=False, mpdiou_hw=self.mpdiou_hw_square, d=0.0, u=0.95)
+
+                elif self.iou_base == "D-InterpIoU":
+                     iou=d_interpiou(pred_bboxes[fg_mask],target_bboxes[fg_mask],False,0.6,0.99)
+                elif self.iou_base == "InterpIoU":
+                     iou = interpiou(pred_bboxes[fg_mask], target_bboxes[fg_mask], False, 0.98)
                 else:
                     # 默认 CIoU/DIoU 等逻辑，动态解包布尔参数，如 {CIoU: True}
                     iou = my_bbox_iou(pred_bboxes[fg_mask], target_bboxes[fg_mask],
