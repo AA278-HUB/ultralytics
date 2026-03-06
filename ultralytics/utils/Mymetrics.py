@@ -175,7 +175,7 @@ def my_bbox_iou(box1, box2, xywh=True, GIoU=False, DIoU=False, CIoU=False, EIoU=
                     return 1 - piou_v1
                 elif PIoU2:
                     q=torch.exp(-P)
-                    Lambda=1.4
+                    Lambda=1.3
                     x=q*Lambda
                     return 1 - 3*x*torch.exp(-x**2)*piou_v1
             return iou - rho2 / c2  # DIoU
