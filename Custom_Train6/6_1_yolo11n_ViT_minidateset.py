@@ -17,7 +17,7 @@ CLS_MAP = {
 IOU_TYPES = ["CIoU","D-InterpIoU","InterpIoU","GIoU", "DIoU", "EIoU", "SIoU", "ShapeIoU", "WIoU", "PIoU", "PIoU2", "Inner_MPDIoU", "MPDIoU",
              "Focaler_MPDIoU","alpha_IoU"]  #
 
-IOU_TYPES=["alpha_IoU"]
+
 # 增强插件 (None: 保持原样, Inner: 内部辅助框, Focaler: 难样本聚焦)
 ENHANCE_TYPES = ["None",]  # "Inner", "Focaler"
 
@@ -29,9 +29,11 @@ use_wise_framework = [False] #True,
 
 
 # =========实验==========
-cls_type="None"
+
 IOU_TYPES = ["Inner_MPDIoU", "MPDIoU",
              "Focaler_MPDIoU","CIoU","PIoU", "PIoU2",] #"CIoU", "PIoU", "PIoU2", #  "PIoU", "PIoU2", "WIoU", "Inner_MPDIoU", "MPDIoU", "Focaler_MPDIoU"
+IOU_TYPES=["alpha_IoU"]
+
 use_wise_framework = [False]
 # 增强插件 (None: 保持原样, Inner: 内部辅助框, Focaler: 难样本聚焦)
 ENHANCE_TYPES = ["None","Inner"]  #, "Focaler"
