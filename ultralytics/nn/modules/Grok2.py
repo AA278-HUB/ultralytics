@@ -320,7 +320,7 @@ class C3k2_UniRepLKv5(C2f):
             if isinstance(m, DilatedReparamConv) and hasattr(m, 'switch_to_deploy'):
                 m.switch_to_deploy()
 
-        print(f"{self.__class__.__name__} fusion complete.")
+        # print(f"{self.__class__.__name__} fusion complete.")
 
 
 
