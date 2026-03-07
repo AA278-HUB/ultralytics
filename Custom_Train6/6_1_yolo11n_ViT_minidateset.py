@@ -36,7 +36,7 @@ IOU_TYPES=["alpha_IoU"]
 
 use_wise_framework = [False]
 # 增强插件 (None: 保持原样, Inner: 内部辅助框, Focaler: 难样本聚焦)
-ENHANCE_TYPES = ["None","Inner"]  #, "Focaler"
+ENHANCE_TYPES = ["None"]  #, "Focaler"
 NWD_OPTIONS = [False]
 # 模型配置文件
 model_yaml_paths = [

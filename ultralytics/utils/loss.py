@@ -363,8 +363,8 @@ class BboxLoss(nn.Module):
                 focaler_iou=(self.enhance == "Focaler")
             )
 
-    def forward(self, pred_dist, pred_bboxes, anchor_points, target_bboxes, target_scores, target_scores_sum, fg_mask,
-                mpdiou_hw=None):
+    def forward(self, pred_dist, pred_bboxes, anchor_points, target_bboxes, target_scores, target_scores_sum, fg_mask,HW=None,
+                alpha=1.0):
         """
         前向传播计算损失。
         pred_bboxes: 预测框 (xyxy)
@@ -406,7 +406,7 @@ class BboxLoss(nn.Module):
                 elif self.iou_base == "InterpIoU":
                      iou = interpiou(pred_bboxes[fg_mask], target_bboxes[fg_mask], False, 0.98)
                 elif self.iou_base == "alpha_IoU":
-                     iou = bbox_alpha_iou(pred_bboxes[fg_mask], target_bboxes[fg_mask],xywh=False,CIoU=True)
+                     iou = bbox_alpha_iou(pred_bboxes[fg_mask], target_bboxes[fg_mask],xywh=False,CIoU=True,alpha=alpha)
                 else:
                     # 默认 CIoU/DIoU 等逻辑，动态解包布尔参数，如 {CIoU: True}
                     iou = my_bbox_iou(pred_bboxes[fg_mask], target_bboxes[fg_mask],
@@ -738,12 +738,14 @@ class v8DetectionLoss:
     """Criterion class for computing training losses for YOLOv8 object detection."""
 
     def __init__(self, model, tal_topk: int = 10):  # model must be de-paralleled
+
+        self.current_epoch = 0  # 初始化
         """Initialize v8DetectionLoss with model parameters and task-aligned assignment settings."""
         device = next(model.parameters()).device  # get model device
         h = model.args  # hyperparameters
 
         m = model.model[-1]  # Detect() module
-
+        self.model_ref = model  # 保存模型引用
         # --- 动态选择分类损失函数 ---
         cls_type = getattr(h, 'cls_loss_type', 'BCE')  # 默认 BCE
         if cls_type == "SlideLoss":
@@ -813,7 +815,7 @@ class v8DetectionLoss:
             # pred_dist = (pred_dist.view(b, a, c // 4, 4).softmax(2) * self.proj.type(pred_dist.dtype).view(1, 1, -1, 1)).sum(2)
         return dist2bbox(pred_dist, anchor_points, xywh=False)
 
-    def __call__(self, preds, batch):
+    def __call__(self, preds, batch,epoch=None):
         if hasattr(self, 'assigner_aux'):
             loss, batch_size = self.compute_loss_aux(preds, batch)
         else:
@@ -821,7 +823,17 @@ class v8DetectionLoss:
         return loss.sum() * batch_size, loss.detach()
 
     def compute_loss(self, preds, batch):
+
+        # print(getattr(self.model_ref, 'current_epoch', 0))
         """Calculate the sum of the loss for box, cls and dfl multiplied by batch size."""
+        epoch=getattr(self.model_ref, 'current_epoch', 0)
+        alpha_val = 1.0
+        if epoch >= 100:
+            # 使用 min 限制最大值为 2.0，斜率设为 0.05 比较平缓
+            alpha_val = min(2.0, 1.0 + (epoch - 100) * 0.05)
+
+
+
         loss = torch.zeros(3, device=self.device)  # box, cls, dfl
         feats = preds[1] if isinstance(preds, tuple) else preds
         feats = feats[:self.stride.size(0)]
@@ -909,7 +921,7 @@ class v8DetectionLoss:
                                               target_scores_sum, fg_mask,
                                               ((imgsz[0] ** 2 + imgsz[1] ** 2) / torch.square(stride_tensor)).repeat(1,
                                                                                                                      batch_size).transpose(
-                                                  1, 0))
+                                                  1, 0),alpha_val)
 
         if isinstance(self.bce, (EMASlideLoss, SlideLoss)):
             if fg_mask.sum():

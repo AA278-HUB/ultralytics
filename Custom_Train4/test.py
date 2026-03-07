@@ -170,7 +170,7 @@ if __name__ == '__main__':
     for path in model_yaml_paths:
         model = YOLO(path)
         results = model.train(data=data,
-                              epochs=1,
+                              epochs=3,
                               batch=8,
                               imgsz=640,
                               cos_lr=True,
@@ -187,12 +187,12 @@ if __name__ == '__main__':
 
         print("训练完成后打印参数")
 
-        results = model.predict(
-            source=test_image,  # 也可以是图片文件夹路径
-            conf=0.5,  # 置信度阈值
-            save=True,  # 保存预测结果图
-            visualize=True  # 关键！开启特征可视化
-        )
+        # results = model.predict(
+        #     source=test_image,  # 也可以是图片文件夹路径
+        #     conf=0.5,  # 置信度阈值
+        #     save=True,  # 保存预测结果图
+        #     # visualize=True  # 关键！开启特征可视化
+        # )
 
 
         model.info()

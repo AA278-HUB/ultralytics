@@ -454,6 +454,7 @@ class BaseTrainer:
                         preds = self.model(batch["img"])
                         loss, self.loss_items = unwrap_model(self.model).loss(batch, preds)
                     else:
+                        self.model.current_epoch = epoch  # 直接将 epoch 存入模型对象
                         loss, self.loss_items = self.model(batch)
                     self.loss = loss.sum()
                     if RANK != -1:

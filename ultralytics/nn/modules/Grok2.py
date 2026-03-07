@@ -260,6 +260,17 @@ class EnhancedUniRepLK_Bottleneck_v5(nn.Module):
         self.cv3 = Conv(c_, c2, 1, 1)
         self.add = shortcut and c1 == c2
 
+        def switch_to_deploy(self):
+            """
+            深度融合：遍历所有子层级，融合 RepConv 和 DilatedReparamConv。
+            """
+            # print(f"Fusing {self.__class__.__name__} stages...")
+            # 使用 self.modules() 可以递归遍历所有子模块，不论嵌套多深
+            for m in self.modules():
+                # 1. 融合你定义的 RepConv (3x3 密集卷积)
+                if isinstance(m, RepConv) and hasattr(m, 'fuse_convs'):
+                    m.switch_to_deploy()
+
     def forward(self, x):
         residual = x
         x = self.cv1(x)
@@ -298,12 +309,12 @@ class C3k2_UniRepLKv5(C2f):
         """
         深度融合：遍历所有子层级，融合 RepConv 和 DilatedReparamConv。
         """
-        print(f"Fusing {self.__class__.__name__} stages...")
+        # print(f"Fusing {self.__class__.__name__} stages...")
         # 使用 self.modules() 可以递归遍历所有子模块，不论嵌套多深
         for m in self.modules():
             # 1. 融合你定义的 RepConv (3x3 密集卷积)
-            if isinstance(m, RepConv) and hasattr(m, 'switch_to_deploy'):
-                m.switch_to_deploy()
+            # if isinstance(m, RepConv) and hasattr(m, 'fuse_convs'):
+            #     m.switch_to_deploy()
 
             # 2. 融合你定义的 DilatedReparamConv (大核空洞卷积)
             if isinstance(m, DilatedReparamConv) and hasattr(m, 'switch_to_deploy'):

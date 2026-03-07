@@ -14,7 +14,8 @@ model_path = [
     # r"Custom_Model_cfg/MobileNetV4.yaml",
     # r"Custom_Model_cfg/yolo11_Ghost_Rep_shufflev2.yaml",
     # r"Custom_Model_cfg/yolo11_Ghost_Rep_shufflev2_CA.yaml",
-    r"Custom_Model_cfg_10/yolo11_MAFPN_modifyX_C3k2.yaml"
+    # r"Custom_Model_cfg_10/yolo11_MAFPN_modifyX_C3k2.yaml"
+    # r"C:\Users\AAAAA\Desktop\ultralytics\Custom_Model_cfg_15\yolo11_MAFPN_modifyX_uniRepLKv5_v2.yaml"
 ]
 
 
