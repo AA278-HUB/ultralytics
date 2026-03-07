@@ -17,6 +17,7 @@ from .Mymetrics import WiseIouLoss, wasserstein_loss, bbox_inner_iou, bbox_focal
     bbox_focaler_mpdiou, my_bbox_iou
 from .Mymetrics_1 import My_bbox_mpdiou
 from .atss import ATSSAssigner, generate_anchors
+from .general import bbox_alpha_iou
 from .interpiou import d_interpiou, interpiou
 
 from .metrics import bbox_iou, probiou
@@ -404,6 +405,8 @@ class BboxLoss(nn.Module):
                      iou=d_interpiou(pred_bboxes[fg_mask],target_bboxes[fg_mask],False,0.6,0.99)
                 elif self.iou_base == "InterpIoU":
                      iou = interpiou(pred_bboxes[fg_mask], target_bboxes[fg_mask], False, 0.98)
+                elif self.iou_base == "alpha_IoU":
+                     iou = bbox_alpha_iou(pred_bboxes[fg_mask], target_bboxes[fg_mask],CIoU=True)
                 else:
                     # 默认 CIoU/DIoU 等逻辑，动态解包布尔参数，如 {CIoU: True}
                     iou = my_bbox_iou(pred_bboxes[fg_mask], target_bboxes[fg_mask],

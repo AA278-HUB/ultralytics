@@ -4,16 +4,17 @@ from ultralytics import YOLO
 # 模型配置文件
 # 模型路径列表
 model_path = [
-    r"Custom_Model_cfg/yolo11_Ghost_1.yaml",
-    r"Custom_Model_cfg/yolo11n.yaml",
-    r"Custom_Model_cfg/yolo12n.yaml",
-    r"Custom_Model_cfg/yolov5n.yaml",
-    r"Custom_Model_cfg/yolov6n.yaml",
-    r"Custom_Model_cfg/yolov8n.yaml",
-    r"Custom_Model_cfg/yolov9t.yaml",
-    r"Custom_Model_cfg/MobileNetV4.yaml",
-    r"Custom_Model_cfg/yolo11_Ghost_Rep_shufflev2.yaml",
-    r"Custom_Model_cfg/yolo11_Ghost_Rep_shufflev2_CA.yaml",
+    # r"Custom_Model_cfg/yolo11_Ghost_1.yaml",
+    # r"Custom_Model_cfg/yolo11n.yaml",
+    # r"Custom_Model_cfg/yolo12n.yaml",
+    # r"Custom_Model_cfg/yolov5n.yaml",
+    # r"Custom_Model_cfg/yolov6n.yaml",
+    # r"Custom_Model_cfg/yolov8n.yaml",
+    # r"Custom_Model_cfg/yolov9t.yaml",
+    # r"Custom_Model_cfg/MobileNetV4.yaml",
+    # r"Custom_Model_cfg/yolo11_Ghost_Rep_shufflev2.yaml",
+    # r"Custom_Model_cfg/yolo11_Ghost_Rep_shufflev2_CA.yaml",
+    r"Custom_Model_cfg_10/yolo11_MAFPN_modifyX_C3k2.yaml"
 ]
 
 
