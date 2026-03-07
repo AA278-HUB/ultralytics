@@ -406,7 +406,7 @@ class BboxLoss(nn.Module):
                 elif self.iou_base == "InterpIoU":
                      iou = interpiou(pred_bboxes[fg_mask], target_bboxes[fg_mask], False, 0.98)
                 elif self.iou_base == "alpha_IoU":
-                     iou = bbox_alpha_iou(pred_bboxes[fg_mask], target_bboxes[fg_mask],CIoU=True)
+                     iou = bbox_alpha_iou(pred_bboxes[fg_mask], target_bboxes[fg_mask],xywh=False,CIoU=True)
                 else:
                     # 默认 CIoU/DIoU 等逻辑，动态解包布尔参数，如 {CIoU: True}
                     iou = my_bbox_iou(pred_bboxes[fg_mask], target_bboxes[fg_mask],
