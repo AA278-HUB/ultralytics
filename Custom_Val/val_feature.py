@@ -6,7 +6,7 @@ path=r"C:\Users\AAAAA\Desktop\李鬼\yolo11_MAFPN_modifyX_uniRepLKv5_v2_20260305
 path=r"D:\QQData\实验数据_new\yolo11n20251022_19_29\weights\best.pt"
 
 
-test_image= r"C:\Users\AAAAA\Desktop\ultralytics\Custom_Val\img_16.png"
+test_image= r"C:\Users\AAAAA\Desktop\ultralytics\Custom_Val\9e9546261431b15a7ca8961b970c1314.jpeg"
 
 # test_image=r"C:\Users\AAAAA\Desktop\ultralytics\Custom_Val\f4ffd76e78336c3e3d79fe7a4582ccf2_720.jpg"
 # test_image=r"C:\Users\AAAAA\Desktop\ultralytics\Custom_Val\17018bf07d4c620980d539650c6b228f_720.jpg"
