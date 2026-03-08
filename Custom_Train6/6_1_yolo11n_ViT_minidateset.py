@@ -43,7 +43,7 @@ model_yaml_paths = [
                             # "Custom_Model_cfg_14/yolo11_MAFPN_modifyX_uniRepLK_v2.yaml",
                             # "Custom_Model_cfg_13/yolo11_MAFPN_modifyX_uniRepLK_v1.yaml",
                             # "Custom_Model_cfg_15/yolo11_MAFPN_modifyX_uniRepLKv5_v2.yaml
-                            "Custom_Model_cfg_15/yolo11_MAFPN_modifyX_uniRepLKv5_v3.yaml.yaml",
+                            "Custom_Model_cfg_15/yolo11_MAFPN_modifyX_uniRepLKv5_v3.yaml",
 
 ]
 data = "Custom_dataset_cfg/vehicle_orientation_mini.yaml"
