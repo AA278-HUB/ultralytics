@@ -217,7 +217,7 @@ class DilatedReparamConv(nn.Module):
             self.__delattr__('origin_bn')
 
         self.deploy = True
-        print(f"Successfully fused DilatedReparamConv (k={self.k})")
+        # print(f"Successfully fused DilatedReparamConv (k={self.k})")
 
     # def switch_to_deploy(self):
     #     if self.deploy:

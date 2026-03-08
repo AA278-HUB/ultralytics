@@ -8,7 +8,7 @@ import itertools
 # 分类损失映射 (Key: 传给Loss代码的参数, Value: 用于文件命名的缩写)
 CLS_MAP = {
     # "QualityfocalLoss": "Qualityfocal",
-    "EMASlideLoss": "EMASlide",
+    # "EMASlideLoss": "EMASlide",
     # "FocalLoss": "Focal",
 }
 #"VarifocalLoss": "Varifocal", "SlideLoss": "Slide",
@@ -32,7 +32,12 @@ use_wise_framework = [False] #True,
 
 IOU_TYPES = ["Inner_MPDIoU", "MPDIoU",
              "Focaler_MPDIoU","CIoU","PIoU", "PIoU2",] #"CIoU", "PIoU", "PIoU2", #  "PIoU", "PIoU2", "WIoU", "Inner_MPDIoU", "MPDIoU", "Focaler_MPDIoU"
-IOU_TYPES=["D-InterpIoU","PIoU", "PIoU2",]
+IOU_TYPES=["InterpIoU","D-InterpIoU",]
+CLS_MAP = {
+    # "QualityfocalLoss": "Qualityfocal",
+    # "EMASlideLoss": "EMASlide",
+    "Fuck": "Fuck",
+}
 
 use_wise_framework = [False]
 # 增强插件 (None: 保持原样, Inner: 内部辅助框, Focaler: 难样本聚焦)
@@ -46,6 +51,8 @@ model_yaml_paths = [
                             "Custom_Model_cfg_15/yolo11_MAFPN_modifyX_uniRepLKv5_v3.yaml",
 
 ]
+
+
 data = "Custom_dataset_cfg/vehicle_orientation_mini.yaml"
 # data = "coco8.yaml"
 
@@ -74,8 +81,8 @@ if __name__ == '__main__':
                 enhance = "None"
                 if not use_wise_framework:
                     continue
-            if cls_type == "EMASlide" and iou_base == "CIoU":
-                continue
+            # if cls_type == "EMASlide" and iou_base == "CIoU":
+            #     continue
             # if enhance == "None" and use_wise_framework == False:
             #     if iou_base == "CIoU" or iou_base == "SIoU":
             #         continue
