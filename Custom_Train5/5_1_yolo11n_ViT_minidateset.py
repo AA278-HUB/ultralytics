@@ -16,7 +16,7 @@ model_yaml_paths = [
     # "Custom_Model_cfg_14/yolo11_MAFPN_modifyX_uniRepLKv5_v1.yaml",
     # "Custom_Model_cfg_15/yolo11_MAFPN_modifyX_uniRepLKv5_v2.yaml",
     # "Custom_Model_cfg_15/yolo11_MAFPN_modifyX_uniRepLKv5_v2_GSPPF.yaml",
-    "Custom_Model_cfg_15/yolo11_MAFPN_modifyX_uniRepLKv5_v3.yaml",
+    "Custom_Model_cfg_15/yolo11n_UniRepLKv5.yaml",
 
 ]
 cls_type="None"
