@@ -1,12 +1,12 @@
 from ultralytics import YOLO
 
 
-path=r"C:\Users\AAAAA\Desktop\detect\yolo11_MAFPN_modifyX_C3k2_20260126_14_33\weights\best.pt"
+# path=r"C:\Users\AAAAA\Desktop\detect\yolo11_MAFPN_modifyX_C3k2_20260126_14_33\weights\best.pt"
 path=r"C:\Users\AAAAA\Desktop\李鬼\yolo11_MAFPN_modifyX_uniRepLKv5_v2_20260305_19_18_EMASlide__PIoU\weights\best.pt"
 path=r"D:\QQData\实验数据_new\yolo11n20251022_19_29\weights\best.pt"
 
 
-test_image= r"C:\Users\AAAAA\Desktop\ultralytics\Custom_Val\38a0d47afe32a405dfb24668425c5db7_720.jpg"
+test_image= r"C:\Users\AAAAA\Desktop\ultralytics\Custom_Val\img_16.png"
 
 # test_image=r"C:\Users\AAAAA\Desktop\ultralytics\Custom_Val\f4ffd76e78336c3e3d79fe7a4582ccf2_720.jpg"
 # test_image=r"C:\Users\AAAAA\Desktop\ultralytics\Custom_Val\17018bf07d4c620980d539650c6b228f_720.jpg"
@@ -17,7 +17,7 @@ test_image= r"C:\Users\AAAAA\Desktop\ultralytics\Custom_Val\38a0d47afe32a405dfb2
 model = YOLO(path)
 results = model.predict(
     source=test_image,  # 也可以是图片文件夹路径
-    conf=0.1,  # 置信度阈值
+    conf=0.01,  # 置信度阈值
     save=True,  # 保存预测结果图
     # visualize=True  # 关键！开启特征可视化
 )

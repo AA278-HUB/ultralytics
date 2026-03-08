@@ -32,7 +32,7 @@ use_wise_framework = [False] #True,
 
 IOU_TYPES = ["Inner_MPDIoU", "MPDIoU",
              "Focaler_MPDIoU","CIoU","PIoU", "PIoU2",] #"CIoU", "PIoU", "PIoU2", #  "PIoU", "PIoU2", "WIoU", "Inner_MPDIoU", "MPDIoU", "Focaler_MPDIoU"
-IOU_TYPES=["alpha_IoU"]
+IOU_TYPES=["D-InterpIoU","PIoU", "PIoU2",]
 
 use_wise_framework = [False]
 # 增强插件 (None: 保持原样, Inner: 内部辅助框, Focaler: 难样本聚焦)
@@ -42,9 +42,10 @@ NWD_OPTIONS = [False]
 model_yaml_paths = [
                             # "Custom_Model_cfg_14/yolo11_MAFPN_modifyX_uniRepLK_v2.yaml",
                             # "Custom_Model_cfg_13/yolo11_MAFPN_modifyX_uniRepLK_v1.yaml",
-                            "Custom_Model_cfg_15/yolo11_MAFPN_modifyX_uniRepLKv5_v2.yaml"
+                            # "Custom_Model_cfg_15/yolo11_MAFPN_modifyX_uniRepLKv5_v2.yaml
+                            "Custom_Model_cfg_15/yolo11n_UniRepLKv5_v3.yaml",
 
-                    ]
+]
 data = "Custom_dataset_cfg/vehicle_orientation_mini.yaml"
 # data = "coco8.yaml"
 
