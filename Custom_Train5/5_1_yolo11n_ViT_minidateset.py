@@ -16,7 +16,7 @@ model_yaml_paths = [
     # "Custom_Model_cfg_14/yolo11_MAFPN_modifyX_uniRepLKv5_v1.yaml",
     # "Custom_Model_cfg_15/yolo11_MAFPN_modifyX_uniRepLKv5_v2.yaml",
     # "Custom_Model_cfg_15/yolo11_MAFPN_modifyX_uniRepLKv5_v2_GSPPF.yaml",
-    "Custom_Model_cfg_15/yolo11_MAFPN_modifyX_uniRepLKv5_v3.yaml",
+    "Custom_Model_cfg_10/yolo11_MAFPN_modifyX_C3k2.yaml",
 
 ]
 cls_type="EMASlideLoss"
@@ -39,14 +39,14 @@ if __name__ == '__main__':
         model.train(
             data=data,
             epochs=200,
-            batch=64,
+            batch=16,
             imgsz=640,  # 保持不变
             cos_lr=True,
             lr0=0.005,  # ↑ 初始学习率
             lrf=0.2,  # ↑ 最终学习率比例
             close_mosaic=20,  # 提前关闭 mosaic
             save=True,
-            device=[0,1,2,3],
+            device=-1,
             cls_loss_type=cls_type,  # 传给分类损失
             iou_type=full_iou_name,  # 传给 BboxLoss
             nwd_loss=nwd_on,  # 是否开启 NWD
