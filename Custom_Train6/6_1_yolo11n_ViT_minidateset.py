@@ -32,7 +32,7 @@ use_wise_framework = [False] #True,
 
 IOU_TYPES = ["Inner_MPDIoU", "MPDIoU",
              "Focaler_MPDIoU","CIoU","PIoU", "PIoU2",] #"CIoU", "PIoU", "PIoU2", #  "PIoU", "PIoU2", "WIoU", "Inner_MPDIoU", "MPDIoU", "Focaler_MPDIoU"
-IOU_TYPES=["InterpIoU","D-InterpIoU",]
+IOU_TYPES=["CIoU"]
 CLS_MAP = {
     # "QualityfocalLoss": "Qualityfocal",
     # "EMASlideLoss": "EMASlide",
