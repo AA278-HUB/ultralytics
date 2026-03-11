@@ -57,6 +57,7 @@ model_yaml_paths = [
     # "Custom_Model_cfg/yolo12n.yaml",
     # "Custom_Model_cfg/MobileNetV4.yaml",
     "Custom_Model_cfg_15/yolo11n_UniRepLKv5_F.yaml",
+    "Custom_Model_cfg_15/yolo11n_UniRepLKv5_G.yaml",
 
 ]
 
