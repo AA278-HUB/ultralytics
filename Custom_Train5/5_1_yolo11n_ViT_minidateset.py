@@ -38,7 +38,7 @@ if __name__ == '__main__':
 # =======
         model.train(
             data=data,
-            epochs=200,
+            epochs=100,
             batch=16,
             imgsz=640,  # 保持不变
             cos_lr=True,
@@ -46,7 +46,7 @@ if __name__ == '__main__':
             lrf=0.2,  # ↑ 最终学习率比例
             close_mosaic=20,  # 提前关闭 mosaic
             save=True,
-            device="CPU",
+            device=-1,
             cls_loss_type=cls_type,  # 传给分类损失
             iou_type=full_iou_name,  # 传给 BboxLoss
             nwd_loss=nwd_on,  # 是否开启 NWD
