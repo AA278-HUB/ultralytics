@@ -19,7 +19,7 @@ model_yaml_paths = [
     "Custom_Model_cfg_10/yolo11_MAFPN_modifyX_C3k2.yaml",
 
 ]
-cls_type="EMASlideLoss"
+cls_type="AsymmetricLoss"
 full_iou_name="CIoU"
 nwd_on=False
 use_wise_framework=False
@@ -46,7 +46,7 @@ if __name__ == '__main__':
             lrf=0.2,  # ↑ 最终学习率比例
             close_mosaic=20,  # 提前关闭 mosaic
             save=True,
-            device=-1,
+            device="CPU",
             cls_loss_type=cls_type,  # 传给分类损失
             iou_type=full_iou_name,  # 传给 BboxLoss
             nwd_loss=nwd_on,  # 是否开启 NWD

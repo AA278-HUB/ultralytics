@@ -13,6 +13,7 @@ from ultralytics.utils.metrics import OKS_SIGMA, calculate_siou
 from ultralytics.utils.ops import crop_mask, xywh2xyxy, xyxy2xywh
 from ultralytics.utils.tal import RotatedTaskAlignedAssigner, TaskAlignedAssigner, dist2bbox, dist2rbox, make_anchors
 from ultralytics.utils.torch_utils import autocast
+from .AsymmetricLoss import AsymmetricLossOptimized, AsymmetricLoss
 from .Mymetrics import WiseIouLoss, wasserstein_loss, bbox_inner_iou, bbox_focaler_iou, bbox_mpdiou, bbox_inner_mpdiou, \
     bbox_focaler_mpdiou, my_bbox_iou
 from .Mymetrics_1 import My_bbox_mpdiou
@@ -758,10 +759,13 @@ class v8DetectionLoss:
             self.bce = VarifocalLoss_YOLO(gamma=2.0, alpha=0.75)
         elif cls_type == "QualityfocalLoss":
             self.bce = QualityfocalLoss_YOLO(beta=2.0)
+            # --- 新增 AsymmetricLoss 分支 ---
+        elif cls_type == "AsymmetricLoss":
+            # 这里可以根据需要调整 gamma_neg, gamma_pos 和 clip
+             self.bce = AsymmetricLoss(gamma_neg=2, gamma_pos=1, clip=0.05)
         else:
             self.bce = nn.BCEWithLogitsLoss(reduction="none")
-        # -------------------------
-
+            # -------------------------
 
         self.hyp = h
         self.stride = m.stride  # model strides
@@ -876,6 +880,13 @@ class v8DetectionLoss:
         # cls loss
         if isinstance(self.bce, (nn.BCEWithLogitsLoss, FocalLoss_YOLO)):
             loss[1] = self.bce(pred_scores, target_scores.to(dtype)).sum() / target_scores_sum  # BCE
+            # --- 新增 AsymmetricLoss 的计算逻辑 ---
+        elif isinstance(self.bce, (AsymmetricLoss, AsymmetricLossOptimized)):
+            # ASL 内部会做 sigmoid，所以这里直接传入 raw logits (pred_scores)
+            # 这里的 target_scores 是 TAL 分配的 soft label (0~1 之间)
+            asl_loss = self.bce(pred_scores, target_scores.to(dtype))
+            loss[1] = asl_loss / target_scores_sum
+        # ------------------------------------
         elif isinstance(self.bce, VarifocalLoss_YOLO):
             if fg_mask.sum():
                 pos_ious = bbox_iou(pred_bboxes, target_bboxes / stride_tensor, xywh=False).clamp(min=1e-6).detach()
