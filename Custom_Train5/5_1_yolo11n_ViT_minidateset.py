@@ -14,9 +14,9 @@ model_yaml_paths = [
     # "Custom_Model_cfg_13/yolo11_MAFPN_modifyX_uniRepLK_v1_L_SPPF.yaml",
     # "Custom_Model_cfg_14/yolo11_MAFPN_modifyX_uniRepLK_v2.yaml",
     # "Custom_Model_cfg_14/yolo11_MAFPN_modifyX_uniRepLKv5_v1.yaml",
-    # "Custom_Model_cfg_15/yolo11_MAFPN_modifyX_uniRepLKv5_v2.yaml",
+    "Custom_Model_cfg_15/yolo11_MAFPN_modifyX_uniRepLKv5_v2.yaml",
     # "Custom_Model_cfg_15/yolo11_MAFPN_modifyX_uniRepLKv5_v2_GSPPF.yaml",
-    "Custom_Model_cfg_10/yolo11_MAFPN_modifyX_C3k2.yaml",
+    # "Custom_Model_cfg_10/yolo11_MAFPN_modifyX_C3k2.yaml",
 
 ]
 cls_type="AsymmetricLoss"
@@ -38,7 +38,7 @@ if __name__ == '__main__':
 # =======
         model.train(
             data=data,
-            epochs=100,
+            epochs=200,
             batch=16,
             imgsz=640,  # 保持不变
             cos_lr=True,
