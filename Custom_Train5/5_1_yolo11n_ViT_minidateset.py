@@ -19,8 +19,8 @@ model_yaml_paths = [
     # "Custom_Model_cfg_10/yolo11_MAFPN_modifyX_C3k2.yaml",
 
 ]
-cls_type="AsymmetricLoss"
-full_iou_name="CIoU"
+cls_type="EMASlideLoss"
+full_iou_name="PIoU"
 nwd_on=False
 use_wise_framework=False
 
