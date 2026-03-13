@@ -2,17 +2,18 @@ from ultralytics import YOLO
 
 # 模型路径列表
 model_path = [
-    r"C:\Users\Hunger\Desktop\实验数据_new\yolo11n20251022_19_29\weights\best.pt",
-    # r"C:\Users\Hunger\Desktop\实验数据_new\yolo11_ghost20251023_22_20\weights\best.pt",
-    # r"C:\Users\Hunger\Desktop\实验数据_new\yolo11_Rep_shufflev1_new20251028_21_48\weights\best.pt",
-    r"C:\Users\Hunger\Desktop\实验数据_new\yolo11_Rep_shufflev2_new20251031_21_38\weights\best.pt",
-    #r"C:\Users\Hunger\Desktop\实验数据_new\yolo11_Ghost_Rep_shufflev1_CBAM20251031_20_37\weights\best.pt",
-    r"C:\Users\Hunger\Desktop\实验数据_new\yolo11_Ghost_Rep_shufflev2_CBAM20251101_19_03\weights\best.pt",
-    #r"C:\Users\Hunger\Desktop\实验数据_new\yolo11_Ghost_Rep_shufflev1_CA_1_20251112_10_25\weights\best.pt",
-    r"C:\Users\Hunger\Desktop\实验数据_new\yolo11_Ghost_Rep_shufflev2_CA_20251116_10_17\weights\best.pt",
-    r"C:\Users\Hunger\Desktop\实验数据_new\MobileNetV4_20251201_11_31\weights\best.pt",
-    r"C:\Users\Hunger\Desktop\实验数据_new\yolo12n_20251215_15_37\weights\best.pt",
-    r"C:\Users\Hunger\Desktop\实验数据_new\yolov8n_20251117_12_50\weights\best.pt"
+    # r"C:\Users\Hunger\Desktop\ultralytics\Custom_benchmark\best.pt",
+    r"C:\Users\Hunger\Desktop\My_new\yolo11n20251022_19_29\weights\best.pt",
+    # # r"C:\Users\Hunger\Desktop\实验数据_new\yolo11_ghost20251023_22_20\weights\best.pt",
+    # # r"C:\Users\Hunger\Desktop\实验数据_new\yolo11_Rep_shufflev1_new20251028_21_48\weights\best.pt",
+    # r"C:\Users\Hunger\Desktop\实验数据_new\yolo11_Rep_shufflev2_new20251031_21_38\weights\best.pt",
+    # #r"C:\Users\Hunger\Desktop\实验数据_new\yolo11_Ghost_Rep_shufflev1_CBAM20251031_20_37\weights\best.pt",
+    # r"C:\Users\Hunger\Desktop\实验数据_new\yolo11_Ghost_Rep_shufflev2_CBAM20251101_19_03\weights\best.pt",
+    # #r"C:\Users\Hunger\Desktop\实验数据_new\yolo11_Ghost_Rep_shufflev1_CA_1_20251112_10_25\weights\best.pt",
+    # r"C:\Users\Hunger\Desktop\实验数据_new\yolo11_Ghost_Rep_shufflev2_CA_20251116_10_17\weights\best.pt",
+    # r"C:\Users\Hunger\Desktop\实验数据_new\MobileNetV4_20251201_11_31\weights\best.pt",
+    # r"C:\Users\Hunger\Desktop\实验数据_new\yolo12n_20251215_15_37\weights\best.pt",
+    # r"C:\Users\Hunger\Desktop\实验数据_new\yolov8n_20251117_12_50\weights\best.pt"
 ]
 # r"C:\Users\Hunger\Desktop\实验数据_new\yolo11_Ghost_Rep_shufflev1_CA_20251110_14_44\weights\best.pt",
 
@@ -26,10 +27,10 @@ if __name__ == '__main__':
         # model.fuse()
         model.eval()
         metrics = model.val(data=data,batch=32,device="0")  # no arguments needed, dataset and settings remembered
-        metrics.box.map  # map50-95
-        metrics.box.map50  # map50
-        metrics.box.map75  # map75
-        metrics.box.maps  # a list contains map50-95 of each category
+        # metrics.box.map  # map50-95
+        # metrics.box.map50  # map50
+        # metrics.box.map75  # map75
+        # metrics.box.maps  # a list contains map50-95 of each category
 
 # import os
 # import shutil
