@@ -20,7 +20,7 @@ model_yaml_paths = [
 
 ]
 cls_type="EMASlideLoss"
-full_iou_name="PIoU"
+full_iou_name="CIoU"
 nwd_on=False
 use_wise_framework=False
 
