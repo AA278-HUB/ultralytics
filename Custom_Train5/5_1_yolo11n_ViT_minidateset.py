@@ -5,17 +5,7 @@ import os
 
 # 模型配置文件
 model_yaml_paths = [
-    # "Custom_Model_cfg_13/yolo11_MAFPN_modifyX_uniRepLK_v1.yaml"
-    # "Custom_Model_cfg_13/yolo11_MAFPN_modifyX_uniRepLK_v1_GSPPF.yaml"
-    # "Custom_Model_cfg_13/yolo11_MAFPN_modifyX_uniRepLK_v1_ESPPF.yaml",
-    # "Custom_Model_cfg_13/yolo11_MAFPN_modifyX_uniRepLK_v1_SSPPF.yaml",
-    # "Custom_Model_cfg_13/yolo11_MAFPN_modifyX_uniRepLK_v1_DSPPF.yaml",
-    # "Custom_Model_cfg_13/yolo11_MAFPN_modifyX_uniRepLK_v1_Dy_SPPF.yaml",
-    # "Custom_Model_cfg_13/yolo11_MAFPN_modifyX_uniRepLK_v1_L_SPPF.yaml",
-    # "Custom_Model_cfg_14/yolo11_MAFPN_modifyX_uniRepLK_v2.yaml",
-    # "Custom_Model_cfg_14/yolo11_MAFPN_modifyX_uniRepLKv5_v1.yaml",
     "Custom_Model_cfg_15/yolo11_MAFPN_modifyX_uniRepLKv5_v2.yaml",
-    # "Custom_Model_cfg_15/yolo11_MAFPN_modifyX_uniRepLKv5_v2_GSPPF.yaml",
     # "Custom_Model_cfg_10/yolo11_MAFPN_modifyX_C3k2.yaml",
 
 ]
@@ -34,7 +24,7 @@ if __name__ == '__main__':
         print(f"\n==== Training model: {model_name} ====\n")
         model = YOLO(model_yaml_path)
         # model.train(resume=True)
-        Loss="CIOU"
+        Loss=cls_type+"_"+full_iou_name
 # =======
         model.train(
             data=data,
@@ -42,8 +32,8 @@ if __name__ == '__main__':
             batch=16,
             imgsz=640,  # 保持不变
             cos_lr=True,
-            lr0=0.005,  # ↑ 初始学习率
-            lrf=0.2,  # ↑ 最终学习率比例
+            lr0=0.01,  # ↑ 初始学习率
+            lrf=0.1,  # ↑ 最终学习率比例
             close_mosaic=20,  # 提前关闭 mosaic
             save=True,
             device=-1,
